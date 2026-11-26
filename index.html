@@ -1636,6 +1636,74 @@ function makePlant(w, x, z, id){
   return p;
 }
 
+/* ---------------- Питание по стадии ----------------
+   Один EC на весь сезон — компромисс: рассаде нужен мягкий раствор, наливу —
+   крепкий. Рецепт под фазу даёт игроку конкретную цифру и объяснение «почему»,
+   а модель считает мягкий штраф, если EC/pH далеко от нормы фазы.            */
+const STAGE_RECIPES = {
+  tomato: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0],
+            why:'корням нужен мягкий раствор: крепкий EC на молодом кусте жжёт корни'},
+    veg:   {name:'Вегетативный рост',   ec:[2.2,2.8], ph:[5.6,6.0],
+            why:'растёт лист и стебель — азот и кальций, EC средний'},
+    fruit: {name:'Налив плодов',        ec:[2.6,3.2], ph:[5.8,6.2],
+            why:'плод набирает массу: больше калия, EC выше, кальций от вершинной гнили'}
+  },
+  cherry: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0], why:'мягкий раствор на старте'},
+    veg:   {name:'Вегетативный рост',   ec:[2.2,2.8], ph:[5.6,6.0], why:'наращиваем полог: азот и кальций'},
+    fruit: {name:'Кисти с плодами',     ec:[2.8,3.4], ph:[5.8,6.2],
+            why:'черри любят сахара: крепкий EC и калий, но следите за засолением'}
+  },
+  cucumber: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0], why:'огурец нежен на старте: мягкий EC'},
+    veg:   {name:'Плеть и лист',        ec:[2.0,2.6], ph:[5.6,6.0], why:'быстрый рост: средний EC, много воды'},
+    fruit: {name:'Налив зеленца',       ec:[2.4,3.0], ph:[5.8,6.2], why:'налив каждые два дня: калий и стабильная влага'}
+  },
+  lettuce: {
+    start: {name:'Сеянцы',              ec:[1.2,1.8], ph:[5.6,6.0], why:'салат не терпит соли: мягкий раствор'},
+    veg:   {name:'Лист',                ec:[1.6,2.2], ph:[5.8,6.2], why:'лист растёт быстро, много азота'},
+    fruit: {name:'Головка',             ec:[1.6,2.2], ph:[5.8,6.2], why:'перед срезом EC не поднимают: иначе горечь и краевой ожог'}
+  }
+};
+function cropStage(w){
+  const C = CROPS[w.crop];
+  const ps = w.plants || [];
+  if (!ps.length) return {key:'start', name:'старт'};
+  const age = ps.reduce((s,p)=>s+(p.age||0),0)/ps.length;
+  if (C.leafy){
+    const head = ps.reduce((s,p)=>s+(p.head||0),0)/ps.length;
+    if (age < 16) return {key:'start', name:'сеянцы'};
+    if (head >= C.headTarget*0.6) return {key:'fruit', name:'головка'};
+    return {key:'veg', name:'лист'};
+  }
+  // стадия по массе плодов, а не по их количеству: завязи есть уже в вегетации,
+  // налив начинается, когда плоды реально растут
+  const alive = ps.reduce((a,p)=>a.concat(p.fruits.filter(f=>!f.harvested)), []);
+  const mass = alive.reduce((a,f)=>a+(f.mass||0),0);
+  const avg = alive.length ? mass/alive.length : 0;
+  if (age < 14) return {key:'start', name:'рассада'};
+  if (alive.length < 3 || avg < C.fruitSink*0.25) return {key:'veg', name:'вегетация'};
+  return {key:'fruit', name:'налив'};
+}
+function stageRecipe(w){
+  const st = cropStage(w);
+  const R = (STAGE_RECIPES[w.crop] || STAGE_RECIPES.tomato)[st.key] || STAGE_RECIPES.tomato.veg;
+  return Object.assign({stage:st}, R);
+}
+/* Мягкая подгонка питания под фазу. Штраф включается только когда EC ушёл
+   далеко от коридора фазы (запас 0,3 мСм/см): «средний» EC 2,4 на наливе —
+   не ошибка, ошибка — 1,6 или 3,5. Максимум −6%, чтобы совет помогал,
+   а не наказывал за каждый шаг ползунка.                                  */
+function stageFit(w, ec, ph){
+  const R = stageRecipe(w);
+  const ctr = (R.ec[0]+R.ec[1])/2, tol = (R.ec[1]-R.ec[0])/2 + 0.3;
+  let f = 1 - Math.min(0.06, Math.max(0, Math.abs(ec-ctr) - tol)*0.12);
+  const phC = (R.ph[0]+R.ph[1])/2, phTol = (R.ph[1]-R.ph[0])/2 + 0.25;
+  if (Math.abs(ph-phC) > phTol) f *= 0.97;
+  return clamp(f, 0.90, 1);
+}
+
 /* ---------------- Fertigation: EC/pH, вода, удобрения ---------------- */
 function fertFactors(w){
   const c = w.ctrl;
@@ -1650,7 +1718,9 @@ function fertFactors(w){
   if (ph < 5.2 || ph > 6.6) nutri *= lerp(1, 0.82, S.ecSens);
   // Ca-блок: кальций + высокая VPD → вершинная гниль плодов
   const caDef = clamp((c.recipe!=='fruit' ? 0.2 : 0) + (ec>3.2?0.3:0), 0, 1);
-  return {nutri: clamp(nutri,0.35,1.05), caDef};
+  const fit = stageFit(w, ec, ph);
+  nutri *= fit;
+  return {nutri: clamp(nutri,0.35,1.05), caDef, stageFit:fit};
 }
 
 /* ---------------- Климат теплицы ----------------
@@ -2229,6 +2299,28 @@ function whRot(w){
 }
 
 /* ---------------- Продажа со склада ---------------- */
+/* ---------------- Себестоимость килограмма ----------------
+   Сколько стоило вырастить то, что уже собрано: все расходы сезона на кг.
+   Сравниваем с ценой дня — это и есть ответ «я зарабатываю или доедаю склад». */
+function seasonCost(w){ return Object.values(w.cost||{}).reduce((s,x)=>s+(x||0),0); }
+function costPerKg(w){
+  const kg = w.harvestedKg || 0;
+  if (kg < 0.05) return null;
+  return seasonCost(w)/kg;
+}
+function marginInfo(w, crop){
+  const c = costPerKg(w);
+  const price = priceToday(w, crop || w.crop);
+  if (c === null) return {cost:null, price, margin:null, pct:null};
+  return {cost:c, price, margin:price-c, pct:(price-c)/Math.max(0.01,price)};
+}
+/* оценка себестоимости «наперёд»: вчерашние расходы на вчерашний урожай */
+function costPerKgDay(w){
+  const h = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
+  if (!h || !(h.harvestedKg>0.05)) return null;
+  return (h.cost||0)/(h.harvestedKg||1);
+}
+
 function lotQuality(lot){ return clamp(lot.q*(1 - 0.55*lot.age/Math.max(1,lot.shelf*1.4)), 0.35, 1); }
 function sellHarvest(w, crop, kgWant){
   crop = crop || w.crop;
@@ -3209,6 +3301,15 @@ function diagnose(w){
     risk:'Дефицит ограничивает формирование новых листьев и плодов; чрезмерное повышение EC тоже опасно засолением.',
     action:'Сверьте EC/pH с рецептом культуры и текущей стадией, затем корректируйте раствор небольшими шагами.'
   });
+  const phaseRecipe = stageRecipe(w);
+  const ecFit = w.ctrl.ecSet >= phaseRecipe.ec[0] && w.ctrl.ecSet <= phaseRecipe.ec[1];
+  const phFit = w.ctrl.phSet >= phaseRecipe.ph[0] && w.ctrl.phSet <= phaseRecipe.ph[1];
+  if (!ecFit || !phFit) push('warn', `Раствор не под фазу «${phaseRecipe.name}»: EC ${w.ctrl.ecSet.toFixed(1)} / pH ${w.ctrl.phSet.toFixed(1)}`, {
+    why: `Для текущей стадии ориентир EC ${phaseRecipe.ec[0]}–${phaseRecipe.ec[1]} и pH ${phaseRecipe.ph[0]}–${phaseRecipe.ph[1]}. ${phaseRecipe.why}.`,
+    risk: 'Слишком слабый или крепкий раствор снижает доступность элементов; избыток солей повышает осмотическую нагрузку на корни.',
+    action: `В параметрах примените рецепт «${phaseRecipe.name}» или вручную верните EC и pH в указанные диапазоны.`
+  });
+
   if (w.hour > 8 && w.hour < 18 && (w.light.meanLeaf||0) < 120 && (w.out.ppfd||0) > 250)
                              push('warn', 'Мало света в кроне: пасмурно, затенение или слишком плотный полог', {
                                why:'Наружный свет есть, но до листьев доходит мало фотонов — часть теряется на остеклении, сетке или верхних листьях.',
@@ -4689,6 +4790,14 @@ function renderFinance(){
   $('finance').innerHTML = `
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
+    ${(()=>{ const m = marginInfo(w);
+      return `<div class="finRow" title="Себестоимость = все расходы сезона ÷ собранные килограммы. Цена — текущий ориентир рынка.">
+        <span>себест./цена 1 кг</span><b class="dim">${m.cost==null?'—':money2(m.cost)}</b>
+        <b>${money2(m.price)}</b></div>
+      <div class="finRow" title="Маржа — цена дня минус расчётная себестоимость одного килограмма.">
+        <span>маржа 1 кг</span><span class="dim">—</span>
+        <b class="${m.margin==null?'':(m.margin>=0?'pos':'neg')}">${m.margin==null?'—':money2(m.margin)+' ('+(m.pct*100).toFixed(1)+'%)'}</b></div>
+      <div class="hint">Плюс означает, что текущая цена выше расчётной себестоимости; минус — что цена не покрывает расходы. Это ориентир: фактическая выручка зависит от качества партии, порчи и условий контракта.</div>`; })()}
     <div class="finRow total"><span>Прибыль</span>${cell(profitDay)}${cell(profit)}</div>
     <div class="finRow total"><span>Деньги</span>${cell(moneyDay)}${cell(w.money)}</div>
     <div class="finRow"><span>от старта</span><span class="dim">—</span>${cell(w.money-w.startMoney)}</div>
@@ -5242,6 +5351,14 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Питание (fertigation)</b></div>
+      ${(()=>{ const R = stageRecipe(world);
+        const inEC = c.ecSet >= R.ec[0] && c.ecSet <= R.ec[1] && c.phSet >= R.ph[0] && c.phSet <= R.ph[1];
+        const mid = ((R.ec[0]+R.ec[1])/2).toFixed(1), phMid = ((R.ph[0]+R.ph[1])/2).toFixed(1);
+        return `<div class="kv"><span>текущая стадия</span><b>${R.name}</b></div>
+        <div class="hint" style="margin-bottom:7px">${R.why}</div>
+        <div class="row"><label>Рецепт для этой стадии
+          <div class="hint">EC ${R.ec[0]}–${R.ec[1]} · pH ${R.ph[0]}–${R.ph[1]} · ${inEC?'параметры в коридоре':'параметры вне коридора'}</div></label>
+          <button class="btn ${inEC?'':'good'}" id="btnRecipeApply">поставить ${mid} / ${phMid}</button></div>`; })()}
       ${slider('ec','EC, мСм/см',1.0,3.6,0.1,c.ecSet,v=>v.toFixed(1))}
       ${slider('ph','pH',5.0,6.8,0.1,c.phSet,v=>v.toFixed(1))}
       <div class="row"><label>Рецепт</label>
@@ -5364,6 +5481,15 @@ function renderSettings(){
   $('btnScreenSet').onclick = ()=>{ if (!world.has.screen) return toast('Сначала купите термоэкран'); world.ctrl.screenOn = !world.ctrl.screenOn; renderSettings(); };
   $('btnShadeSet').onclick = ()=>{ if (!world.has.shade) return toast('Сначала купите сетку'); world.ctrl.shadeOn = !world.ctrl.shadeOn; renderSettings(); };
   $('recipeSel').onchange = e => { world.ctrl.recipe = e.target.value; };
+  // Рецепт фазы: устанавливаем середину диапазонов EC и pH для текущей культуры.
+  if ($('btnRecipeApply')) $('btnRecipeApply').onclick = ()=>{
+    const R = stageRecipe(world);
+    world.ctrl.ecSet = Math.round((R.ec[0]+R.ec[1])/2*10)/10;
+    world.ctrl.phSet = Math.round((R.ph[0]+R.ph[1])/2*10)/10;
+    world.ctrl.recipe = R.stage.key==='fruit' ? 'fruit' : 'std';
+    toast(`Рецепт «${R.name}»: EC ${world.ctrl.ecSet} · pH ${world.ctrl.phSet}`);
+    renderSettings(); renderAll(); saveNow(true);
+  };
   document.querySelectorAll('[data-auto]').forEach(b=>b.onclick=()=>{
     const id = b.dataset.auto, cur = !!(world.auto[id] && world.auto[id].on);
     const r = setAuto(world, id, !cur);
