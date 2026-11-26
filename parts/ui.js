@@ -18,6 +18,8 @@ function setCurrency(id){
 const num = v => Math.round(v).toLocaleString('ru-RU');
 
 let world = null;
+let activeSensorTip = '';
+let financeDetailsOpen = false;
 let page = 'greenhouse';
 let settingsSection = 'grow';
 
@@ -673,7 +675,7 @@ function renderTop(){
 /* ---------------- дашборд: датчики ---------------- */
 function gauge(label, val, min, max, unit, cls, digits, tip){
   const pct = clamp((val-min)/(max-min),0,1)*100;
-  return `<div class="g"><span class="sensor-label" data-tip="${tip||label}" tabindex="0" role="button" aria-label="${label}: ${tip||label}">${label}<i>ⓘ</i></span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
+  return `<div class="g"><span class="sensor-label ${activeSensorTip===label?'tip-open':''}" data-tip-key="${label}" data-tip="${tip||label}" tabindex="0" role="button" aria-label="${label}: ${tip||label}">${label}<i>ⓘ</i></span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
     <b>${val.toFixed(digits===undefined?1:digits)}${unit}</b></div>`;
 }
 /* цвет шкалы влаги: сухо и перелив — красным, норма — спокойным */
@@ -691,7 +693,7 @@ function renderGauges(){
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0, 'Фотосинтетически активная радиация на листьях: сколько света реально получает крона сейчас.') +
     (()=>{ const D = dliInfo(world); const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
       return `<div class="g" title="DLI за сутки: сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Фотопериод ${D.photo.toFixed(1)} ч.">
-        <span class="sensor-label" data-tip="DLI — суммарная доза света за сутки. В отличие от PAR учитывает и интенсивность, и продолжительность освещения." tabindex="0" role="button" aria-label="DLI: суммарная доза света за сутки">DLI<i>ⓘ</i></span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
+        <span class="sensor-label ${activeSensorTip==='DLI'?'tip-open':''}" data-tip-key="DLI" data-tip="DLI — суммарная доза света за сутки. В отличие от PAR учитывает и интенсивность, и продолжительность освещения." tabindex="0" role="button" aria-label="DLI: суммарная доза света за сутки">DLI<i>ⓘ</i></span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
     gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0, 'Влажность субстрата по датчику. Низкие значения означают дефицит воды, слишком высокие — риск переувлажнения корней.') +
     gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0, 'Индекс развития болезни растений. Рост показателя означает, что условия или инфекционный фон ухудшают состояние посадок.');
   // подсказка о дрейфе датчиков
@@ -791,8 +793,8 @@ function renderFinance(){
     : `<b class="${v>0.004?'pos':(v<-0.004?'neg':'')}">${v>0.004?'+':''}${moneyNum(v)}</b>`;
   $('finance').innerHTML = `
     <div class="finance-summary"><span>Прибыль сезона <b class="${profit>=0?'pos':'neg'}">${moneyNum(profit)}</b></span><span>Баланс <b>${moneyNum(w.money)}</b></span></div>
-    <button type="button" class="panel-fold finance-fold" data-fold-target="financeDetails" aria-expanded="false">Подробная экономика <span class="fold-icon">＋</span></button>
-    <div id="financeDetails" class="fold-content" hidden>
+    <button type="button" class="panel-fold finance-fold" data-fold-target="financeDetails" aria-expanded="${financeDetailsOpen}">Подробная экономика <span class="fold-icon">${financeDetailsOpen?'−':'＋'}</span></button>
+    <div id="financeDetails" class="fold-content" ${financeDetailsOpen?'':'hidden'}>
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
     ${(()=>{ const m = marginInfo(w);
@@ -2139,6 +2141,7 @@ function bindDashboardDetails(){
       if(!target) return;
       const open=btn.getAttribute('aria-expanded')!=='true';
       btn.setAttribute('aria-expanded',String(open));
+      if(target.id==='financeDetails') financeDetailsOpen=open;
       target.hidden=!open;
       const icon=btn.querySelector('.fold-icon');
       if(icon) icon.textContent=open?'−':'＋';
@@ -2147,10 +2150,10 @@ function bindDashboardDetails(){
   document.querySelectorAll('.sensor-label').forEach(el=>{
     if(el.dataset.tipBound) return;
     el.dataset.tipBound='1';
-    el.addEventListener('click',()=>el.classList.toggle('tip-open'));
+    el.addEventListener('click',()=>{ activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey; document.querySelectorAll('.sensor-label').forEach(node=>node.classList.toggle('tip-open',node.dataset.tipKey===activeSensorTip)); });
     el.addEventListener('keydown',e=>{
-      if(e.key==='Enter'||e.key===' '){e.preventDefault();el.classList.toggle('tip-open');}
-      if(e.key==='Escape')el.classList.remove('tip-open');
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey;el.classList.toggle('tip-open',activeSensorTip===el.dataset.tipKey);}
+      if(e.key==='Escape'){activeSensorTip='';el.classList.remove('tip-open');}
     });
   });
 }
