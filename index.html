@@ -443,10 +443,49 @@
 .feat i{font-style:normal;width:9px;display:inline-block;text-align:center}
 .feat.on{color:var(--txt)}
 .feat.on i{color:#a8e05a}
+/* Main menu and modular settings */
+body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!important}
+#mainMenu{z-index:80;background:radial-gradient(ellipse at 50% 20%,rgba(74,112,70,.22),transparent 58%),var(--bg)}
+#mainMenu .menu-sheet{width:min(560px,94vw);max-height:90vh;overflow:auto;padding:clamp(22px,5vw,42px);border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 20px 70px #0008}
+.menu-kicker{font-size:11px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+.menu-title{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:.04em;margin:8px 0 4px}
+.menu-subtitle{color:var(--dim);margin:0 0 24px}
+.menu-actions{display:grid;gap:9px}
+.menu-actions button{width:100%;text-align:left;display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--txt);font:inherit;cursor:pointer}
+.menu-actions button:hover{border-color:var(--acc);background:var(--panel2)}
+.menu-actions button b{display:block;font-size:15px}
+.menu-actions button small{display:block;color:var(--dim);font-size:12px;margin-top:3px}
+.menu-actions .menu-symbol{font-size:22px;width:30px;text-align:center}
+#mainSettings{z-index:90}
+.settings-nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;position:sticky;top:0;padding:4px 0;background:var(--bg);z-index:2}
+.settings-tab{border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);color:var(--txt);cursor:pointer;font:inherit;font-size:12px}
+.settings-tab.on{border-color:var(--acc);background:var(--panel2);color:var(--acc)}
+.settings-section[hidden]{display:none!important}
+.settings-section{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px;align-items:start}
+@media(max-width:600px){#mainMenu .menu-sheet{padding:22px 17px}.settings-nav{position:static}.settings-tab{flex:1 1 calc(50% - 7px)}}
 </style>
 </head>
 <body>
 <canvas id="scene"></canvas>
+<div id="mainMenu" class="modal on">
+  <div class="menu-sheet">
+    <div class="menu-kicker">GreenSim · симулятор тепличного хозяйства</div>
+    <div class="menu-title">НОВАЯ ИГРА</div><p class="menu-subtitle">Выберите режим</p>
+    <div class="menu-actions">
+      <button id="menuTraining"><span class="menu-symbol">⌖</span><span><b>Обучение</b><small>Освойте управление в ознакомительной сессии</small></span></button>
+      <button id="menuCampaign"><span class="menu-symbol">▤</span><span><b>Кампания</b><small>История, главы и развитие хозяйства</small></span></button>
+      <button id="menuFree"><span class="menu-symbol">🌱</span><span><b>Свободная игра</b><small>Настройте сезон без сценарных ограничений</small></span></button>
+      <button id="menuContinue" hidden><span class="menu-symbol">▶</span><span><b>Продолжить</b><small>Загрузить последнее сохранение</small></span></button>
+      <button id="menuSettings"><span class="menu-symbol">⚙</span><span><b>Настройки</b><small>Интерфейс и управление</small></span></button>
+    </div>
+  </div>
+</div>
+<div id="mainSettings" class="modal"><div class="sheet">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h2 style="margin:0">Настройки</h2><button class="btn" id="mainSettingsClose">Закрыть</button></div>
+  <div class="card" style="margin-top:12px"><b>Управление камерой</b><p class="hint">Как камера наклоняется при перетаскивании мышью или пальцем.</p><button class="btn" id="menuCameraInvert">Наклон камеры: обычный</button></div>
+  <div class="card"><b>Отображение валюты</b><p class="hint">Меняет подписи сумм, но не игровую экономику.</p><select id="menuCurrency"><option value="eur">€ Евро</option><option value="rub">₽ Рубли</option></select></div>
+  <p class="hint">Климат, питание, свет и автоматизация настраиваются отдельно внутри игрового сезона.</p>
+</div></div>
 
 <!-- ============ ВЕРХНЯЯ ПАНЕЛЬ ============ -->
 <div id="top" class="panel">
@@ -738,7 +777,7 @@
   <div class="sheet" id="mailBox"></div>
 </div>
 
-<div id="start" class="modal on">
+<div id="start" class="modal">
   <div class="sheet">
     <h1>Новый сезон</h1>
     <p>Выберите капитал, культуру и сложность. От капитала зависит площадь теплицы, цена реализации и постоянные расходы.</p>
