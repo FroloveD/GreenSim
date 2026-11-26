@@ -560,12 +560,47 @@ function sunVector(el, az){
   const e = Math.max(el, -0.1)*D2R, a = az*D2R;
   return {x: Math.cos(e)*Math.sin(a), y: Math.sin(e), z: Math.cos(e)*Math.cos(a)};
 }
+/* ---------------- Реальная погода вместо норм ----------------
+   Таблица «день года → средняя температура и облачность» из открытого
+   архива open-meteo. Её нет — считаем по многолетним нормам, поэтому
+   игра работает и без сети: погода — улучшение, а не зависимость.        */
+function applyWeatherTable(w, rows, meta){
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const T = new Array(366).fill(null), Cc = new Array(366).fill(null);
+  let n = 0;
+  for (const r of rows){
+    const d = clamp(Math.round(r.doy), 1, 365);
+    if (r.t === null || r.t === undefined || !isFinite(r.t)) continue;
+    T[d] = +r.t; Cc[d] = (r.cloud===null||r.cloud===undefined) ? null : clamp(+r.cloud,0,1);
+    n++;
+  }
+  if (!n) return false;
+  w.realWeather = { t:T, c:Cc, source:(meta&&meta.source)||'open-meteo',
+                    at:(meta&&meta.at)||Date.now(), site:(w.site&&w.site.id)||'ekb', n };
+  return true;
+}
+function realWeatherAt(w, doy){
+  const rw = w.realWeather;
+  if (!rw || !rw.t) return null;
+  const d = clamp(Math.round(doy), 1, 365);
+  let t = rw.t[d], c = rw.c ? rw.c[d] : null;
+  if (t === null || t === undefined){
+    for (let k=1;k<40;k++){
+      const a = ((d-1+k)%365)+1, b = ((d-1-k+365)%365)+1;
+      if (rw.t[a] != null){ t = rw.t[a]; c = rw.c ? rw.c[a] : null; break; }
+      if (rw.t[b] != null){ t = rw.t[b]; c = rw.c ? rw.c[b] : null; break; }
+    }
+  }
+  return (t === null || t === undefined) ? null : {t, cloud:(c==null?0.45:c)};
+}
+
 function outsideClimate(w, doy, hour){
   // климат берём из норм локации (открытые данные), а не из «средней Земли»
   const site = (w && w.site) || {id:'ekb', region:'uralsib', lat:CFG.lat, az:180};
   const N = siteNormals(site);
-  const sunFrac = clamp(normAt(N.sun, doy), 0.02, 0.85);      // доля солнца в месяце
-  let tMean = normAt(N.temp, doy);
+  const rw = realWeatherAt(w, doy);
+  const sunFrac = clamp(rw && rw.cloud!=null ? (1-rw.cloud) : normAt(N.sun, doy), 0.02, 0.85);
+  let tMean = (rw && rw.t!=null) ? rw.t : normAt(N.temp, doy);
   // суточная амплитуда: чем яснее месяц, тем больше размах день/ночь
   let tAmp = 4.0 + 5.0*(1 - sunFrac);
   // погодные события: холодный фронт / жара
@@ -586,7 +621,8 @@ function outsideClimate(w, doy, hour){
   const rh = clamp(80 - 12*Math.sin((hour-6)/24*2*Math.PI) + 12*cloud, 35, 98);
   // сцена: остекление смотрит на az дома, поэтому азимут пересчитываем в её систему
   const azScene = ((s.az - ((site.az||180) - 180)) % 360 + 360) % 360;
-  return {temp, ppfd, rh, el:s.el, az:s.az, azScene, sun:s, cloud, site:site.id, sunFrac};
+  return {temp, ppfd, rh, el:s.el, az:s.az, azScene, sun:s, cloud, site:site.id, sunFrac,
+          real: !!rw, dayLen: dayLength(w, doy)};
 }
 
 /* ---------------- Геометрия органов (порт turtle-подхода) ---------------- */
@@ -1838,7 +1874,7 @@ function makeWorld(opts){
     // Суточная световая сумма и фотопериод; сохраняются между сессиями.
     dliAcc:0, dliLampAcc:0, lampHoursDay:0, photoHoursDay:0,
     dliYest:0, dliLampYest:0, lampHoursYest:0, photoHoursYest:0,
-    repF:1, rep:0, seasons:1, carry:null
+    repF:1, rep:0, seasons:1, carry:null, realWeather:null
   };
   // абсолютные характеристики теплицы (масштабируются по площади)
   w.env = {
