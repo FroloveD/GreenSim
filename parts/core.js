@@ -854,6 +854,74 @@ function makePlant(w, x, z, id){
   return p;
 }
 
+/* ---------------- Питание по стадии ----------------
+   Один EC на весь сезон — компромисс: рассаде нужен мягкий раствор, наливу —
+   крепкий. Рецепт под фазу даёт игроку конкретную цифру и объяснение «почему»,
+   а модель считает мягкий штраф, если EC/pH далеко от нормы фазы.            */
+const STAGE_RECIPES = {
+  tomato: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0],
+            why:'корням нужен мягкий раствор: крепкий EC на молодом кусте жжёт корни'},
+    veg:   {name:'Вегетативный рост',   ec:[2.2,2.8], ph:[5.6,6.0],
+            why:'растёт лист и стебель — азот и кальций, EC средний'},
+    fruit: {name:'Налив плодов',        ec:[2.6,3.2], ph:[5.8,6.2],
+            why:'плод набирает массу: больше калия, EC выше, кальций от вершинной гнили'}
+  },
+  cherry: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0], why:'мягкий раствор на старте'},
+    veg:   {name:'Вегетативный рост',   ec:[2.2,2.8], ph:[5.6,6.0], why:'наращиваем полог: азот и кальций'},
+    fruit: {name:'Кисти с плодами',     ec:[2.8,3.4], ph:[5.8,6.2],
+            why:'черри любят сахара: крепкий EC и калий, но следите за засолением'}
+  },
+  cucumber: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0], why:'огурец нежен на старте: мягкий EC'},
+    veg:   {name:'Плеть и лист',        ec:[2.0,2.6], ph:[5.6,6.0], why:'быстрый рост: средний EC, много воды'},
+    fruit: {name:'Налив зеленца',       ec:[2.4,3.0], ph:[5.8,6.2], why:'налив каждые два дня: калий и стабильная влага'}
+  },
+  lettuce: {
+    start: {name:'Сеянцы',              ec:[1.2,1.8], ph:[5.6,6.0], why:'салат не терпит соли: мягкий раствор'},
+    veg:   {name:'Лист',                ec:[1.6,2.2], ph:[5.8,6.2], why:'лист растёт быстро, много азота'},
+    fruit: {name:'Головка',             ec:[1.6,2.2], ph:[5.8,6.2], why:'перед срезом EC не поднимают: иначе горечь и краевой ожог'}
+  }
+};
+function cropStage(w){
+  const C = CROPS[w.crop];
+  const ps = w.plants || [];
+  if (!ps.length) return {key:'start', name:'старт'};
+  const age = ps.reduce((s,p)=>s+(p.age||0),0)/ps.length;
+  if (C.leafy){
+    const head = ps.reduce((s,p)=>s+(p.head||0),0)/ps.length;
+    if (age < 16) return {key:'start', name:'сеянцы'};
+    if (head >= C.headTarget*0.6) return {key:'fruit', name:'головка'};
+    return {key:'veg', name:'лист'};
+  }
+  // стадия по массе плодов, а не по их количеству: завязи есть уже в вегетации,
+  // налив начинается, когда плоды реально растут
+  const alive = ps.reduce((a,p)=>a.concat(p.fruits.filter(f=>!f.harvested)), []);
+  const mass = alive.reduce((a,f)=>a+(f.mass||0),0);
+  const avg = alive.length ? mass/alive.length : 0;
+  if (age < 14) return {key:'start', name:'рассада'};
+  if (alive.length < 3 || avg < C.fruitSink*0.25) return {key:'veg', name:'вегетация'};
+  return {key:'fruit', name:'налив'};
+}
+function stageRecipe(w){
+  const st = cropStage(w);
+  const R = (STAGE_RECIPES[w.crop] || STAGE_RECIPES.tomato)[st.key] || STAGE_RECIPES.tomato.veg;
+  return Object.assign({stage:st}, R);
+}
+/* Мягкая подгонка питания под фазу. Штраф включается только когда EC ушёл
+   далеко от коридора фазы (запас 0,3 мСм/см): «средний» EC 2,4 на наливе —
+   не ошибка, ошибка — 1,6 или 3,5. Максимум −6%, чтобы совет помогал,
+   а не наказывал за каждый шаг ползунка.                                  */
+function stageFit(w, ec, ph){
+  const R = stageRecipe(w);
+  const ctr = (R.ec[0]+R.ec[1])/2, tol = (R.ec[1]-R.ec[0])/2 + 0.3;
+  let f = 1 - Math.min(0.06, Math.max(0, Math.abs(ec-ctr) - tol)*0.12);
+  const phC = (R.ph[0]+R.ph[1])/2, phTol = (R.ph[1]-R.ph[0])/2 + 0.25;
+  if (Math.abs(ph-phC) > phTol) f *= 0.97;
+  return clamp(f, 0.90, 1);
+}
+
 /* ---------------- Fertigation: EC/pH, вода, удобрения ---------------- */
 function fertFactors(w){
   const c = w.ctrl;
@@ -868,7 +936,9 @@ function fertFactors(w){
   if (ph < 5.2 || ph > 6.6) nutri *= lerp(1, 0.82, S.ecSens);
   // Ca-блок: кальций + высокая VPD → вершинная гниль плодов
   const caDef = clamp((c.recipe!=='fruit' ? 0.2 : 0) + (ec>3.2?0.3:0), 0, 1);
-  return {nutri: clamp(nutri,0.35,1.05), caDef};
+  const fit = stageFit(w, ec, ph);
+  nutri *= fit;
+  return {nutri: clamp(nutri,0.35,1.05), caDef, stageFit:fit};
 }
 
 /* ---------------- Климат теплицы ----------------
