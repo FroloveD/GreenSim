@@ -2519,6 +2519,15 @@ function diagnose(w){
     risk:'Дефицит ограничивает формирование новых листьев и плодов; чрезмерное повышение EC тоже опасно засолением.',
     action:'Сверьте EC/pH с рецептом культуры и текущей стадией, затем корректируйте раствор небольшими шагами.'
   });
+  const phaseRecipe = stageRecipe(w);
+  const ecFit = w.ctrl.ecSet >= phaseRecipe.ec[0] && w.ctrl.ecSet <= phaseRecipe.ec[1];
+  const phFit = w.ctrl.phSet >= phaseRecipe.ph[0] && w.ctrl.phSet <= phaseRecipe.ph[1];
+  if (!ecFit || !phFit) push('warn', `Раствор не под фазу «${phaseRecipe.name}»: EC ${w.ctrl.ecSet.toFixed(1)} / pH ${w.ctrl.phSet.toFixed(1)}`, {
+    why: `Для текущей стадии ориентир EC ${phaseRecipe.ec[0]}–${phaseRecipe.ec[1]} и pH ${phaseRecipe.ph[0]}–${phaseRecipe.ph[1]}. ${phaseRecipe.why}.`,
+    risk: 'Слишком слабый или крепкий раствор снижает доступность элементов; избыток солей повышает осмотическую нагрузку на корни.',
+    action: `В параметрах примените рецепт «${phaseRecipe.name}» или вручную верните EC и pH в указанные диапазоны.`
+  });
+
   if (w.hour > 8 && w.hour < 18 && (w.light.meanLeaf||0) < 120 && (w.out.ppfd||0) > 250)
                              push('warn', 'Мало света в кроне: пасмурно, затенение или слишком плотный полог', {
                                why:'Наружный свет есть, но до листьев доходит мало фотонов — часть теряется на остеклении, сетке или верхних листьях.',
