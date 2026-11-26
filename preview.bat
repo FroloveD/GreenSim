@@ -14,7 +14,7 @@ echo.
 where node >nul 2>nul
 if errorlevel 1 goto no_node
 
-if not exist "tools\serve.js" goto no_server_file
+if not exist "tools\serve.cjs" goto no_server_file
 if not exist "tools\build-preview.cjs" goto no_build_file
 
 echo [1/2] Building index.html...
@@ -29,7 +29,7 @@ echo http://localhost:8080/
 echo.
 echo Keep this window open. Press Ctrl+C to stop the server.
 echo.
-node tools\serve.js
+node tools\serve.cjs
 echo.
 echo Server process has stopped.
 pause
@@ -40,7 +40,7 @@ echo ERROR: Node.js was not found in PATH.
 goto failed
 
 :no_server_file
-echo ERROR: tools\serve.js is missing.
+echo ERROR: tools\serve.cjs is missing.
 goto failed
 
 :no_build_file
