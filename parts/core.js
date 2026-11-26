@@ -2218,7 +2218,9 @@ function deserializeWorld(text){
   if (!w.auto || typeof w.auto !== 'object') w.auto = autoDefaults();
   else { const d = autoDefaults(); for (const k in d) if (!w.auto[k]) w.auto[k] = d[k]; }
   if (w.co2Window === undefined) w.co2Window = true;
-  if (w.diffPriceF === undefined) w.diffPriceF = DIFFICULTY[w.diffId||'normal'].priceF;
+  const savedDifficulty = DIFFICULTY[w.diffId] || DIFFICULTY.normal;
+  if (!DIFFICULTY[w.diffId]) w.diffId = savedDifficulty.id;
+  if (!Number.isFinite(w.diffPriceF)) w.diffPriceF = savedDifficulty.priceF;
   if (!w.seasonDays) w.seasonDays = w.camp ? 210 : CFG.seasonDays;
   pack.v = SAVE_VERSION;
   rebuildGraph(w);
