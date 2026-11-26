@@ -691,15 +691,15 @@ function renderGauges(){
   const tCls = m.temp>C.heatTol ? 'hot' : (m.temp<C.coldTol ? 'cold' : '');
   $('gauges').innerHTML =
     gauge('T', m.temp, 5, 38, '°C', tCls, undefined, 'Температура воздуха на уровне датчика. Сравнивайте с диапазоном переносимости выбранной культуры.') +
-    gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0, 'Относительная влажность воздуха. Слишком высокая влажность повышает риск грибковых заболеваний.') +
-    gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0, 'Концентрация углекислого газа. Нужен для фотосинтеза; обогащение имеет смысл при достаточном освещении.') +
+    gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0, 'Относительная влажность воздуха. Слишком высокая влажность повышает риск грибковых заболеваний.');
+  $('gaugeDetails').innerHTML =
+gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0, 'Концентрация углекислого газа. Нужен для фотосинтеза; обогащение имеет смысл при достаточном освещении.') +
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0, 'Фотосинтетически активная радиация на листьях: сколько света реально получает крона сейчас.') +
     (()=>{ const D = dliInfo(world); const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
       return `<div class="g" title="DLI за сутки: сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Фотопериод ${D.photo.toFixed(1)} ч.">
         <span class="sensor-label ${activeSensorTip==='DLI'?'tip-open':''}" data-tip-key="DLI" data-tip="DLI — суммарная доза света за сутки. В отличие от PAR учитывает и интенсивность, и продолжительность освещения." tabindex="0" role="button" aria-label="DLI: суммарная доза света за сутки">DLI<i>ⓘ</i></span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
     gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0, 'Влажность субстрата по датчику. Низкие значения означают дефицит воды, слишком высокие — риск переувлажнения корней.') +
-    gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0, 'Индекс развития болезни растений. Рост показателя означает, что условия или инфекционный фон ухудшают состояние посадок.');
-  // подсказка о дрейфе датчиков
+    gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0, 'Индекс развития болезни растений. Рост показателя означает, что условия или инфекционный фон ухудшают состояние посадок.');  // подсказка о дрейфе датчиков
   const drift = Math.abs(world.drift.temp)+Math.abs(world.drift.rh)/10;
   const days = world.day - world.lastCalib;
   let hint = '';
@@ -2007,7 +2007,11 @@ function handleClick(cx, cy){
   }
 }
 
-document.querySelectorAll('#camBar [data-view]').forEach(b=>b.onclick=()=>setCamMode(b.dataset.view));
+document.querySelectorAll('#camBar [data-view]').forEach(b=>b.onclick=()=>{
+  if(b.dataset.view==='plant' && cam.mode==='plant' && world.plants.length>1) cam.plant=(cam.plant+1)%world.plants.length;
+  setCamMode(b.dataset.view);
+  if(b.dataset.view==='plant') toast('Выбрано растение #'+(cam.plant+1)+' из '+world.plants.length);
+});
 window.addEventListener('keydown', e=>{
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   const map = {'1':'top','2':'front','3':'bed','4':'plant','5':'free'};
