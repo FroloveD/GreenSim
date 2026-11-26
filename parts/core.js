@@ -230,7 +230,7 @@ function netTick(w){
 const GEAR = {
   thermo:     {ch:0, why:'Датчик врёт — вы об этом не знаете. Второй прибор рядом покажет расхождение, и будет видно, когда пора калибровать.'},
   sticky:     {ch:0, why:'Клещ заводится в сухом тёплом воздухе и сначала незаметен. Ловушки ловят его до того, как он съест листья.'},
-  ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку и работает по расписанию досветки.'},
+  ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку. Включаете её сами, будильник напомнит.'},
   water:      {ch:0, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
   fert20:     {ch:0, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
   whSection:  {ch:0, why:'Склад не резиновый: нет места — урожай останется на грядке. Каждая секция тянет содержание, поэтому расширяйте под объём.'},
@@ -1172,7 +1172,7 @@ function moveChapter(w, idx){
   if (P.id === 'farm'){ w.has.screen = true; w.ctrl.screenOn = true; w.upg.reliability = true; }
   // новое помещение чистое: вредители и гнили с собой не переезжают
   w.pest = { active:false, level:0 };
-  w.disease = 0; w.stress = 0; w.ctrl.lampEnabled = false;
+  w.disease = 0; w.stress = 0; setLampState(w, false);
   w.camp.ch = idx;
   w.camp.seen.push('ch'+idx);
   w.log.unshift({t:'Д'+w.day, m:`Переезд: ${ch.name}. ${ch.note}`, k:'hl'});
@@ -1314,6 +1314,8 @@ function makeWorld(opts){
       lampOn: false, lampEnabled: false, screenOn: false, shadeOn: false,
       ecSet: 2.4, phSet: 5.8, recipe: 'std', irrig: true
     },
+    // досветку включает игрок вручную; будильник лишь напоминает (алерт), сам свет не переключает
+    lampAlarm: { on:{on:true, h:4.5}, off:{on:true, h:21} }, alerts: [],
     has: { led:false, lampBase:true, screen:false, shade:false, co2:true, dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
@@ -1357,22 +1359,77 @@ function makeWorld(opts){
   if (opts.campaign){
     // на балконе нет ни запасов, ни денег на них: только мешок удобрений, лейка, семена и лампа на стойке
     w.stock = { fertKg: 10, co2Kg: 0, waterM3: 15, seeds: 80 };
-    w.has.ledStrip = true; w.ctrl.lampEnabled = true;
+    w.has.ledStrip = true;                    // лампу на стойке включает игрок (будильник напомнит)
     w.money = 100; w.startMoney = 100;
     campaignTick(w);
   }
   return w;
 }
 
+/* ---------------- досветка: ручное включение и будильник-напоминание ---------------- */
+function hasLight(w){ return !!(w.has.led || w.has.ledStrip); }
+function clockHM(h){
+  const m = Math.round(h*60) % (24*60);
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+}
+// единственное место, где меняется состояние досветки: заодно снимаем алерты, которые уже не нужны
+function setLampState(w, on){
+  w.ctrl.lampEnabled = !!on;
+  w.alerts = (w.alerts||[]).filter(a => (a.action==='on') !== w.ctrl.lampEnabled);
+}
+function toggleLamp(w){
+  if (!hasLight(w)) return {ok:false, msg:'Сначала купите LED-досветку или ленту в магазине'};
+  setLampState(w, !w.ctrl.lampEnabled);
+  return {ok:true, msg: w.ctrl.lampEnabled ? 'Досветка включена' : 'Досветка выключена'};
+}
+function setLampAlarm(w, key, v){
+  if (key!=='on' && key!=='off') return {ok:false, msg:'Нет такого будильника'};
+  const h = Math.round(+v.h*4)/4;                  // шаг 15 минут
+  if (!isFinite(h) || h < 0 || h >= 24) return {ok:false, msg:'Время от 00:00 до 23:59'};
+  w.lampAlarm[key] = { on: !!v.on, h };
+  return {ok:true};
+}
+// пересекли ли часы будильника за шаг [h0, h0+dtH]; шаг короче суток
+function lampAlarmsTick(w, h0, dtH){
+  if (!w.lampAlarm || !hasLight(w)) return;
+  const h1 = h0 + dtH;
+  for (const key of ['on','off']){
+    const a = w.lampAlarm[key];
+    if (!a || !a.on) continue;
+    for (let k=0; k<=1; k++){
+      const t = a.h + 24*k;
+      if (t > h0 && t <= h1) fireLampAlarm(w, key);
+    }
+  }
+}
+function fireLampAlarm(w, key){
+  const wantOn = key==='on';
+  if (wantOn === !!w.ctrl.lampEnabled) return;      // уже как надо — не беспокоим
+  const last = w.alerts[w.alerts.length-1];
+  if (last && last.action===key && last.day===w.day) return;   // не дублируем в тот же день
+  const at = clockHM(w.lampAlarm[key].h);
+  w.alerts.push({ action:key, day:w.day, at,
+    text: at+(wantOn ? ' — пора включить досветку' : ' — пора выключить досветку') });
+  if (w.alerts.length > 6) w.alerts.shift();
+}
+// первый алерт, который ещё актуален (состояние досветки не совпало с ним)
+function pendingLampAlert(w){
+  w.alerts = (w.alerts||[]).filter(a => (a.action==='on') !== !!w.ctrl.lampEnabled);
+  return w.alerts[0] || null;
+}
+function dismissLampAlert(w){ w.alerts.shift(); }
+
 function stepWorld(w, dtH){
   if (w.over) return w;
   const C = CROPS[w.crop];
   const dtDays = dtH/24;
+  const h0 = w.hour;
   w.hour += dtH;
   let guard = 0;
   while (w.hour >= 24 && guard++ < 4){ w.hour -= 24; w.day++; w.doy++; newDay(w); }
-  // расписание досветки
-  w.ctrl.lampOn = !!w.ctrl.lampEnabled && (w.hour > 4.5 && w.hour < 21);
+  // досветка: только то, что игрок включил сам (автоматики по расписанию пока нет)
+  w.ctrl.lampOn = !!w.ctrl.lampEnabled;
+  if (!w.forecast) lampAlarmsTick(w, h0, dtH);
   computeLight(w, dtH);
   climateTick(w, dtH, C);
   fertTick(w, dtH);
@@ -1474,7 +1531,7 @@ const SHOP_ITEMS = () => ([
      desc:'+6% к усвоению питания (дешевле автодозирования)',
      buy:w=>{ w.has.handDose = true; }},
     {id:'ledStrip', noScale:true, name:'LED-лента 2×50 Вт на грядку', base:220,
-     desc:'+60 µmol/м²·с досветки, работает по расписанию досветки',
+     desc:'+60 µmol/м²·с досветки, включается вручную',
      buy:w=>{ w.has.ledStrip = true; }},
     {id:'humid', noScale:true, name:'Увлажнитель-туман 5 л/ч', base:260,
      desc:'поднимает влажность в жару (расход воды)',
@@ -1490,7 +1547,7 @@ const SHOP_ITEMS = () => ([
      buy:w=>{ w.has.climatePC = true; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
-    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, работает 4:30–21:00',
+    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, включается вручную',
      buy:w=>{ w.has.led = true; }},
     {id:'ledBoost', name:'Форсирование LED (+50%)', base:2600, desc:'280 µmol, +энергия',
      req:w=>w.has.led, buy:w=>{ w.upg.ledBoost = true; }},
@@ -1676,6 +1733,8 @@ function deserializeWorld(text){
   if (w.camp === undefined) w.camp = null;
   if (!w.net) w.net = { houses: [], cum:{gross:0, opex:0}, netDay:0, won:false };
   if (!w.sys || !GROW_SYS[w.sys]) w.sys = 'soil';
+  if (!w.lampAlarm) w.lampAlarm = { on:{on:true, h:4.5}, off:{on:true, h:21} };
+  if (!w.alerts) w.alerts = [];
   if (w.camp && w.camp.soldBase === undefined) w.camp.soldBase = 0;
   if (!w.mail) w.mail = [];
   if (w.diffPriceF === undefined) w.diffPriceF = DIFFICULTY[w.diffId||'normal'].priceF;

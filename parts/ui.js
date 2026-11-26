@@ -791,8 +791,17 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Свет и экраны</b></div>
-      <div class="row"><label>Досветка LED ${world.has.led?'':'<span style="color:var(--bad)">(не куплена)</span>'}</label>
-        <button class="btn ${c.lampEnabled?'good':''}" id="btnLampSet">${c.lampEnabled?'вкл':'выкл'}</button></div>
+      <div class="row"><label>Досветка ${lampKindLabel(world)}</label>
+        <button class="btn ${c.lampEnabled?'good':''}" id="btnLampSet" ${hasLight(world)?'':'disabled'}>${c.lampEnabled?'вкл':'выкл'}</button></div>
+      <div class="hint">${hasLight(world)
+        ? 'Свет включаете сами: автоматики по расписанию нет. Будильник ниже только напоминает, сам свет не переключает.'
+        : 'Досветки пока нет. LED-лента в магазине стоит 220 €, LED-досветка — 2 800 €.'}</div>
+      <div class="row"><label>Напомнить включить</label>
+        <span class="alarmSet"><input type="time" id="lampOnT" step="900" value="${clockHM(world.lampAlarm.on.h)}">
+          <label class="chk"><input type="checkbox" id="lampOnA" ${world.lampAlarm.on.on?'checked':''}> вкл</label></span></div>
+      <div class="row"><label>Напомнить выключить</label>
+        <span class="alarmSet"><input type="time" id="lampOffT" step="900" value="${clockHM(world.lampAlarm.off.h)}">
+          <label class="chk"><input type="checkbox" id="lampOffA" ${world.lampAlarm.off.on?'checked':''}> вкл</label></span></div>
       <div class="row"><label>Термоэкран ${world.has.screen?'':'<span style="color:var(--dim)">(не куплен)</span>'}</label>
         <button class="btn ${c.screenOn?'good':''}" id="btnScreenSet">${c.screenOn?'вкл':'выкл'}</button></div>
       <div class="row"><label>Затеняющая сетка ${world.has.shade?'':'<span style="color:var(--dim)">(не куплена)</span>'}</label>
@@ -867,7 +876,19 @@ function renderSettings(){
   bind('co2','co2Set', v=>v+' ppm');
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
-  $('btnLampSet').onclick = ()=>{ world.ctrl.lampEnabled = !world.ctrl.lampEnabled; renderSettings(); };
+  $('btnLampSet').onclick = ()=>{ const r = toggleLamp(world); if (!r.ok) toast(r.msg); renderSettings(); };
+  const bindAlarm = (key)=>{
+    const t = $(key==='on' ? 'lampOnT' : 'lampOffT'), a = $(key==='on' ? 'lampOnA' : 'lampOffA');
+    const apply = ()=>{
+      const m = /^(\d{1,2}):(\d{2})$/.exec(t.value || '');
+      const h = m ? (+m[1]) + (+m[2])/60 : NaN;
+      const r = setLampAlarm(world, key, {on:a.checked, h});
+      if (!r.ok){ toast(r.msg); renderSettings(); return; }
+      saveNow(false);
+    };
+    t.onchange = apply; a.onchange = apply;
+  };
+  bindAlarm('on'); bindAlarm('off');
   document.querySelectorAll('[data-sysset]').forEach(b=>b.onclick = ()=>{
     const r = setGrowSys(world, b.dataset.sysset);
     toast(r.msg); renderSettings(); renderAll(); saveNow(false);
@@ -1246,15 +1267,38 @@ $('btnPrune').onclick = ()=>{
   renderAll();
 };
 $('btnLampQuick').onclick = ()=>{
-  if (!world.has.led) return toast('Купите LED в магазине');
-  world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-  toast(world.ctrl.lampEnabled?'Досветка включена':'Досветка выключена');
+  const r = toggleLamp(world);
+  toast(r.msg);
+  if (page==='settings') renderSettings();
 };
 $('btnShadeQuick').onclick = ()=>{
   if (!world.has.shade) return toast('Купите затеняющую сетку');
   world.ctrl.shadeOn = !world.ctrl.shadeOn;
   toast(world.ctrl.shadeOn?'Сетка опущена':'Сетка поднята');
 };
+
+/* ---------------- досветка: статус и будильник-напоминание ---------------- */
+function lampKindLabel(w){
+  const names = [];
+  if (w.has.led) names.push(w.equip.lamp.ok ? 'LED' : 'LED, неисправна');
+  if (w.has.ledStrip) names.push('лента');
+  return names.length ? '('+names.join(' + ')+')' : '<span style="color:var(--bad)">(не куплена)</span>';
+}
+function renderLampAlert(){
+  const el = $('lampAlert'); if (!el || !world) return;
+  const a = pendingLampAlert(world);
+  const key = a ? (a.day+':'+a.action+':'+a.at) : '';
+  if (el.dataset.key === key) return;               // не перерисовываем, чтобы клик не потерялся
+  el.dataset.key = key;
+  if (!a){ el.classList.remove('on'); el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="la-t">Будильник досветки · день ${a.day}</div>
+    <div class="la-x">${a.text}</div>
+    <div class="la-b"><button class="btn good" id="laDo">${a.action==='on'?'Включить':'Выключить'}</button>
+    <button class="btn" id="laOk">Понятно</button></div>`;
+  el.classList.add('on');
+  $('laDo').onclick = ()=>{ const r = toggleLamp(world); toast(r.msg); el.dataset.key = ''; renderLampAlert(); if (page==='settings') renderSettings(); };
+  $('laOk').onclick = ()=>{ dismissLampAlert(world); el.dataset.key = ''; renderLampAlert(); };
+}
 
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
@@ -1297,6 +1341,7 @@ function frame(now){
     if (now - uiT > 130){
       uiT = now;
       renderTop();                                  // часы и баланс идут на любой вкладке
+      renderLampAlert();                            // будильник досветки — на любой вкладке
       if (page==='greenhouse') renderAll();
       else if (page==='shop'){ const b=$('shopBalance'); if (b) b.innerHTML = shopTopLine(); }
       if (world.over && !endShown) showEnd();
