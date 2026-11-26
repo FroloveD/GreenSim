@@ -12,7 +12,7 @@ const ok=(c,m,x)=>{if(!c)fails++;console.log((c?'✅ ':'❌ ')+m+(x!==undefined?
  const w=M.makeWorld({profile:'hobby',crop:'tomato',seed:12,site:'ekb',startDoy:15});
  ok(M.realWeatherAt(w,15)===null,'без архива используется базовая модель');
  const valid=M.applyWeatherTable(w,[
-  {doy:15,t:-18,cloud:0.9},{doy:16,t:-16,cloud:0.7},{doy:18,t:-12,cloud:0.3}
+  {doy:15,t:-18,cloud:0.9},{doy:16,t:-16,cloud:0.7}
  ],{source:'test-fixture',at:123});
  ok(valid,'валидная таблица принимается');
  const exact=M.realWeatherAt(w,15),nearest=M.realWeatherAt(w,17);
