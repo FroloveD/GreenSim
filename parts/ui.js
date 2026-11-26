@@ -350,6 +350,11 @@ function closeSheet(){
   document.querySelectorAll('#dashGrid .panel').forEach(p=>p.classList.remove('sel'));
   const dock = $('dock'); if (dock) dock.innerHTML='';
 }
+if ($('btnPanels')) $('btnPanels').onclick = ()=>{
+  const kind = layoutKind();
+  if (kind==='desktop'){ toast('Панели уже на экране'); return; }
+  toggleSheet(sheetTab || SHEET_TABS[kind][0].k);
+};
 let _layT = 0;
 window.addEventListener('resize', ()=>{
   clearTimeout(_layT);
@@ -490,7 +495,7 @@ function renderAlerts(){
   const w = world, C = CROPS[w.crop], out = [];
   // отказы
   const broken = [];
-  for (const k in w.equip) if (!w.equip[k].ok && equipInstalled(w,k)) broken.push(EQUIP_DEFS[k].name);
+  for (const k in w.equip) if (!w.equip[k].ok) broken.push(EQUIP_DEFS[k].name);
   if (!w.power) out.push(['bad','Нет электричества: отопление и форточки не работают']);
   if (broken.length) out.push(['bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт']);
   // климат по датчикам
@@ -501,7 +506,7 @@ function renderAlerts(){
   if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
   // запасы
   if (w.stock.fertKg < 5) out.push(['warn','Удобрения заканчиваются — рост замедлится']);
-  if (w.has.co2 && w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
+  if (w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
   if (w.stock.waterM3 < 3) out.push(['bad','Нет воды — растения в стрессе']);
   // контракты
   for (const ct of w.contracts){
@@ -767,9 +772,7 @@ function renderSettings(){
       <div class="h"><b>Климат</b></div>
       ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
       ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
-      ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
-        : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет оборудования</span></div>
-           <div class="hint">На балконе и в комнате клапана нет: воздух и так меняется через щели. Появится вместе с теплицей.</div>`}
+      ${slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')}
       <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
     </div>
     <div class="card">
@@ -853,7 +856,6 @@ function renderSettings(){
 
   const bind = (id, key, fmt) => {
     const s = $('s_'+id);
-    if (!s) return;                 // регулятора может не быть (например CO₂ без клапана)
     s.oninput = () => {
       const v = parseFloat(s.value);
       world.ctrl[key] = v;
@@ -1213,9 +1215,9 @@ window.addEventListener('keydown', e=>{
 
 function togglePause(){
   paused = !paused;
-  $('btnPause').textContent = paused?'1:1':'1:1';
+  $('btnPause').textContent = paused?'1:1':'⏸';
   $('btnPause').classList.toggle('on', paused);
-  $('btnPause').title = paused ? 'Реальное время включено: час за час. Нажмите, чтобы вернуться к ускорению'
+  $('btnPause').title = paused ? 'Пауза: время идёт как в жизни (1 секунда = 1 секунда)'
                                : 'Пауза: время замедлится до реального';
   if (paused) toast('Пауза: время идёт как в жизни — секунда за секунду');
 }

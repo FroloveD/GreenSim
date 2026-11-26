@@ -37,8 +37,8 @@ const CAM_HOME = {yaw:-0.62, pitch:0.26, dist:7.4, zoom:1.05, target:{x:2, y:1.1
    положительный — сверху вниз. Раньше минимум был 0.05, то есть из
    домашнего ракурса (0.26) вверх оставалось всего ~12° — и поворот
    «упирался» почти сразу.                                          */
-const PITCH_MIN = -0.32, PITCH_MAX = 1.32;
-const CAM_FLOOR_Y = 0.18;      // ниже этого камера не опускается
+const PITCH_MIN = -0.55, PITCH_MAX = 1.32;
+const CAM_FLOOR_Y = 0.45;      // ниже этого камера не опускается
 let camTween = null;
 
 /* положение камеры для вида: то, куда её нужно поставить */
@@ -46,7 +46,7 @@ function camPreset(mode){
   if (mode === 'bed')   return {yaw:cam.yaw, pitch:0.20, dist:4.2, zoom:1, target:{x:2, y:0.75, z:1.05}};
   if (mode === 'plant'){
     const p = selPlant(), C = CROPS[world.crop];
-    const y = Math.max(0.5, Math.min(C.ridgeY||1.6, plantBaseY(world) + 0.06 + p.nPhy*C.internode*0.8)*0.55);
+    const y = Math.max(0.5, Math.min(C.ridgeY||1.6, 0.06 + p.nPhy*C.internode*0.8)*0.55);
     return {yaw:cam.yaw, pitch:0.12, dist:1.9, zoom:1, target:{x:p.x, y, z:p.z}};
   }
   return {yaw:CAM_HOME.yaw, pitch:CAM_HOME.pitch, dist:CAM_HOME.dist, zoom:CAM_HOME.zoom, target:{...CAM_HOME.target}};
@@ -123,14 +123,11 @@ function buildView(){
     return persp(liftTarget({x:2, y:0.75, z:1.05}, d, pp), d, cam.yaw, pp);
   }
   if (cam.mode === 'plant'){
-    const y = Math.min(C.ridgeY||1.6, plantBaseY(world) + 0.06 + p.nPhy*C.internode*0.8)*0.55;
+    const y = Math.min(C.ridgeY||1.6, 0.06 + p.nPhy*C.internode*0.8)*0.55;
     return persp(liftTarget({x:p.x, y:Math.max(0.5,y), z:p.z}, d, pp), d, cam.yaw, pp);
   }
   return persp(liftTarget(cam.target, d, pp), d, cam.yaw, pp);
 }
-/* высота узла на текущем растении с учётом ёмкости (см. plantBaseY в core) */
-function nodeYw(C, i){ return nodeY(C, i, plantBaseY(world)); }
-
 /* Каким будет положение камеры при данном ракурсе: точка взгляда + dist
    назад по направлению взгляда. При отрицательном наклоне камера уходит
    ниже пола, поэтому точку взгляда поднимаем — камера остаётся у земли,
@@ -147,10 +144,7 @@ function persp(target, dist, yaw, pitch){
   // ужимается до пятачка посреди экрана
   const portrait = H > W*1.15;
   const fit = (portrait ? Math.min(W*1.35, H*0.8) : Math.min(W*1.15, H))/700;
-  // на телефоне снизу кадр занимают панель камеры и док: поднимаем оптический
-  // центр, иначе сцена (особенно при взгляде вверх) прячется под кнопками
-  const oy = portrait ? H*0.075 : 0;
-  return {ortho:false, target, dist, yaw, pitch, f:780*clamp(fit, 0.45, 1.25), oy};
+  return {ortho:false, target, dist, yaw, pitch, f:780*clamp(fit, 0.45, 1.25)};
 }
 
 let _view = null;                       // инициализируется лениво (world создаётся позже)
@@ -174,7 +168,7 @@ function project(p){
   const y2 = dy*cp - z1*sp, z2 = dy*sp + z1*cp;
   const zz = z2 + v.dist;
   const s = v.f/Math.max(0.25, zz);
-  return {x: W/2 + x1*s, y: H/2 - (v.oy||0) - y2*s, s, z: zz};
+  return {x: W/2 + x1*s, y: H/2 - y2*s, s, z: zz};
 }
 function depthOf(p){ return project(p).z; }
 
@@ -272,7 +266,7 @@ function drawScene(){
   if (!_view.ortho){
     // линия горизонта. Наклон вниз — как раньше (светлое «за стеклом» держится
     // в кадре). Наклон вверх — уходит вниз кадра, чтобы вверху было небо, а не пол.
-    const yHor = H/2 - (_view.oy||0) + _view.f*Math.abs(Math.tan(_view.pitch));
+    const yHor = H/2 + _view.f*Math.abs(Math.tan(_view.pitch));
     const top = Math.max(0, Math.min(H, yHor));
     const g = ctx.createLinearGradient(0, Math.max(0,yHor - H*0.1), 0, H);
     g.addColorStop(0, '#4a2f14');
@@ -289,22 +283,6 @@ function drawScene(){
   poly([{x:0,y:0,z:0},{x:CFG.floorW,y:0,z:0},{x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
        '#2b1c0e','#0a0806',2.5);
   if (interior && !_view.ortho){
-    // потолок: без него при взгляде снизу вверх комната выглядела как открытая
-    // площадка — стена обрывалась в небо. Рисуем до растений: они ближе.
-    poly([{x:0,y:2.7,z:0},{x:CFG.floorW,y:2.7,z:0},
-          {x:CFG.floorW,y:2.7,z:CFG.floorD},{x:0,y:2.7,z:CFG.floorD}],
-         '#6b4d23','#0a0806',3.5);
-    for (let i=1;i<4;i++){
-      const z = i*(CFG.floorD/4);
-      line3({x:0,y:2.68,z},{x:CFG.floorW,y:2.68,z}, '#0f0a05', 2.5);
-    }
-    for (let i=1;i<3;i++){
-      const x = i*(CFG.floorW/3);
-      line3({x,y:2.68,z:0},{x,y:2.68,z:CFG.floorD}, '#0f0a05', 2);
-    }
-    // лампа на потолке — ориентир: видно, что смотрим вверх
-    poly([{x:1.55,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.65},{x:1.55,y:2.66,z:1.65}],
-         '#2a1d0e','#0a0806',2);
     // стена комнаты с окном — рисуем сразу за полом, иначе она закрывает растения
     poly([{x:0,y:2.7,z:CFG.floorD},{x:CFG.floorW,y:2.7,z:CFG.floorD},
           {x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
@@ -386,18 +364,13 @@ function drawScene(){
     const isSel = pi===cam.plant;
 
     // ёмкость под растением: горшок с грунтом, бак с раствором, плита кокоса или корзина аэропоники
-    items.push({z: depthOf({x:p.x, y:plantBaseY(world)-0.06, z:p.z}) + 0.02, draw(){
-      drawVessel(p);
+    items.push({z: depthOf({x:p.x, y:0.1, z:p.z}) + 0.02, draw(){
+      drawVessel(project({x:p.x, y:0, z:p.z}));
     }});
 
-    // стебель: начинается от поверхности ёмкости, а не от пола — иначе куст
-    // «стоит за горшком» и с верхних ракурсов кажется, что он не в нём
-    const mouth = plantBaseY(world);
-    const pts = [{x:p.x, y:mouth - 0.01, z:p.z}];
-    for (let i=0;i<=p.nPhy;i++){
-      const ny = nodeYw(C,i);
-      if (ny > mouth - 0.01) pts.push({x:p.x+Math.sin(i*0.4)*0.006, y:ny, z:p.z+Math.cos(i*0.4)*0.006});
-    }
+    // стебель
+    const pts = [{x:p.x, y:0.04, z:p.z}];
+    for (let i=0;i<=p.nPhy;i++) pts.push({x:p.x+Math.sin(i*0.4)*0.006, y:nodeY(C,i), z:p.z+Math.cos(i*0.4)*0.006});
     items.push({z: depthOf({x:p.x, y:1.0, z:p.z}), draw(){
       ctx.beginPath();
       for (let i=0;i<pts.length;i++){ const q = project(pts[i]); if(i===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y); }
@@ -405,13 +378,13 @@ function drawScene(){
       ctx.strokeStyle = '#0a0806'; ctx.lineWidth = Math.max(3.4, 4.6 + p.nPhy*0.10); ctx.stroke();
       ctx.strokeStyle = isSel ? '#c8ea70' : '#8f9a54';
       ctx.lineWidth = Math.max(1.2, 1.6 + p.nPhy*0.06); ctx.stroke();
-      if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeYw(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
+      if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeY(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
     }});
 
     // листья
     for (const lf of p.leaves){
       if (lf.area < 2e-4 && !lf.dead) continue;
-      const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
+      const g = leafGeom(lf, C, p.x, nodeY(C, lf.i), p.z);
       items.push({z: depthOf(g.cen), draw(){
         poly(g.corners, leafColor(lf), '#0a0806', 1.7);
         if (!lf.dead) line3(g.base, g.tip, 'rgba(12,10,6,.55)', 1.1);
@@ -421,9 +394,9 @@ function drawScene(){
     // плоды / головки
     if (C.leafy){
       const ready = p.head >= C.headTarget;
-      items.push({z: depthOf({x:p.x,y:nodeYw(C, Math.min(p.nPhy,6)),z:p.z}), draw(){
+      items.push({z: depthOf({x:p.x,y:nodeY(C, Math.min(p.nPhy,6)),z:p.z}), draw(){
         const r = 0.05+0.08*clamp(p.head/C.headTarget,0,1);
-        dot3({x:p.x, y:nodeYw(C, Math.min(p.nPhy,6)), z:p.z}, r,
+        dot3({x:p.x, y:nodeY(C, Math.min(p.nPhy,6)), z:p.z}, r,
              ready? '#d8ec8e' : '#87ad4e', '#0a0806', 2.2);
       }});
     } else {
@@ -435,7 +408,7 @@ function drawScene(){
           const r = 0.010 + 0.020*Math.cbrt(fr);
           const ang = 0.6+fi*1.05;
           const pos = {x:p.x+Math.cos(ang)*0.06*(1+fi*0.1),
-                       y:nodeYw(C, tr.i+1) - fi*0.03,
+                       y:nodeY(C, tr.i+1) - fi*0.03,
                        z:p.z+Math.sin(ang)*0.06*(1+fi*0.1)};
           items.push({z: depthOf(pos), draw(){
             const q = project(pos);
@@ -537,109 +510,86 @@ function drawScene(){
 }
 
 /* ---------- ёмкость под растением по системе выращивания ---------- */
-/* Ёмкость в мировых координатах: два кольца (низ и верх), стенка между ними.
-   Раньше горшок рисовался плоским силуэтом в экранных координатах и при
-   взгляде сверху выглядел как ведро перед кустом. Теперь он честно
-   разворачивается вместе с камерой, а куст растёт из его поверхности. */
-const VESSEL = {
-  soil: {rb:0.105, rt:0.125, h:0.17, mouth:0.17, wall:'#b5552a', rim:'#c96234', top:'#2f2213', soil:true},
-  coco: {rb:0.185, rt:0.185, h:0.12, mouth:0.12, wall:'#6b4a2a', rim:'#8a6236', top:'#7a5530', drip:true},
-  dwc:  {rb:0.140, rt:0.160, h:0.21, mouth:0.21, wall:'#dcd7c4', rim:'#efe9d8', top:'#3f93e0', water:0.09, hole:true},
-  nft:  {rb:0.140, rt:0.160, h:0.18, mouth:0.18, wall:'#dcd7c4', rim:'#efe9d8', top:'#2f7fd0', water:0.07, hole:true},
-  aero: {rb:0.125, rt:0.095, h:0.19, mouth:0.19, wall:'#e8e3d2', rim:'#f2eee0', top:'#2b2116', mist:true}
-};
-function vesselGeom(sys){ return VESSEL[sys] || VESSEL.soil; }
-function vesselMouth(sys){ return vesselGeom(sys).mouth; }
-
-function drawVessel(p){
-  const sys = world.sys || 'soil';
-  const g = vesselGeom(sys);
+function drawVessel(q){
+  const sys = (world.sys || 'soil');
+  const S = 0.026*0;                       // масштаб уже в q.s
+  const w2 = Math.max(4, 0.13*q.s), h2 = Math.max(6, 0.20*q.s);
   const ink = '#0a0806';
-  const K = 16;
   ctx.lineJoin = 'round';
-  const ringAt = (y, r)=>{
-    const out = [];
-    for (let i=0;i<K;i++){
-      const t = i/K*6.2831853;
-      out.push(project({x:p.x+Math.cos(t)*r, y, z:p.z+Math.sin(t)*r}));
-    }
-    return out;
-  };
-  const base = plantBaseY(world);          // поверхность субстрата = низ растения
-  const bot = ringAt(base - g.h, g.rb), top = ringAt(base, g.rt);
-  const loop = (pts)=>{ ctx.beginPath(); pts.forEach((q,i)=> i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); };
-  const quad = (a,b,c2,d)=>{ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c2.x,c2.y); ctx.lineTo(d.x,d.y); ctx.closePath(); ctx.fill(); };
-  // корпус: заливаем дно, верх и боковые полоски между кольцами — так стенка
-  // получается сплошной при любом ракурсе (с «правилом ненулевого обхода» на
-  // двух вложенных эллипсах полоса не заливалась)
-  ctx.fillStyle = g.wall;
-  loop(bot); ctx.fill();
-  loop(top); ctx.fill();
-  for (let i=0;i<K;i++){
-    const j = (i+1)%K;
-    quad(bot[i], bot[j], top[j], top[i]);
-  }
-  // блик по левой стороне — плоский стиль
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,240,190,.16)';
-  for (let i=0;i<3;i++) quad(bot[i], bot[i+1], top[i+1], top[i]);
-  ctx.restore();
-  // контур: обод + нижняя дуга (дальняя дуга дна внутри корпуса не рисуется)
-  ctx.strokeStyle = ink; ctx.lineWidth = 2.4;
-  const cTop = project({x:p.x, y:base, z:p.z});
-  ctx.beginPath();
-  let started = false;
-  for (let i=0;i<=K;i++){
-    const q = bot[i%K];
-    if (q.y > cTop.y){ if (!started){ ctx.moveTo(q.x,q.y); started = true; } else ctx.lineTo(q.x,q.y); }
-    else started = false;
-  }
-  ctx.stroke();
-  // тень-поддон под горшком
-  loop(bot);
-  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fill();
-  // поверхность ёмкости (грунт / раствор / крышка)
-  loop(top);
-  ctx.fillStyle = g.top; ctx.fill();
-  ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.stroke();
-  // обод
-  loop(top);
-  ctx.strokeStyle = g.rim; ctx.lineWidth = 1.4; ctx.stroke();
 
-  const c = project({x:p.x, y:base, z:p.z});
-  const rr = Math.max(2, g.rt*c.s);
-  if (g.drip){                                  // капельница над плитой кокоса
-    ctx.beginPath(); ctx.moveTo(c.x, c.y - rr*2.6); ctx.lineTo(c.x, c.y - rr*0.5);
-    ctx.strokeStyle = ink; ctx.lineWidth = 2.2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(c.x, c.y - rr*2.6, Math.max(1.4, rr*0.26), 0, 6.2832);
-    ctx.fillStyle = '#57c8ff'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.stroke();
+  if (sys === 'coco'){
+    // плита кокоса: приземистый параллелепипед + капельница сверху
+    const bw = w2*1.35, bh = h2*0.62;
+    ctx.beginPath();
+    ctx.moveTo(q.x-bw, q.y); ctx.lineTo(q.x+bw, q.y);
+    ctx.lineTo(q.x+bw, q.y-bh); ctx.lineTo(q.x-bw, q.y-bh);
+    ctx.closePath();
+    ctx.fillStyle = '#6b4a2a'; ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(q.x, q.y-bh, bw, bh*0.28, 0, 0, 6.2832);
+    ctx.fillStyle = '#8a6236'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
+    // капельница
+    ctx.beginPath(); ctx.moveTo(q.x, q.y-bh*4.2); ctx.lineTo(q.x, q.y-bh*1.15);
+    ctx.strokeStyle = ink; ctx.lineWidth = 2.4; ctx.stroke();
+    ctx.beginPath(); ctx.arc(q.x, q.y-bh*0.95, Math.max(1.5, bh*0.16), 0, 6.2832);
+    ctx.fillStyle = '#57c8ff'; ctx.fill();
+    return;
   }
-  if (g.water){                                 // раствор и пузырьки аэратора
-    for (let i=0;i<3;i++){
-      const bx = c.x + (i-1)*rr*0.55, by = c.y + rr*0.35 - (i%2)*rr*0.25;
-      ctx.beginPath(); ctx.arc(bx, by, Math.max(1, rr*0.13), 0, 6.2832);
-      ctx.fillStyle = 'rgba(240,250,255,.8)'; ctx.fill();
-    }
-  }
-  if (g.hole){                                  // отверстие в крышке под корни
-    ctx.beginPath(); ctx.ellipse(c.x, c.y, rr*0.34, rr*0.14, 0, 0, 6.2832);
+  if (sys === 'dwc' || sys === 'nft'){
+    // бак/лоток: белый пластик, голубой раствор, пузырьки
+    const bw = w2*1.12, bh = h2*1.15;
+    ctx.beginPath();
+    ctx.moveTo(q.x-bw, q.y); ctx.lineTo(q.x+bw, q.y);
+    ctx.lineTo(q.x+bw*0.86, q.y-bh); ctx.lineTo(q.x-bw*0.86, q.y-bh);
+    ctx.closePath();
+    ctx.fillStyle = '#dcd7c4'; ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
+    // уровень раствора
+    const lv = q.y-bh*0.52;
+    ctx.beginPath(); ctx.rect(q.x-bw*0.92, lv, bw*1.84, (q.y-lv)*0.86);
+    ctx.fillStyle = sys==='nft' ? '#2f7fd0' : '#3f93e0'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(q.x-bw*0.92, lv); ctx.lineTo(q.x+bw*0.92, lv);
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.8; ctx.stroke();
+    // крышка с отверстием под корни
+    ctx.beginPath(); ctx.ellipse(q.x, q.y-bh, bw*0.86, bh*0.22, 0, 0, 6.2832);
+    ctx.fillStyle = '#efe9d8'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(q.x, q.y-bh, bw*0.30, bh*0.10, 0, 0, 6.2832);
     ctx.fillStyle = '#2b2116'; ctx.fill();
-  }
-  if (g.mist){                                  // туман в корзине аэропоники
-    for (let i=0;i<3;i++){
-      const bx = c.x + (i-1)*rr*0.6, by = c.y + rr*0.5 - (i%2)*rr*0.3;
-      ctx.beginPath(); ctx.arc(bx, by, Math.max(1, rr*0.16), 0, 6.2832);
-      ctx.fillStyle = 'rgba(220,240,255,.75)'; ctx.fill();
+    // пузырьки аэратора
+    if (bh > 9){
+      for (let i=0;i<3;i++){
+        const bx = q.x + (i-1)*bw*0.45, by = q.y - bh*0.22 - (i%2)*bh*0.16;
+        ctx.beginPath(); ctx.arc(bx, by, Math.max(1, bh*0.075), 0, 6.2832);
+        ctx.fillStyle = 'rgba(240,250,255,.85)'; ctx.fill();
+      }
     }
+    return;
   }
-  if (g.soil){                                  // земля: пара комков
+  if (sys === 'aero'){
+    // белая корзина-конус и туман
+    ctx.beginPath();
+    ctx.moveTo(q.x-w2*0.95, q.y-h2*0.15); ctx.lineTo(q.x+w2*0.95, q.y-h2*0.15);
+    ctx.lineTo(q.x+w2*0.62, q.y-h2*1.05); ctx.lineTo(q.x-w2*0.62, q.y-h2*1.05);
+    ctx.closePath();
+    ctx.fillStyle = '#e8e3d2'; ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
     for (let i=0;i<3;i++){
-      const a = 1.1 + i*2.1;
-      ctx.beginPath();
-      ctx.arc(c.x + Math.cos(a)*rr*0.45, c.y + Math.sin(a)*rr*0.16, Math.max(1, rr*0.13), 0, 6.2832);
-      ctx.fillStyle = '#43301a'; ctx.fill();
+      const bx = q.x + (i-1)*w2*0.55, by = q.y - h2*0.35 - (i%2)*h2*0.25;
+      ctx.beginPath(); ctx.arc(bx, by, Math.max(1, h2*0.10), 0, 6.2832);
+      ctx.fillStyle = 'rgba(220,240,255,.8)'; ctx.fill();
     }
+    return;
   }
+  // грунт: терракотовый горшок с землёй
+  ctx.beginPath();
+  ctx.moveTo(q.x-w2, q.y); ctx.lineTo(q.x+w2, q.y);
+  ctx.lineTo(q.x+w2*0.72, q.y-h2); ctx.lineTo(q.x-w2*0.72, q.y-h2);
+  ctx.closePath();
+  ctx.fillStyle = '#b5552a'; ctx.fill();
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(q.x, q.y-h2, w2*0.72, h2*0.20, 0, 0, 6.2832);
+  ctx.fillStyle = '#2f2213'; ctx.fill();
+  ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
 }
 
 /* ---------- клики по сцене ---------- */
@@ -654,7 +604,7 @@ function hitTest(cx, cy){
       const f = tr.fruits[fi];
       if (f.harvested || !f.ripe) continue;
       const ang = 0.6+fi*1.05;
-      const pos = {x:p.x+Math.cos(ang)*0.06*(1+fi*0.1), y:nodeYw(C, tr.i+1)-fi*0.03, z:p.z+Math.sin(ang)*0.06*(1+fi*0.1)};
+      const pos = {x:p.x+Math.cos(ang)*0.06*(1+fi*0.1), y:nodeY(C, tr.i+1)-fi*0.03, z:p.z+Math.sin(ang)*0.06*(1+fi*0.1)};
       const q = project(pos);
       const rr = Math.max(6, 0.03*q.s);
       if (Math.hypot(q.x-x, q.y-y) < rr+5) return {kind:'fruit', plant:p, fruit:f};
@@ -663,13 +613,13 @@ function hitTest(cx, cy){
   // 2) листья
   for (const p of world.plants) for (const lf of p.leaves){
     if (lf.dead) continue;
-    const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
+    const g = leafGeom(lf, C, p.x, nodeY(C, lf.i), p.z);
     if (pointInPoly(x,y,g.corners.map(project))) return {kind:'leaf', plant:p, leaf:lf};
   }
   // 3) растение
   let best=null, bd=1e9;
   for (const p of world.plants){
-    const q = project({x:p.x, y:nodeYw(C, Math.min(p.nPhy,8))*0.5, z:p.z});
+    const q = project({x:p.x, y:nodeY(C, Math.min(p.nPhy,8))*0.5, z:p.z});
     const d = Math.hypot(q.x-x, q.y-y);
     if (d<bd){ bd=d; best=p; }
   }

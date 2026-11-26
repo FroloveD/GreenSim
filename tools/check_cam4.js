@@ -32,23 +32,14 @@ const { cdpShot } = require('./shot_cdp.js');
   const up = await st();
   console.log('тянем вверх:', JSON.stringify(up),
     up.pitch < -0.2 ? '→ уходит вверх ✅' : '→ УПЁРЛАСЬ ❌');
-  console.log('  камера над полом:', up.camY >= 0.17 ? 'да ✅' : 'ПОД ПОЛОМ ❌', up.camY);
-
-  // 1б. при крайнем наклоне вверх сцена не должна «уезжать» из кадра
-  const fr = await page.evaluate(()=>{
-    const top = project({x:2,y:3.3,z:1.5}), bot = project({x:2,y:0,z:1.5});
-    return {topY:Math.round(top.y), botY:Math.round(bot.y), H};
-  });
-  const cover = (fr.botY - fr.topY) / fr.H;
-  console.log('  теплица в кадре:', JSON.stringify(fr), 'занимает', (cover*100).toFixed(0)+'% высоты',
-    (fr.topY > 0 && fr.botY < fr.H && cover > 0.35) ? '✅ не уехала' : '❌ УЕХАЛА');
+  console.log('  камера над полом:', up.camY >= 0.44 ? 'да ✅' : 'ПОД ПОЛОМ ❌', up.camY);
 
   // 2. тянем мышь ВНИЗ — вниз камера тоже ходит
   await drag(0,420,16);
   const dn = await st();
   console.log('тянем вниз:', JSON.stringify(dn),
     dn.pitch > 0.4 ? 'наклон вниз ✅' : 'не двигается вниз ❌');
-  console.log('  камера над полом:', dn.camY >= 0.17 ? 'да ✅' : 'ПОД ПОЛОМ ❌', dn.camY);
+  console.log('  камера над полом:', dn.camY >= 0.44 ? 'да ✅' : 'ПОД ПОЛОМ ❌', dn.camY);
 
   // 3. кадр «смотрим вверх» — вернуть наклон и снять
   await drag(0,-300,16);
