@@ -17,7 +17,7 @@ const ok=(c,m,x)=>{if(!c)fails++;console.log((c?'✅ ':'❌ ')+m+(x!==undefined?
  ok(carry.has.led&&carry.has.screen&&carry.upg.worker,'оборудование и апгрейды попадают в снимок');
  ok(carry.sections===5&&carry.money===4200&&carry.stock.fertKg===17,'деньги, склад и запасы сохраняются');
  ok(carry.rep>0&&carry.seasons===2,'репутация и номер сезона рассчитываются',carry.rep);
- const next=M.makeWorld({profile:'hobby',crop:'tomato',seed:32,site:'ekb',startDoy:210,carry});
+ const next=M.makeWorld({profile:'hobby',crop:'tomato',seed:32,site:'ekb',startDoy:210,campaign:true,carry});
  ok(next.has.led&&next.has.screen&&next.upg.worker,'новый сезон восстанавливает оборудование');
  ok(next.money===4200&&next.wh.sections===5&&next.stock.fertKg>=17,'капитал, секции и запас удобрений переехали');
  ok(next.day===1&&next.harvestedKg===0&&next.history.length===0,'растение и история нового сезона начинаются заново');
