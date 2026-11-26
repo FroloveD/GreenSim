@@ -930,10 +930,12 @@ function cropStage(w){
   if (C.leafy){
     const head = ps.reduce((s,p)=>s+(p.head||0),0)/ps.length;
     if (age < 16 && !w.stageFruitReached) return {key:'start', name:'сеянцы'};
+    if (age < 24 && !w.stageFruitReached) return {key:'veg', name:'лист'};
     if (head >= C.headTarget*0.6) w.stageFruitReached = true;
     return w.stageFruitReached ? {key:'fruit', name:'головка'} : {key:'veg', name:'лист'};
   }
   if (age < 14 && !w.stageFruitReached) return {key:'start', name:'рассада'};
+  if (age < 20 && !w.stageFruitReached) return {key:'veg', name:'вегетация'};
   const alive = ps.reduce((a,p)=>a.concat(p.fruits.filter(f=>!f.harvested)), []);
   const mass = alive.reduce((a,f)=>a+(f.mass||0),0);
   const avg = alive.length ? mass/alive.length : 0;
