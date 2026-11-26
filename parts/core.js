@@ -706,7 +706,7 @@ function climateSub(w, dtH, C){
   w.rhMaxDay = Math.max(w.rhMaxDay===undefined?w.rh:w.rhMaxDay, w.rh);
 
   // --- CO₂ ---
-  const co2OK = w.equip.co2.ok && w.power;
+  const co2OK = w.has.co2 && w.equip.co2.ok && w.power;
   const co2Stuck = w.equip.co2.stuck;
   const photoCO2 = (w.assimRate||0)*w.plantScale*44/30/24;      // г/ч
   let injG = 0;
@@ -943,12 +943,19 @@ const EQUIP_DEFS = {
   sensor: {name:'Датчики', repair:120, failP:0.0030}
 };
 
+/* Есть ли это оборудование в мире: клапан CO₂ не может сломаться там, где его нет. */
+function equipInstalled(w, k){
+  if (k === 'co2') return !!w.has.co2;
+  if (k === 'dosing') return !!w.has.dosing;
+  return true;
+}
 function riskTick(w, dtH){
   const dtD = dtH/24;
   // износ и отказы
   for (const k in w.equip){
     const eq = w.equip[k], def = EQUIP_DEFS[k];
     if (!eq || !def) continue;
+    if (!equipInstalled(w, k)) continue;
     if (!eq.ok){ eq.down += dtH; continue; }
     const p = def.failP*dtD*(w.diffFail||1)*(w.has.service?0.35:1)*(w.upg.reliability?0.6:1);
     if (rnd(w) < p){
@@ -1182,6 +1189,7 @@ function moveChapter(w, idx){
                 agro:{fertKg:60,co2Kg:300,waterM3:150,seeds:900} }[P.id] || {fertKg:10,co2Kg:0,waterM3:15,seeds:80};
   for (const k in kit) w.stock[k] = Math.max(w.stock[k]||0, kit[k]);
   if (P.id === 'farm'){ w.has.screen = true; w.ctrl.screenOn = true; w.upg.reliability = true; }
+  if (P.id === 'farm' || P.id === 'hobby' || P.id === 'agro'){ w.has.co2 = true; }   // клапан CO₂ вместе с теплицей
   // новое помещение чистое: вредители и гнили с собой не переезжают
   w.pest = { active:false, level:0 };
   w.disease = 0; w.stress = 0; w.ctrl.lampEnabled = false;
@@ -1268,9 +1276,9 @@ function checkContracts(w){
 
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
-   check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (нужно купить LED в магазине)', reward:90,
-   check:w=>w.ctrl.lampEnabled && w.has.led},
+   need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
+  {id:'m2', text:'«Параметры» → включите досветку (лампа покупается в магазине)', reward:90,
+   need:w=>!!(w.has.led||w.has.ledStrip||w.has.lampBase), check:w=>!w.ctrl.lampEnabled?false:(!!(w.has.led||w.has.ledStrip))},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
   {id:'m3b', text:'Панель «Склад» → продайте партию урожая', reward:130,
@@ -1290,6 +1298,11 @@ const MISSIONS = [
   {id:'m10', text:'Завершите сезон в плюсе', reward:0, check:w=>false}
 ];
 function missionsTick(w){
+  // задание, к которому ещё нет оборудования (например CO₂ на балконе), просто
+  // пропускаем — иначе игрок застревает на действии, которого не может сделать
+  let guard = 0;
+  while (MISSIONS[w.missionIdx] && MISSIONS[w.missionIdx].need && !MISSIONS[w.missionIdx].need(w) && guard++ < 20)
+    w.missionIdx++;
   const m = MISSIONS[w.missionIdx];
   if (!m) return;
   let ok = false;
@@ -1326,7 +1339,12 @@ function makeWorld(opts){
       lampOn: false, lampEnabled: false, screenOn: false, shadeOn: false,
       ecSet: 2.4, phSet: 5.8, recipe: 'std', irrig: true
     },
-    has: { led:false, lampBase:true, screen:false, shade:false, co2:true, dosing:false, secondSensor:false,
+    // клaпан CO₂ есть только там, где он физически стоит: на балконе и в комнате
+    // его нет (в кампании он появляется вместе с теплицей), иначе игрок получал
+    // «отказ клапана CO₂» на 4 м², где никакого клапана не покупали
+    has: { led:false, lampBase:true, screen:false, shade:false,
+           co2: opts.campaign ? false : (P.id!=='balcony' && P.id!=='room'),
+           dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
     equip: {
