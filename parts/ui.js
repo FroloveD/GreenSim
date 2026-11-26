@@ -770,9 +770,17 @@ function renderDiagnosis(){
   const body = d.items.length
     ? d.items.map(it=>{
         const cls = it.sev==='bad'?'bad':it.sev==='warn'?'warn':'ok';
-        return `<div class="alert ${cls}" style="margin-bottom:4px">${it.text}</div>`;
+        const details = [it.why ? `<div class="hint"><b>Причина:</b> ${it.why}</div>` : '',
+                         it.risk ? `<div class="hint"><b>Последствие:</b> ${it.risk}</div>` : '',
+                         it.action ? `<div class="hint"><b>Действие:</b> ${it.action}</div>` : ''].filter(Boolean).join('');
+        return `<div class="alert ${cls}" style="margin-bottom:5px">
+          <div>${it.text}</div>
+          ${details ? `<details style="margin-top:4px"><summary style="cursor:pointer">Почему это происходит и чем грозит</summary>
+            <div style="margin-top:5px;padding:5px 0 0 8px;display:grid;gap:5px">${details}</div>
+          </details>` : ''}
+        </div>`;
       }).join('')
-    : `<div class="alert ok">Растение у своего предела: свет, питание и климат в норме</div>`;
+    : `<div class="alert ok">Ограничений не выявлено: свет, питание и климат в рабочем диапазоне</div>`;
   $('diagnosis').innerHTML = head + body +
     `<div class="hint" style="margin-top:4px">углерод, усвоенный кроной за прошлые сутки. Ориентир: 15–25 г/м²·сут у томата в апреле</div>`;
 }
@@ -1749,7 +1757,14 @@ function togglePause(){
 }
 $('btnPause').onclick = togglePause;
 document.querySelectorAll('.spd').forEach(b=>b.onclick=()=>{
-  speed = parseFloat(b.dataset.s);
+  const requested = parseFloat(b.dataset.s);
+  if (world && world.camp && requested > 64){
+    speed = 64;
+    document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x.dataset.s==='64'));
+    toast('В кампании максимальное ускорение — 64×');
+    return;
+  }
+  speed = requested;
   document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x===b));
   if (paused) togglePause();
 });
@@ -1844,6 +1859,17 @@ function syncLightButtons(){
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
+  // В кампании 480× недоступно: скрываем кнопку и страхуем состояние скорости.
+  const turboButton = document.querySelector('.spd[data-s="480"]');
+  if (turboButton) turboButton.hidden = !!world.camp;
+  if (world.camp && speed > 64){
+    speed = 64;
+    document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
+  }
+  const speed64Button = document.querySelector('.spd[data-s="64"]');
+  if (speed64Button) speed64Button.title = world.camp
+    ? 'Максимальная скорость кампании — 64×'
+    : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
