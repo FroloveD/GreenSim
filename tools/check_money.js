@@ -1,8 +1,7 @@
 // экономика: расход на свет виден, копейки не округляются в «−0 €», за сутки/за сезон сходятся
-const { chromium: pw } = require('playwright-core');
-const chromium = require('@sparticuz/chromium');
+const { launch } = require('./browser');
 (async()=>{
-  const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+  const b = await launch();
   const page = await b.newPage({ viewport:{width:1400, height:1000} });
   const errs=[]; page.on('pageerror', e=>errs.push(e.message));
   await page.goto('http://localhost:8080/index.html?mn='+Date.now(), { waitUntil:'domcontentloaded', timeout:60000 });

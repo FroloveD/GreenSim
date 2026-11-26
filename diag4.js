@@ -1,5 +1,6 @@
+const path=require('path');
 const fs=require('fs');
-const src=fs.readFileSync('/home/user/greenhouse/parts/core.js','utf8');
+const src=fs.readFileSync(path.join(__dirname,'parts','core.js'),'utf8');
 const a=src.indexOf('// === SIM CORE START ==='), b=src.indexOf('// === SIM CORE END ===');
 const M=new Function(src.slice(a,b)+'\n return {CFG,CROPS,makeWorld,stepWorld,harvestAll,buyItem,fertFactors};')();
 const w=M.makeWorld({profile:'farm',crop:'tomato',seed:777});

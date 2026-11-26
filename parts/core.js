@@ -175,6 +175,57 @@ const GROW_SYS = {
     note:'Корни в тумане: максимум кислорода и минимум воды, но любая остановка насоса убивает корни за часы.'}
 };
 function sysOf(w){ return GROW_SYS[(w && w.sys) || 'soil'] || GROW_SYS.soil; }
+
+/* ---------------- Влага в субстрате и ручной полив ----------------
+   Игрок сам решает, когда поливать: датчик влажности показывает проценты,
+   «Полить» добавляет дозу из бака. Автополива нет — как и с досветкой:
+   в теплице стоит ручной кран, а не таймер.
+
+   m0   — стартовая влажность, % от полной влагоёмкости
+   dry  — ниже этого устьица закрываются: водный стресс и потеря урожая
+   wilt — ниже этого куст вянет, плоды перестают наливаться
+   wet  — выше этого корни задыхаются: растёт корневая гниль
+   dose — сколько процентов добавляет одно нажатие «Полить»
+   doseLPerM2 — сколько это литров на м² (18 л на балкон, 1.8 м³ на 400 м²) */
+const SOIL = { m0: 55, dry: 32, wilt: 14, wet: 88, dose: 15, doseLPerM2: 4.5 };
+
+/* состояние субстрата словами — и для панели, и для алертов, и для тестов */
+function soilState(w){
+  const m = (w && w.moist !== undefined) ? w.moist : SOIL.m0;
+  if (m < SOIL.wilt) return {key:'wilt', word:'увядание', sev:'bad'};
+  if (m < SOIL.dry)  return {key:'dry',  word:'сухо',     sev:'bad'};
+  if (m > SOIL.wet)  return {key:'wet',  word:'перелив',  sev:'warn'};
+  return {key:'ok', word:'норма', sev:''};
+}
+/* сколько процентов добавит одно нажатие (для подписи кнопки) */
+function waterDose(w){
+  const litres = Math.round(SOIL.doseLPerM2 * ((w && w.area) || 4));
+  return {litres, m3: litres/1000, pct: Math.round(SOIL.dose)};
+}
+/* Ручной полив: одна доза = одно нажатие. Воду берём из бака, деньги за неё
+   уже заплачены при покупке — поэтому расход виден как «Вода» в потреблении,
+   а не как второй счёт. */
+function water(w){
+  if (!w || !w.stock) return {ok:false, msg:'Нет мира'};
+  if (w.moist === undefined) w.moist = SOIL.m0;
+  const d = waterDose(w), sys = sysOf(w);
+  if (w.stock.waterM3 < d.m3)
+    return {ok:false, litres:d.litres,
+            msg:`В баке ${w.stock.waterM3.toFixed(1)} м³, на полив нужно ${d.m3.toFixed(2)} м³ — купите воду в магазине`};
+  if (w.moist >= 96)
+    return {ok:true, litres:0, moist:w.moist, msg:'Субстрат и так мокрый — поливать нечего'};
+  w.stock.waterM3 = Math.max(0, w.stock.waterM3 - d.m3);
+  w.useWaterM3 = (w.useWaterM3||0) + d.m3;
+  // гидропоника держит воду хуже грунта: та же доза поднимает влагу сильнее
+  w.moist = clamp(w.moist + SOIL.dose*(sys.waterF < 0.9 ? 1.15 : 1), 0, 100);
+  w.wateredTodayL = (w.wateredTodayL||0) + d.litres;
+  w.wateredTotalL = (w.wateredTotalL||0) + d.litres;
+  w.lastWater = {day:w.day, hour:+w.hour.toFixed(1)};
+  if (w.meas) w.meas.moist = clamp(w.moist + (w.drift && w.drift.soil || 0), 0, 100);
+  const st = soilState(w);
+  return {ok:true, litres:d.litres, moist:w.moist,
+          msg:`Полито ${d.litres} л · влага ${Math.round(w.moist)}%, ${st.word}`};
+}
 /* какие системы доступны в текущей кампании */
 function sysAllowed(w, id){
   const S = GROW_SYS[id]; if (!S) return false;
@@ -405,6 +456,12 @@ function dateFromDoy(doy){
   return {day: d, month: m};
 }
 function fmtDate(doy){ const d = dateFromDoy(((doy-1)%365)+1); return d.day+' '+MONTHS[d.month]; }
+/* день года из месяца (0..11) и числа — для выбора даты старта в мастере */
+function doyFromDate(month, day){
+  let d = 0;
+  for (let i=0;i<month;i++) d += DOY_IN_MONTH[i];
+  return clamp(d + clamp(Math.round(day), 1, DOY_IN_MONTH[month]||31), 1, 365);
+}
 
 /* ---------------- Утилиты ---------------- */
 function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
@@ -417,6 +474,61 @@ function rnd(w){
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 function satVap(t){ return 0.6108*Math.exp(17.27*t/(t+237.3)); }   // кПа
+
+/* ---------------- Локации и климат по открытым данным ----------------
+   Нормы — средние многолетние (1991–2020) по открытым источникам
+   (Гидрометцентр России, Википедия: раздел «Климат» у городов), округлённые.
+   temp — средняя температура месяца, °C; sun — доля часов солнца от возможных
+   (0..1), по ней считается облачность. Если для точки данных нет — подставляем
+   средние по региону (REGION_AVG ниже), а не «никак».                        */
+const REGIONS = {
+  center:  {name:'Центр',        temp:[-7.1,-6.6,-1.0,6.2,13.0,16.9,19.0,17.2,11.4,5.6,-1.4,-5.6], sun:[0.20,0.28,0.38,0.45,0.48,0.48,0.47,0.44,0.33,0.24,0.17,0.13]},
+  north:   {name:'Северо-Запад', temp:[-6.0,-6.0,-2.0,4.8,10.8,15.0,17.8,16.2,11.5,6.2,0.8,-3.4], sun:[0.15,0.22,0.34,0.44,0.50,0.49,0.47,0.42,0.31,0.21,0.13,0.10]},
+  south:   {name:'Юг',           temp:[ 1.2, 1.8, 5.6,11.6,17.0,21.3,24.3,23.9,18.7,12.6, 6.5, 2.8], sun:[0.26,0.32,0.40,0.47,0.54,0.60,0.64,0.62,0.54,0.44,0.30,0.22]},
+  uralsib: {name:'Урал и Сибирь', temp:[-13.2,-11.5,-4.2,3.9,11.4,16.7,18.9,16.3,10.2,3.2,-6.0,-11.4], sun:[0.28,0.38,0.46,0.50,0.51,0.51,0.49,0.45,0.36,0.26,0.21,0.21]},
+  fareast: {name:'Дальний Восток', temp:[-6.5,-5.0,-0.6,5.6,11.0,15.0,18.9,19.9,15.6,9.2,1.6,-5.2], sun:[0.40,0.44,0.40,0.36,0.30,0.24,0.22,0.28,0.35,0.40,0.40,0.42]},
+  arctic:  {name:'Заполярье',    temp:[-10.2,-10.4,-6.5,-0.6,4.6,9.6,13.4,11.4,6.9,0.9,-4.4,-8.2], sun:[0.05,0.12,0.28,0.38,0.38,0.36,0.36,0.30,0.20,0.12,0.05,0.02]}
+};
+const SITES = {
+  moscow:    {short:'Мск', name:'Москва',            region:'center',  lat:55.75, lon:37.62,  az:200, note:'континентальный центр: зима мягкая, лето тёплое'},
+  spb:       {short:'СПб', name:'Санкт-Петербург',   region:'north',   lat:59.94, lon:30.31,  az:200, note:'много облаков, короткий световой день зимой'},
+  ekb:       {short:'Екб', name:'Екатеринбург',      region:'uralsib', lat:56.84, lon:60.61,  az:200, note:'резко континентальный: холодная зима, солнечное лето'},
+  novosibirsk:{short:'Нск', name:'Новосибирск',      region:'uralsib', lat:55.03, lon:82.92,  az:200, note:'самый контрастный климат из списка'},
+  krasnodar: {short:'Крд', name:'Краснодар',         region:'south',   lat:45.04, lon:38.98,  az:200, note:'юг: длинный сезон, жаркое лето'},
+  sochi:     {short:'Сочи', name:'Сочи',              region:'south',   lat:43.60, lon:39.73,  az:190, note:'субтропики: влажно, зима почти без морозов'},
+  simferopol:{short:'Симф', name:'Симферополь',       region:'south',   lat:44.95, lon:34.10,  az:195, note:'крымские нормы: мягкая зима, солнечное лето'},
+  vladivostok:{short:'Влд', name:'Владивосток',      region:'fareast', lat:43.12, lon:131.89, az:190, note:'муссон: летом пасмурно и сыро, зимой ясно и сухо'},
+  kaliningrad:{short:'Клг', name:'Калининград',      region:'north',   lat:54.71, lon:20.51,  az:200, note:'морской климат: ровные температуры, мало солнца'},
+  murmansk:  {short:'Мрм', name:'Мурманск',          region:'arctic',  lat:68.97, lon:33.08,  az:190, note:'заполярье: полярный день и полярная ночь'}
+};
+const SITE_LIST = Object.keys(SITES).map(id => ({id, ...SITES[id]}));
+function siteById(id){ return SITES[id] || SITES.ekb; }
+/* норма на конкретный день: линейно между серединами месяцев */
+function normAt(arr, doy){
+  const t = ((((doy-1)%365)+365)%365) / 365 * 12;
+  const i0 = Math.floor(t) % 12, i1 = (i0+1) % 12, f = t - Math.floor(t);
+  return lerp(arr[i0], arr[i1], f);
+}
+function siteNormals(site){
+  const r = REGIONS[(site && site.region) || 'uralsib'] || REGIONS.uralsib;
+  return {temp:r.temp, sun:r.sun, region:r.name};
+}
+/* сегодняшний день года — мир начинается «как за окном» */
+function todayDoy(d){
+  const dt = d || new Date();
+  const start = new Date(dt.getFullYear(), 0, 1);
+  return Math.min(365, Math.floor((dt - start)/86400000) + 1);
+}
+function todayLabel(d){
+  const dt = d || new Date();
+  return dt.getDate() + ' ' + MONTHS[dt.getMonth()] + ' ' + dt.getFullYear();
+}
+/* ориентация: сторона дома, куда смотрит остекление (в градусах от севера) */
+const ORIENTS = {
+  S:  {name:'Юг',        short:'юг', az:180, note:'максимум света днём, перегрев в июле'},
+  SW: {name:'Юго-запад', short:'юго-зап.', az:225, note:'больше вечернего света и тепла — лучше всего для томата'},
+  SE: {name:'Юго-восток', short:'юго-вост.', az:135, note:'утреннее солнце, после обеда тень'}
+};
 
 /* ---------------- Солнце и внешний климат ---------------- */
 function sunPosition(doy, hour, latDeg){
@@ -434,8 +546,13 @@ function sunVector(el, az){
   return {x: Math.cos(e)*Math.sin(a), y: Math.sin(e), z: Math.cos(e)*Math.cos(a)};
 }
 function outsideClimate(w, doy, hour){
-  const season = Math.sin((doy-105)/365*2*Math.PI);
-  let tMean = 9 + 9*season, tAmp = 6.5 - 1.5*season;
+  // климат берём из норм локации (открытые данные), а не из «средней Земли»
+  const site = (w && w.site) || {id:'ekb', region:'uralsib', lat:CFG.lat, az:180};
+  const N = siteNormals(site);
+  const sunFrac = clamp(normAt(N.sun, doy), 0.02, 0.85);      // доля солнца в месяце
+  let tMean = normAt(N.temp, doy);
+  // суточная амплитуда: чем яснее месяц, тем больше размах день/ночь
+  let tAmp = 4.0 + 5.0*(1 - sunFrac);
   // погодные события: холодный фронт / жара
   for (const ev of w.events){
     if (ev.inFuture) continue;
@@ -444,13 +561,17 @@ function outsideClimate(w, doy, hour){
   }
   tMean += (w.tempBias||0);
   const temp = tMean + tAmp*Math.sin((hour-9)/24*2*Math.PI);
-  const s = sunPosition(doy, hour, CFG.lat);
+  const s = sunPosition(doy, hour, site.lat || CFG.lat);
   const sinEl = Math.max(0, Math.sin(s.el*D2R));
-  let cloud = clamp(w.cloudToday + (w.cloudBias||0), 0, 0.95);
+  // облачность: месячная норма + дневной разброс (w.cloudToday — «погода на сегодня»)
+  const monthCloud = 1 - sunFrac;
+  let cloud = clamp(monthCloud + ((w.cloudToday===undefined?0.25:w.cloudToday) - 0.25)*0.8 + (w.cloudBias||0), 0, 0.95);
   for (const ev of w.events) if (ev.kind==='overcast' && !ev.inFuture) cloud = Math.max(cloud, 0.9);
   const ppfd = 2100*Math.pow(sinEl,1.15)*(1-0.55*cloud);
   const rh = clamp(80 - 12*Math.sin((hour-6)/24*2*Math.PI) + 12*cloud, 35, 98);
-  return {temp, ppfd, rh, el:s.el, az:s.az, sun:s, cloud};
+  // сцена: остекление смотрит на az дома, поэтому азимут пересчитываем в её систему
+  const azScene = ((s.az - ((site.az||180) - 180)) % 360 + 360) % 360;
+  return {temp, ppfd, rh, el:s.el, az:s.az, azScene, sun:s, cloud, site:site.id, sunFrac};
 }
 
 /* ---------------- Геометрия органов (порт turtle-подхода) ---------------- */
@@ -508,7 +629,7 @@ function computeLight(w, dtH){
   const C = CROPS[w.crop];
   const out = outsideClimate(w, w.doy, w.hour + (dtH||0)*0.5);
   w.out = out;
-  const sun = sunVector(out.el, out.az);
+  const sun = sunVector(out.el, out.azScene===undefined?out.az:out.azScene);
   // лампа слушается игрока; отказ оборудования и отсутствие питания гасят её
   const wantLamp = !!w.ctrl.lampOn && !!w.power;
   const lampOn = wantLamp && ((w.has.led && w.equip.lamp.ok) || w.has.lampBase);
@@ -703,6 +824,12 @@ function climateSub(w, dtH, C){
   const vBand = w.has.climatePC ? 4 : 3;          // климат-контроллер держит точнее
   let ventTarget = stuck ? 0.35 : clamp((w.temp - c.ventSet)/vBand, 0, 1);
   if (w.temp > c.ventSet + 8) ventTarget = Math.max(ventTarget, stuck ? 0.7 : 1);
+  // полная автоматизация сушит воздух, когда влажность подходит к пределу культуры:
+  // это и есть та работа, за которую раньше отвечал игрок
+  if (w.auto && w.auto.full && w.auto.full.on && autoAllowed(w,'full') && !stuck){
+    const rhMax = (C && C.rhMax) || 90;
+    if (w.rh > rhMax - 4) ventTarget = Math.max(ventTarget, 0.6);
+  }
   const travel = dtH/0.30;                      // полный ход ≈ 18 мин
   w.act.vent += clamp(ventTarget - w.act.vent, -travel, travel);
   const screenF = (w.has.screen && c.screenOn) ? 0.45 : (w.has.film ? 0.68 : 1);
@@ -738,12 +865,14 @@ function climateSub(w, dtH, C){
   w.rhMaxDay = Math.max(w.rhMaxDay===undefined?w.rh:w.rhMaxDay, w.rh);
 
   // --- CO₂ ---
-  const co2OK = w.has.co2 && w.equip.co2.ok && w.power;
+  const co2OK = w.has.co2 && w.equip.co2.ok && w.power && (w.co2Window !== false);
   const co2Stuck = w.equip.co2.stuck;
   const photoCO2 = (w.assimRate||0)*w.plantScale*44/30/24;      // г/ч
   let injG = 0;
+  const fullAuto = !!(w.auto && w.auto.full && w.auto.full.on && autoAllowed(w,'full'));
+  const vented = fullAuto && (w.act.vent || 0) > 0.45;      // форточки открыты — газ улетит
   if (co2Stuck && w.stock.co2Kg > 0.2) injG = E.co2MaxG;
-  else if (co2OK && c.co2Set > w.co2 && w.stock.co2Kg > 0.2)
+  else if (co2OK && !vented && c.co2Set > w.co2 && w.stock.co2Kg > 0.2)
     injG = E.co2MaxG*clamp((c.co2Set-w.co2)/80,0,1);
   const netPPM = (injG - photoCO2)/w.gPerPPM;
   const exch = 7*w.act.vent;
@@ -818,7 +947,7 @@ function growthTick(w, dtDays, C){
     // тепловое время: у листовых культур — фотопериод + температура
     const teff = Math.max(0, w.temp - 8);
     p.tt += teff*dtDays;
-    p.stress = clamp(w.stress + (1-p.nutri)*0.15, 0, 0.8);
+    p.stress = clamp(w.stress + (1-p.nutri)*0.15 + (w.waterStress||0)*0.45, 0, 0.85);
     p.nutri = f.nutri;
 
     let pool = 0;
@@ -845,7 +974,9 @@ function growthTick(w, dtDays, C){
     if (C.leafy){
       // листовая культура: биомасса идёт в «головку»
       const fHead = 0.82;
-      p.head += pool*fHead*(1-0.3*clamp(p.stress,0,1));
+      // сухость почвы бьёт по наливу отдельно от климата: устьица закрыты —
+      // сахар не идёт в плод, даже если света хватает
+      p.head += pool*fHead*(1-0.3*clamp(p.stress,0,1))*(1-0.55*(w.waterStress||0));
       p.pool += pool*(1-fHead);
       p.bio.leaf += pool*fHead;
     } else {
@@ -857,7 +988,7 @@ function growthTick(w, dtDays, C){
       p.bio.leaf += pool*fLeaf; p.bio.stem += pool*fStem; p.pool += pool*store;
 
       // соцветия: завязывание ограничено углеродом и стрессом
-      const setP = clamp(0.12 + p.carbonStatus/9, 0.10, 1.0)*(1-0.7*clamp(p.stress,0,1))*(1-0.5*w.disease);
+      const setP = clamp(0.12 + p.carbonStatus/9, 0.10, 1.0)*(1-0.7*clamp(p.stress,0,1))*(1-0.5*w.disease)*(1-0.5*(w.waterStress||0));
       const maxGrow = Math.max(1, Math.floor(p.carbonStatus/1.6));
       let grow = p.fruits.filter(x=>!x.ripe&&!x.harvested).length;
       for (const tr of p.trusses){
@@ -969,18 +1100,29 @@ function pruneLeaf(w, p, lf){
 
 /* ---------------- Риски: оборудование, датчики, погода, вредители ---------------- */
 const EQUIP_DEFS = {
-  heater: {name:'Котёл', repair:420, failP:0.0060},
-  fan:    {name:'Привод форточек', repair:260, failP:0.0055},
-  lamp:   {name:'Светильники', repair:380, failP:0.0040},
-  co2:    {name:'Клапан CO₂', repair:210, failP:0.0040},
-  dosing: {name:'Дозирующий узел', repair:340, failP:0.0050},
-  sensor: {name:'Датчики', repair:120, failP:0.0030}
+  // price — сколько стоит новый такой прибор: от него считаем гарантийный возврат
+  heater: {name:'Котёл', repair:420, failP:0.0060, price:2600},
+  fan:    {name:'Привод форточек', repair:260, failP:0.0055, price:900},
+  lamp:   {name:'Светильники', repair:380, failP:0.0040, price:2200},
+  co2:    {name:'Клапан CO₂', repair:210, failP:0.0040, price:1200},
+  dosing: {name:'Дозирующий узел', repair:340, failP:0.0050, price:3400},
+  sensor: {name:'Датчики', repair:120, failP:0.0030, price:600}
 };
+/* Гарантия: отказ на 180–364-й день с начала сезона или покупки — возврат денег.
+   Деньги приходят не сразу, а через 7 дней; сам прибор остаётся у игрока, его
+   можно починить (ремонт гарантию не отменяет — так решил игрок).            */
+const WARRANTY = { fromDay:180, toDay:364, payDays:7 };
 
 /* Есть ли это оборудование в мире: клапан CO₂ не может сломаться там, где его нет. */
 /* есть ли вообще чем светить: лампа-лента (в стартовом наборе), LED-лента, ЛЕД */
 function hasLight(w){
   return !!(w && w.has && (w.has.led || w.has.ledStrip || w.has.lampBase));
+}
+/* горит ли свет прямо сейчас. Лампа и лента — два разных флага (лента дешевле
+   и слабее), а игроку важно одно: свет есть или нет. Раньше сцена смотрела
+   только на light.lampOn и при одной ленте оставалась тёмной. */
+function lightLit(w){
+  return !!(w && w.light && (w.light.lampOn || w.light.stripOn));
 }
 function lightName(w){
   if (!w) return 'нет';
@@ -989,6 +1131,26 @@ function lightName(w){
   if (w.has.lampBase) return 'лампа-лента';
   return 'нет';
 }
+/* Включить/выключить досветку. Одна функция на все входы: кнопка «Досветка»
+   в панели под сценой, клик по светильнику в сцене и переключатель в
+   «Параметрах». Раньше каждый вход проверял своё (кнопка требовала именно
+   LED за 2800 € и при дешёвой ленте отвечала «купите LED»). */
+function toggleLamp(w){
+  if (!w || !w.has || !hasLight(w))
+    return {ok:false, on:false, name:'нет', msg:'Лампы нет — купите в магазине'};
+  w.ctrl.lampEnabled = !w.ctrl.lampEnabled;
+  const on = !!w.ctrl.lampEnabled;
+  w.ctrl.lampOn = on && !!w.power && hasLight(w);
+  const name = lightName(w);
+  let msg = on ? name+': включена' : 'Досветка выключена — за свет не платите';
+  if (on && !w.power) msg = name+': включена, но нет электричества';
+  // рука игрока сильнее расписания: нажал кнопку — таймер света выключается,
+  // иначе автоматика вернула бы своё состояние на следующем шаге и кнопка «не работала»
+  let timerOff = false;
+  if (w.auto && w.auto.lamp && w.auto.lamp.on){ setAuto(w, 'lamp', false); timerOff = true; msg += '. Таймер света выключен'; }
+  return {ok:true, on, name, msg, timerOff};
+}
+
 /* сколько дней проживут баки при вчерашнем расходе (null — данных ещё нет) */
 function tankDays(w, what){
   const last = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
@@ -1024,8 +1186,33 @@ function riskTick(w, dtH){
     if (rnd(w) < p){
       eq.ok = false; eq.down = 0; eq.stuck = (k==='co2') && rnd(w)<0.5;
       w.events.push({kind:'breakdown', equip:k, days:0});
-      w.log.unshift({t:'Д'+w.day, m:`Отказ: ${def.name}. Ремонт ${money(def.repair)} (Магазин → Сервис)`, k:'bad'});
       w.incidents = (w.incidents||0)+1;
+      // гарантия: возраст прибора от установки (для стартового — от 1-го дня сезона)
+      const age = w.day - (eq.since || 1);
+      const claim = age >= WARRANTY.fromDay && age <= WARRANTY.toDay && !eq.claimed;
+      if (claim){
+        eq.claimed = true;
+        const eur = Math.round(eq.paid || def.price);
+        w.warranty = w.warranty || [];
+        w.warranty.push({k, name:def.name, eur, due:w.day + WARRANTY.payDays, day:w.day, age});
+        w.log.unshift({t:'Д'+w.day, m:`Гарантия: ${def.name} (${age} дн с установки) — возврат ${money(eur)} через ${WARRANTY.payDays} дн`, k:'hl'});
+        w.alarmPing = {text:`Гарантийный случай: ${def.name} · ${money(eur)} придут ${fmtDate(w.doy + WARRANTY.payDays)}`};
+      } else {
+        w.log.unshift({t:'Д'+w.day, m:`Отказ: ${def.name}. Ремонт ${money(def.repair)} (Магазин → Сервис)`, k:'bad'});
+      }
+    }
+  }
+  // гарантийные возвраты: деньги приходят ровно через 7 дней, а не сразу
+  if (w.warranty && w.warranty.length){
+    for (let i=w.warranty.length-1; i>=0; i--){
+      const r = w.warranty[i];
+      if (w.day >= r.due){
+        w.money += r.eur;
+        w.revenue += r.eur;              // это возврат, а не выручка, но баланс должен сойтись
+        w.log.unshift({t:'Д'+w.day, m:`Гарантийный возврат: ${r.name} — +${money(r.eur)}`, k:'hl'});
+        w.alarmPing = {text:`Гарантия: ${r.name} — вернули ${money(r.eur)}`};
+        w.warranty.splice(i,1);
+      }
     }
   }
   // датчики «плывут»
@@ -1033,10 +1220,12 @@ function riskTick(w, dtH){
   w.drift.temp += (rnd(w)-0.45)*0.05*dtD*dF;
   w.drift.rh   += (rnd(w)-0.5)*0.12*dtD*dF;
   w.drift.co2  += (rnd(w)-0.5)*1.2*dtD*dF;
+  w.drift.soil = (w.drift.soil||0) + (rnd(w)-0.45)*0.5*dtD*dF;   // щуп в земле «плывёт» тоже
   const nz = () => (rnd(w)-0.5)*0.3;
   w.meas.temp = w.temp + w.drift.temp + nz();
   w.meas.rh   = clamp(w.rh + w.drift.rh + nz()*2, 20, 100);
   w.meas.co2  = Math.max(330, w.co2 + w.drift.co2 + nz()*4);
+  w.meas.moist = clamp((w.moist===undefined?SOIL.m0:w.moist) + w.drift.soil + nz()*1.5, 0, 100);
 
   // погода: планируем события заранее (чтобы прогноз мог их показать)
   for (let i=w.events.length-1;i>=0;i--){
@@ -1340,7 +1529,7 @@ function checkContracts(w){
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
    need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (лампа покупается в магазине)', reward:90,
+  {id:'m2', text:'Включите досветку кнопкой под сценой или кликом по лампе (сама лампа покупается в магазине)', reward:90,
    need:w=>!!(w.has.led||w.has.ledStrip||w.has.lampBase), check:w=>!w.ctrl.lampEnabled?false:(!!(w.has.led||w.has.ledStrip))},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
@@ -1385,15 +1574,27 @@ function makeWorld(opts){
   const D = DIFFICULTY[opts.difficulty||'normal'] || DIFFICULTY.normal;
   const seed = (opts.seed || 20260415) >>> 0;
   const area = P.area;
+  // где и когда начинаем: нормы климата берём из открытых данных по точке,
+  // дата старта — «как за окном» (если не задана явно)
+  const siteDef = siteById(opts.site || 'ekb');
+  const orient = ORIENTS[opts.orient || 'S'] ? (opts.orient || 'S') : 'S';
+  const site = {id:(SITES[opts.site]?opts.site:'ekb'), name:siteDef.name, region:siteDef.region,
+                lat:siteDef.lat, lon:siteDef.lon, az:ORIENTS[orient].az, orient,
+                note:siteDef.note};
+  const startDoy = clamp(Math.round(opts.startDoy != null ? opts.startDoy : P.startDoy), 1, 365);
   const w = {
     seed, rngState: seed, profile: P.id, crop: C.id,
     weather: opts.weather||'normal', cloudBias: opts.weather==='cloudy'?0.22:0, tempBias: opts.weather==='hot'?2.5:0,
     profilePriceF: P.priceF*D.priceF, diffPriceF: D.priceF, area,
     diffId: D.id, diffFixed: D.fixedF, diffFail: D.failF, diffDrift: D.driftF, diffEvent: D.eventF,
-    plantScale: 1, day:1, hour:6, doy:P.startDoy, over:false, seasonDays: opts.campaign ? 210 : CFG.seasonDays,
+    plantScale: 1, day:1, hour:6, doy:startDoy, startDoy, site, over:false, seasonDays: opts.campaign ? 210 : CFG.seasonDays,
     money: P.start, startMoney: P.start, loan: 0, loanRate: 0.06,
     temp: 16, co2: 520, rh: 75,
-    meas:{temp:16, co2:520, rh:75}, drift:{temp:0, rh:0, co2:0}, lastCalib: 1,
+    // влажность субстрата: поливает игрок руками, датчик показывает проценты
+    moist: SOIL.m0, waterStress: 0, soilDryHours: 0, wateredTodayL: 0, wateredTotalL: 0,
+    // таймеры: свет, полив, CO₂ и полная автоматизация (см. AUTO_KEYS)
+    auto: autoDefaults(), co2Window: true, autoWateredTodayL: 0,
+    meas:{temp:16, co2:520, rh:75, moist: SOIL.m0}, drift:{temp:0, rh:0, co2:0, soil:0}, lastCalib: 1,
     plants: [], events: [], contracts: [], pest:{active:false, level:0},
     disease: 0, stress: 0, power: true, pruned: 0, incidents: 0,
     missionIdx: 0, missionsDone: 0,
@@ -1401,7 +1602,7 @@ function makeWorld(opts){
       heatSet: 18, ventSet: 24, co2Set: 600,
       lampOn: false, lampEnabled: false, screenOn: false, shadeOn: false,
       alarmOn: false, alarmFrom: 6, alarmTo: 20,
-      ecSet: 2.4, phSet: 5.8, recipe: 'std', irrig: true
+      ecSet: 2.4, phSet: 5.8, recipe: 'std'
     },
     // клaпан CO₂ есть только там, где он физически стоит: на балконе и в комнате
     // его нет (в кампании он появляется вместе с теплицей), иначе игрок получал
@@ -1411,10 +1612,14 @@ function makeWorld(opts){
            dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
+    // гарантия: since — день установки (для стартового оборудования — 1-й день),
+    // paid — сколько за него заплатили (возврат по гарантии считаем от этой суммы)
     equip: {
-      heater:{ok:true, down:0}, fan:{ok:true, down:0}, lamp:{ok:true, down:0},
-      co2:{ok:true, down:0, stuck:false}, dosing:{ok:true, down:0}, sensor:{ok:true, down:0}
+      heater:{ok:true, down:0, since:1}, fan:{ok:true, down:0, since:1}, lamp:{ok:true, down:0, since:1},
+      co2:{ok:true, down:0, since:1, stuck:false}, dosing:{ok:true, down:0, since:1},
+      sensor:{ok:true, down:0, since:1}
     },
+    warranty: [],                 // {k, name, eur, due, day} — возвраты в пути
     stock: { fertKg: 120*(P.area/400), co2Kg: 140*(P.area/400), waterM3: 100*(P.area/400), seeds: 400*(P.area/400) },
     // склад: секции, партии урожая, потери
     wh: { sections: WH.start[P.id]||2, lots: [], wasteKg: 0, wasteEur: 0 },
@@ -1467,14 +1672,182 @@ function stepWorld(w, dtH){
   while (w.hour >= 24 && guard++ < 4){ w.hour -= 24; w.day++; w.doy++; newDay(w); }
   // досветка — ВРУЧНУЮ: лампа горит ровно тогда, когда её включил игрок.
   // Автоматики нет; «будильник» (ctrl.alarm*) только напоминает алертами.
+  autoTick(w, dtH);                 // таймеры ставят уставки до расчёта света
   w.ctrl.lampOn = !!w.ctrl.lampEnabled && !!w.power && (!!w.has.led || !!w.has.ledStrip || !!w.has.lampBase);
   computeLight(w, dtH);
   climateTick(w, dtH, C);
+  soilTick(w, dtH);
   fertTick(w, dtH);
   growthTick(w, dtDays, C);
   riskTick(w, dtH);
+  alarmTick(w);                     // будильник — только напоминание, лампу не трогает
   if (!w.forecast) missionsTick(w);     // награды за задания — сразу, не раз в сутки
   return w;
+}
+
+/* ---------------- Таймеры и автоматизация ----------------
+   Свободный сезон: доступно всё сразу. Кампания открывает по шагу:
+   глава 1 — свет, глава 2 — полив, глава 3 — CO₂, глава 4 — полная автоматизация.
+   Ручное управление никуда не девается: таймеры можно выключить в любой момент. */
+const AUTO_KEYS = [
+  {id:'lamp',  name:'Свет по расписанию',   ch:0, note:'лампа включается и выключается сама в заданном окне'},
+  {id:'water', name:'Полив по датчику',     ch:1, note:'поливает, когда влага падает ниже цели, но только в окне'},
+  {id:'co2',   name:'CO₂ по расписанию',    ch:2, note:'клапан работает только в окне, вне окна — закрыт'},
+  {id:'full',  name:'Полная автоматизация', ch:3, note:'свет по кроне, влага по датчику сутки напролёт, CO₂ у цели, форточки по влажности'}
+];
+function autoChapter(w){ return w && w.camp ? Math.min(3, w.camp.ch|0) : 3; }
+function autoKey(id){ return AUTO_KEYS.find(k=>k.id===id) || null; }
+/* можно ли включить: сначала глава кампании, потом наличие оборудования */
+function autoAllowed(w, id){
+  const k = autoKey(id);
+  if (!k || !w) return false;
+  if (autoChapter(w) < k.ch) return false;
+  if (id === 'lamp')  return hasLight(w);
+  if (id === 'water') return w.sys === 'soil' || w.sys === 'coco';   // в гидропонике раствор и так циркулирует
+  if (id === 'co2')   return !!w.has.co2;
+  if (id === 'full')  return !!w.has.climatePC;                       // нужен климат-контроллер
+  return false;
+}
+function autoWhy(w, id){
+  const k = autoKey(id);
+  if (!k) return 'нет такого таймера';
+  if (autoChapter(w) < k.ch) return 'откроется в главе ' + (k.ch+1);
+  if (id === 'lamp'  && !hasLight(w)) return 'сначала купите лампу';
+  if (id === 'water' && !(w.sys==='soil'||w.sys==='coco')) return 'в этой системе раствор и так в обороте';
+  if (id === 'co2'   && !w.has.co2) return 'нужен клапан CO₂';
+  if (id === 'full'  && !w.has.climatePC) return 'нужен климат-контроллер (магазин)';
+  return '';
+}
+function inWindow(h, from, to){
+  from = ((from|0)%24+24)%24; to = ((to|0)%24+24)%24;
+  if (from === to) return true;
+  return from < to ? (h >= from && h < to) : (h >= from || h < to);
+}
+function autoDefaults(){
+  return {
+    lamp:  {on:false, from:6,  to:22},
+    water: {on:false, from:7,  to:21, target:55},
+    co2:   {on:false, from:6,  to:21},
+    full:  {on:false}
+  };
+}
+/* включить/выключить таймер: одна дверь для интерфейса и для тестов */
+function setAuto(w, id, on){
+  const k = autoKey(id);
+  if (!k) return {ok:false, msg:'Нет такого таймера'};
+  if (!w.auto) w.auto = autoDefaults();
+  if (!w.auto[id]) w.auto[id] = (id==='full') ? {on:false} : {on:false, from:6, to:22};
+  if (on && !autoAllowed(w, id)) return {ok:false, msg:k.name+': '+autoWhy(w, id)};
+  w.auto[id].on = !!on;
+  // полная автоматизация забирает ручки себе: отдельные таймеры больше не спорят
+  if (id === 'full' && on){ w.auto.lamp.on = true; w.auto.water.on = true; w.auto.co2.on = !!w.has.co2; }
+  w.log.unshift({t:'Д'+w.day, m:(on?'Включено: ':'Выключено: ')+k.name.toLowerCase(), k:''});
+  return {ok:true, msg:k.name+': '+(on?'включено':'выключено')};
+}
+function setAutoTime(w, id, field, value){
+  if (!w.auto) w.auto = autoDefaults();
+  const A = w.auto[id]; if (!A) return {ok:false, msg:'Нет такого таймера'};
+  const v = +value;
+  if (!isFinite(v)) return {ok:false, msg:'Нужно число'};
+  if (field === 'target') A.target = clamp(Math.round(v), 20, 90);
+  else if (field === 'from' || field === 'to') A[field] = clamp(Math.round(v), 0, 24);
+  else return {ok:false, msg:'Неизвестное поле'};
+  return {ok:true};
+}
+
+/* каждый шаг: таймеры ставят уставки до расчёта света и климата */
+function autoTick(w, dtH){
+  if (!w.auto) w.auto = autoDefaults();
+  const A = w.auto, h = w.hour;
+
+  // 1) свет по расписанию
+  if (A.lamp.on && autoAllowed(w,'lamp')){
+    const want = inWindow(h, A.lamp.from, A.lamp.to);
+    if (want !== !!w.ctrl.lampEnabled){
+      w.ctrl.lampEnabled = want;
+      w.log.unshift({t:'Д'+w.day, m:'Таймер света: '+(want?'лампа включена':'лампа выключена'), k:''});
+    }
+  }
+
+  // 2) полив по датчику в окне
+  if (A.water.on && autoAllowed(w,'water') && inWindow(h, A.water.from, A.water.to)){
+    if ((w.moist||0) < (A.water.target||55) - 5 && (w.stock.waterM3||0) > 0.001){
+      const r = water(w);
+      if (r.ok && r.litres){
+        w.autoWateredTodayL = (w.autoWateredTodayL||0) + r.litres;
+        if (!w._autoWaterLogDay || w._autoWaterLogDay !== w.day){
+          w._autoWaterLogDay = w.day;
+          w.log.unshift({t:'Д'+w.day, m:'Таймер полива: '+r.litres+' л, влага '+Math.round(w.moist)+'%', k:''});
+        }
+      }
+    }
+  }
+
+  // 3) окно CO₂ (сам клапан — в climateSub)
+  w.co2Window = (A.co2.on && autoAllowed(w,'co2')) ? inWindow(h, A.co2.from, A.co2.to) : true;
+
+  // 4) полная автоматизация: держит всё сразу, без окон
+  if (A.full.on && autoAllowed(w,'full')){
+    // свет — по кроне: мало света и день на дворе — включаем
+    const lowLight = (w.light.meanLeaf||0) < 140;
+    const wantLamp = lowLight && h >= 4 && h < 22;
+    if (wantLamp !== !!w.ctrl.lampEnabled){
+      w.ctrl.lampEnabled = wantLamp;
+      w.log.unshift({t:'Д'+w.day, m:'Автоматика: досветка '+(wantLamp?'включена (крона ловит мало света)':'выключена'), k:''});
+    }
+    // влага — круглосуточно по датчику
+    const target = (A.water.target||55);
+    if ((w.moist||0) < target - 5 && (w.stock.waterM3||0) > 0.001){
+      const r = water(w);
+      if (r.ok && r.litres) w.autoWateredTodayL = (w.autoWateredTodayL||0) + r.litres;
+    }
+    // CO₂ у цели всё время, свет не нужен для удержания
+    w.co2Window = true;
+  }
+  return w;
+}
+
+/* напоминание будильника: одно всплывающее сообщение за сутки, его показывает UI */
+function alarmTick(w){
+  const c = w.ctrl;
+  if (!c.alarmOn || !hasLight(w)) return w;
+  const inside = inWindow(w.hour, c.alarmFrom, c.alarmTo);
+  let kind = null;
+  if (inside && !c.lampEnabled) kind = 'on';
+  else if (!inside && c.lampEnabled) kind = 'off';
+  if (!kind){ w.alarmPing = null; return w; }
+  if (w._alarmPingDay === w.day && w._alarmPingKind === kind) return w;
+  w._alarmPingDay = w.day; w._alarmPingKind = kind;
+  w.alarmPing = {kind, day:w.day, text: kind === 'on'
+    ? `Будильник: окно света с ${fmtHour(c.alarmFrom)} до ${fmtHour(c.alarmTo)} — включите лампу`
+    : 'Будильник: окно света закончилось — выключите лампу, она ест электричество впустую'};
+  return w;
+}
+
+/* влага в субстрате: расход на транспирацию и испарение, последствия сухости
+   и перелива. Вызывается каждый шаг, после климата (там уже известна крона). */
+function soilTick(w, dtH){
+  const sys = sysOf(w);
+  if (w.moist === undefined) w.moist = SOIL.m0;
+  const lai = totalLAI(w);
+  const heat = Math.max(0, (w.temp||16) - 22);
+  const vent = (w.act && w.act.vent) || 0;
+  // за сутки при хорошей кроне уходит ~18 п.п.: поливать приходится раз в 1–3 дня
+  const dropDay = (6 + 10*clamp(lai/1.6, 0, 1.5) + heat*0.5) * (sys.waterF || 1) * (1 + 0.18*vent);
+  w.moist = clamp(w.moist - dropDay*dtH/24, 0, 100);
+  const m = w.moist;
+  let ws = 0;
+  if (m < SOIL.dry){
+    ws = clamp((SOIL.dry - m)/Math.max(1, SOIL.dry - SOIL.wilt), 0, 1);
+    w.soilDryHours = (w.soilDryHours||0) + dtH;
+  } else {
+    w.soilDryHours = 0;
+    if (m > SOIL.wet) ws = clamp((m - SOIL.wet)/(100 - SOIL.wet), 0, 1)*0.5;
+  }
+  w.waterStress = ws;
+  // перелив: корни без воздуха, гниль растёт охотнее (у гидропоники — сильнее)
+  if (m > SOIL.wet) w.disease = clamp(w.disease + 0.045*(m - SOIL.wet)/12*dtH*(sys.rotF||1), 0, 1);
+  return w.moist;
 }
 
 function fertTick(w, dtH){
@@ -1505,6 +1878,8 @@ function newDay(w){
     }
   } else { w.debtDays = 0; }
   w.revenueYesterday = w.revenue;
+  w.wateredTodayL = 0;
+  w.autoWateredTodayL = 0;
   const profit = rev - cost;
   w.profitDay = profit;
   // сверка: насколько «бухгалтерская» прибыль совпадает с реальным движением денег
@@ -1609,7 +1984,7 @@ const SHOP_ITEMS = () => ([
      buy:w=>{ w.has.climatePC = true; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
-    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, работает 4:30–21:00',
+    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, включается вручную',
      buy:w=>{ w.has.led = true; }},
     {id:'ledBoost', name:'Форсирование LED (+50%)', base:2600, desc:'280 µmol, +энергия',
      req:w=>w.has.led, buy:w=>{ w.upg.ledBoost = true; }},
@@ -1648,9 +2023,10 @@ const SHOP_ITEMS = () => ([
      price:w=>whSectionCost(w), buy:w=>{ /* покупка через addSection */ }}
   ]},
   {group:'Сервис и защита', items:[
-    {id:'repair', name:'Ремонт оборудования', base:0, desc:'устраняет все отказы', dynamic:true},
+    {id:'repair', name:'Ремонт оборудования', base:0, dynamic:true,
+     desc:'устраняет все отказы. Гарантия: отказ на 180–364-й день с покупки — возврат денег через 7 дней, прибор остаётся у вас; ремонт возврат не отменяет'},
     {id:'calib', noScale:true, dynamic:true, bucket:'repair', name:'Калибровка датчиков', base:140, desc:'сбрасывает дрейф измерений',
-     buy:w=>{ w.drift.temp=0; w.drift.rh=0; w.drift.co2=0; w.lastCalib = w.day; }},
+     buy:w=>{ w.drift.temp=0; w.drift.rh=0; w.drift.co2=0; w.drift.soil=0; w.lastCalib = w.day; }},
     {id:'service', name:'Сервисный контракт (сезон)', base:1600, desc:'−65% отказов, плановое ТО',
      buy:w=>{ w.has.service = true; }},
     {id:'insurance', name:'Страховка сезона', base:1900, desc:'компенсирует 60% ущерба от инцидентов',
@@ -1733,6 +2109,19 @@ function buyItem(w, id){
     w.money -= cost;
     const before = w.revenue;
     it.buy && it.buy(w);
+    // если покупка — это оборудование из списка отказов, запоминаем дату и цену:
+    // по ним считается гарантия (180–364 дня с покупки)
+    const EQUIP_OF_ITEM = {
+      led:['lamp'], ledStrip:['lamp'], ledBoost:['lamp'], film:['heater'], screen:['heater'],
+      climatePC:['heater','fan'], secondSensor:['sensor'], dosing:['dosing'],
+      co2_50:['co2'], co2_200:['co2'], reliability:['heater','fan','lamp','co2','dosing','sensor']
+    };
+    for (const k of (EQUIP_OF_ITEM[id] || [])){
+      const eq = w.equip[k];
+      if (!eq) continue;
+      eq.since = w.day; eq.paid = EQUIP_DEFS[k] ? EQUIP_DEFS[k].price : cost;
+      eq.claimed = false;
+    }
     if (!it.dynamic) w.cost.upgrade += cost;
     else if (it.bucket) w.cost[it.bucket] += cost;
     w.log.unshift({t:'Д'+w.day, m:`Покупка: ${it.name} (−${money(cost)})`, k:''});
@@ -1808,6 +2197,27 @@ function deserializeWorld(text){
   if (!w.sys || !GROW_SYS[w.sys]) w.sys = 'soil';
   if (w.camp && w.camp.soldBase === undefined) w.camp.soldBase = 0;
   if (!w.mail) w.mail = [];
+  // миграция: локация и дата старта появились позже — старым сейвам ставим
+  // Екатеринбург, юг и «дату как есть», чтобы климат не прыгнул на глазах
+  if (!w.site) w.site = {id:'ekb', name:'Екатеринбург', region:'uralsib', lat:56.84, lon:60.61, az:180, orient:'S'};
+  if (!w.site.az) w.site.az = ORIENTS[w.site.orient || 'S'] ? ORIENTS[w.site.orient || 'S'].az : 180;
+  if (w.startDoy === undefined) w.startDoy = ((w.doy - (w.day||1)) % 365 + 365) % 365 || 91;
+  if (!w.warranty) w.warranty = [];
+  for (const k in (w.equip||{})){
+    const eq = w.equip[k];
+    if (eq.since === undefined) eq.since = 1;
+  }
+  // миграция: влага субстрата появилась позже — старым сохранениям ставим норму
+  if (w.moist === undefined) w.moist = SOIL.m0;
+  if (!w.meas) w.meas = {};
+  if (w.meas.moist === undefined) w.meas.moist = w.moist;
+  if (!w.drift) w.drift = {temp:0, rh:0, co2:0, soil:0};
+  if (w.drift.soil === undefined) w.drift.soil = 0;
+  if (w.waterStress === undefined) w.waterStress = 0;
+  // миграция: таймеров не было — старым сохранениям ставим «всё выключено»
+  if (!w.auto || typeof w.auto !== 'object') w.auto = autoDefaults();
+  else { const d = autoDefaults(); for (const k in d) if (!w.auto[k]) w.auto[k] = d[k]; }
+  if (w.co2Window === undefined) w.co2Window = true;
   if (w.diffPriceF === undefined) w.diffPriceF = DIFFICULTY[w.diffId||'normal'].priceF;
   if (!w.seasonDays) w.seasonDays = w.camp ? 210 : CFG.seasonDays;
   pack.v = SAVE_VERSION;
@@ -1825,7 +2235,12 @@ function diagnose(w){
   const nut = fertFactors(w).nutri;
   const fruits = w.plants.reduce((a,p)=>a+p.fruits.filter(f=>!f.harvested).length,0);
 
-  if (w.stock.waterM3 < 0.5) push('bad', 'Нет воды: устьица закрыты, фотосинтез падает');
+  if (w.stock.waterM3 < 0.5) push('bad', 'Нет воды в баке: полить нечем — купите воду в магазине');
+  const soilSt = soilState(w);
+  if (soilSt.key === 'wilt' || soilSt.key === 'dry')
+    push('bad', `Субстрат ${soilSt.word}: ${Math.round(w.moist || 0)}% — полейте (кнопка «Полить» или клик по горшку)`);
+  else if (soilSt.key === 'wet')
+    push('warn', `Перелив ${Math.round(w.moist || 0)}%: корни без воздуха — откройте проветривание, иначе корневая гниль`);
   if (w.stock.fertKg < 1.5)  push('bad', 'Закончились удобрения: EC не держится, рост тормозит');
   if (w.disease > 0.18)      push('bad', `Серая гниль ${Math.round(w.disease*100)}%: −${Math.round(w.disease*35)}% фотосинтеза и качества`);
   if (w.pest.active)         push('bad', `Клещ ${Math.round(w.pest.level*100)}%: −${Math.round(35*w.pest.level)}% ассимиляции`);

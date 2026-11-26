@@ -22,7 +22,8 @@
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 34px rgba(0,0,0,.45);padding:10px 11px}
   h1,h2,h3{margin:0;letter-spacing:.2px}
   h1{font-size:13px;font-weight:600}
-  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--dim);margin:0 0 7px;font-weight:600}
+  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin:0 0 7px;font-weight:600;
+    max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   h3{font-size:12px;font-weight:600}
   /* ---- верхняя панель ---- */
   #top{position:fixed;top:8px;left:8px;right:8px;min-height:52px;display:flex;align-items:center;
@@ -49,12 +50,31 @@
 #page-shop,#page-settings{background:linear-gradient(180deg,#08120e,#060d0a 60%)}
   .page.on{display:block}
   /* ---- дашборд ---- */
-  #dashGrid{position:fixed;inset:68px 8px 8px;display:grid;grid-template-columns:212px 1fr 248px;gap:8px;pointer-events:none}
+  #dashGrid{position:fixed;inset:68px 8px 8px;display:grid;grid-template-columns:232px 1fr 248px;gap:8px;pointer-events:none}
   /* страница-контейнер прозрачна для мыши: сцена под ней должна получать клики и drag */
   #page-greenhouse{pointer-events:none}
   #dashGrid .col,#center,#center .spacer{pointer-events:none}
   #page-greenhouse .panel,#page-greenhouse .camBar,#page-greenhouse .quickBar,#page-greenhouse .bottomBar{pointer-events:auto}
   .col{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:100%}
+  /* ЛЕВЫЙ столбец неподвижен: у панелей фиксированные доли высоты, а меняющееся
+     содержимое (риски, диагностика, строки экономики) скроллится внутри своей
+     панели. Иначе каждая новая строка сдвигала всё, что ниже, и попасть по
+     кнопке повторно было нельзя. */
+  #dashGrid .col.left{overflow:hidden}
+  #dashGrid .col.left>.panel{overflow:hidden;display:flex;flex-direction:column;min-height:0;justify-content:flex-start;align-items:stretch}
+  #dashGrid .col.left>[data-p="climate"]{flex:0 0 auto}
+  #dashGrid .col.left>[data-p="why"]{flex:0 0 124px}
+  #dashGrid .col.left>[data-p="finance"]{flex:1 1 0;min-height:132px;max-height:300px}
+  #dashGrid .col.left>[data-p="risks"]{flex:0 0 96px}
+  /* высоты внутренних блоков заданы явно: тогда даже смена числа строк
+     не двигает ни плашку, ни её содержимое */
+  #dashGrid .col.left #gauges{flex:0 0 auto}
+  #dashGrid .col.left #diagnosis{flex:0 0 auto;height:76px}
+  #dashGrid .col.left #finance{flex:1 1 0;min-height:0}
+  #dashGrid .col.left #alerts{flex:0 0 auto;height:48px}
+  #dashGrid .col.left #gauges,#dashGrid .col.left #diagnosis,
+  #dashGrid .col.left #finance,#dashGrid .col.left #alerts{overflow-y:auto;scrollbar-width:thin}
+  #dashGrid .col.left #alerts .alert{margin-bottom:4px}
   #center{display:flex;flex-direction:column;gap:8px;justify-content:space-between}
   #center .spacer{flex:1}
   .g{display:grid;grid-template-columns:38px 1fr 54px;align-items:center;gap:6px;font-size:11px;margin-bottom:5px}
@@ -69,6 +89,11 @@
   .kv span{color:var(--dim)} .kv b{font-family:var(--mono);font-weight:500}
   .kv b.pos{color:var(--acc)} .kv b.neg{color:var(--bad)}
   .camBar{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+  .quickBar{display:flex;gap:6px 7px;align-items:center;justify-content:center;flex-wrap:wrap;padding:7px 9px}
+  /* подсказка по кликам: одна строка с многоточием, иначе она сжималась в
+     вертикальную полоску между кнопками */
+  #sceneHint{flex:1 1 150px;min-width:110px;max-width:280px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;text-align:center}
   .camBar button,.btn{font:inherit;font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid var(--line);background:rgba(122,216,160,.08);color:var(--txt);cursor:pointer;transition:.13s;white-space:nowrap}
   .camBar button:hover,.btn:hover{background:rgba(122,216,160,.2)}
   .camBar button.on{background:rgba(122,216,160,.3);border-color:var(--acc)}
@@ -112,14 +137,19 @@
   .hint{font-size:10.5px;color:var(--dim);line-height:1.45}
   code{font-family:var(--mono);font-size:11px;background:rgba(122,216,160,.12);padding:1px 4px;border-radius:4px}
   /* обучение */
-  #tutor{position:fixed;left:50%;top:calc(var(--topH) + 14px);transform:translateX(-50%) translateY(-6px);width:min(460px,92vw);
-    background:rgba(9,22,17,.97);border:1px solid var(--acc);border-radius:11px;padding:9px 12px;z-index:40;
-    box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.2s;font-size:11.5px;line-height:1.35}
+  #tutor{position:fixed;left:50%;top:calc(var(--topH) + 10px);transform:translateX(-50%) translateY(-6px);width:min(400px,88vw);
+    background:rgba(9,22,17,.97);border:1px solid var(--acc);border-radius:11px;padding:6px 10px 7px;z-index:40;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.2s;font-size:11px;line-height:1.3}
+  /* свёрнутая подсказка — одна строка, сцену не закрывает */
+  #tutor.min{width:auto;max-width:min(400px,88vw);padding:4px 9px}
+  #tutor.min #tutorText,#tutor.min .dots{display:none}
+  #tutor.min .ttl{margin-bottom:0}
   #tutor.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
   #tutor .ttl{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9.5px;
     letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-bottom:4px}
   #tutor .ttl button{font:inherit;font-family:var(--mono);font-size:9.5px;background:none;border:none;color:var(--dim);cursor:pointer;text-transform:none;letter-spacing:0}
   #tutor .ttl button:hover{color:var(--bad)}
+  #tutor .ttl .acts{display:flex;gap:8px;align-items:center}
   #tutor .dots{display:flex;gap:4px;margin-top:7px}
   #tutor .dots i{width:16px;height:3px;border-radius:2px;background:rgba(122,216,160,.22)}
   #tutor .dots i.on{background:var(--acc)}
@@ -175,9 +205,13 @@
     box-shadow:5px 5px 0 rgba(10,8,6,.9), inset 0 0 0 1px rgba(255,194,26,.10);
     backdrop-filter:none;-webkit-backdrop-filter:none;padding:9px 10px}
   h1,h2,h3{font-family:"Arial Black","Haettenschweiler",Impact,"Trebuchet MS",sans-serif;letter-spacing:.3px}
-  h2{display:inline-block;background:var(--acc);color:#1a1206;font-size:10px;text-transform:uppercase;
-    letter-spacing:1.4px;padding:2px 8px 2px 7px;margin:0 0 8px;transform:skew(-9deg);
-    border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);font-weight:900}
+  /* заголовок-плашка: одна строка. Раньше длинные подписи («Климат (по датчикам)»,
+     «Баки и возможности») переносились на две строки, плашка раздувалась
+     и тянула за собой весь столбец. */
+  h2{display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    background:var(--acc);color:#1a1206;font-size:10px;text-transform:uppercase;
+    letter-spacing:.9px;padding:2px 8px 2px 7px;margin:0 0 8px;transform:skew(-9deg);
+    border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);font-weight:900;vertical-align:top}
   h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px}
   /* верхняя панель */
   #top{border-radius:5px}
@@ -199,7 +233,10 @@
   .btn,.camBar button{font-family:"Arial Black",Impact,sans-serif;text-transform:uppercase;letter-spacing:.5px;
     font-size:10.5px;padding:6px 10px;border:2px solid var(--ink);border-radius:4px;background:#2b2116;
     color:var(--txt);box-shadow:3px 3px 0 var(--ink);transition:transform .08s}
-  .btn:hover,.camBar button:hover{background:#3a2d1c;transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink)}
+  /* Наведение НЕ двигает кнопку: раньше на hover стоял translate(-1,-1), кнопка
+     уезжала из-под курсора, hover слетал — и список «трясло». Теперь тень без сдвига. */
+  .btn:hover,.camBar button:hover{background:#3a2d1c;box-shadow:3px 3px 0 var(--ink)}
+  .btn:disabled{opacity:.55;cursor:default}
   .btn:active,.camBar button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
   .btn.good{background:#a8e05a;color:#14200a}
   .btn.warn{background:var(--acc2);color:#1a0d04}
@@ -378,7 +415,10 @@
 .obNav .btn{flex:1 1 auto}
 
 /* ---- экономика: две колонки «за сутки / за сезон» ---- */
-.finHead,.finRow{display:grid;grid-template-columns:minmax(0,1fr) 54px 58px;gap:2px;align-items:baseline;font-size:10.5px;line-height:1.3;padding:1px 0;white-space:nowrap}
+/* цифры в узком левом столбце: узкие колонки и мелкий шрифт, иначе
+   «Прибыль» и «от старта» превращались в «Приб…» и «от ст…» */
+.finHead,.finRow{display:grid;grid-template-columns:minmax(0,1fr) 44px 52px;gap:2px;align-items:baseline;font-size:10px;line-height:1.3;padding:1px 0;white-space:nowrap}
+.finRow span:first-child,.finHead span:first-child{overflow:hidden;text-overflow:ellipsis}
 .finHead{color:var(--dim);text-transform:uppercase;font-size:9px;letter-spacing:.03em;border-bottom:1px solid var(--line2);margin-bottom:3px}
 .finRow span:first-child{overflow:hidden;text-overflow:ellipsis}
 .finHead span:not(:first-child),.finRow span:not(:first-child),.finRow b{text-align:right}
@@ -471,12 +511,13 @@
           </span>
         </div>
       </div>
-      <div class="panel" style="display:flex;gap:6px;align-items:center;justify-content:center;padding:7px 9px">
+      <div class="panel quickBar">
         <button class="btn good" id="btnHarvest">Собрать урожай</button>
         <button class="btn" id="btnPrune">Обрезать нижние листья</button>
+        <button class="btn" id="btnWaterQuick" title="Полить грядку: одна доза из бака">Полить</button>
         <button class="btn" id="btnLampQuick">Досветка</button>
         <button class="btn" id="btnShadeQuick">Затенение</button>
-        <span class="hint" id="sceneHint">клик по плоду — сбор · по листу — обрезка · по растению — фокус</span>
+        <span class="hint" id="sceneHint">клик по плоду — сбор · по листу — обрезка · по горшку — полив · по лампе — свет</span>
       </div>
     </div>
 
@@ -705,13 +746,28 @@
     <div class="grid" id="seedPick" style="grid-template-columns:1fr 1fr 1fr"></div>
     <h3 id="lblDiff">4. Сложность</h3>
     <div class="grid" id="diffPick" style="grid-template-columns:1fr 1fr 1fr"></div>
+    <h3 id="lblPlace">5. Где и когда начинаем</h3>
+    <div class="grid" id="sitePick" style="grid-template-columns:1fr 1fr 1fr"></div>
+    <div class="hint" id="siteHint" style="margin:6px 0 2px"></div>
+    <h3 id="lblOrient">6. Сторона дома (куда смотрит остекление)</h3>
+    <div class="grid" id="orientPick" style="grid-template-columns:1fr 1fr 1fr"></div>
+    <h3 id="lblDate">7. Дата старта</h3>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="btnDateToday">Сегодня</button>
+      <button class="btn" id="btnDateSpring" title="Классический старт кампании: света и тепла уже хватает">1 апреля</button>
+      <label class="hint">месяц <select id="dateMonth"></select></label>
+      <label class="hint">день <select id="dateDay"></select></label>
+      <span class="hint" id="dateSummary"></span>
+    </div>
     <p style="margin-top:16px"><button class="btn good" id="startBtn">Начать сезон</button></p>
   </div>
 </div>
 
 <!-- обучение: короткие шаги на первые дни -->
 <div id="tutor">
-  <div class="ttl"><span id="tutorStep">Шаг 1 из 6</span><button id="tutorSkip" title="Пропустить обучение">пропустить</button></div>
+  <div class="ttl"><span id="tutorStep">Шаг 1 из 7</span>
+    <span class="acts"><button id="tutorFold" title="Свернуть/развернуть подсказку">свернуть</button>
+    <button id="tutorSkip" title="Пропустить обучение">пропустить</button></span></div>
   <div id="tutorText"></div>
   <div class="dots" id="tutorDots"></div>
 </div>

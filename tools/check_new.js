@@ -1,12 +1,11 @@
-const { chromium: pw } = require('playwright-core');
-const chromium = require('@sparticuz/chromium');
+const { launch } = require('./browser');
 const { cdpShot } = require('./shot_cdp.js');
 const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(true));
   await page.waitForTimeout(100);
   try { await cdpShot(page, path); } catch(e){ console.log('скрин не снялся:', e.message.slice(0,50)); }
   await page.evaluate(()=>window.VG&&VG.freeze(false)); };
 (async()=>{
-  const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+  const browser = await launch();
   const page = await browser.newPage({ viewport:{width:1280, height:900} });
   const errs=[]; page.on('pageerror',e=>errs.push('PAGEERROR: '+e.message));
   page.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE: '+m.text()); });

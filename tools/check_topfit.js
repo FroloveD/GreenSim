@@ -1,9 +1,8 @@
-const { chromium: pw } = require('playwright-core');
-const chromium = require('@sparticuz/chromium');
+const { launch } = require('./browser');
 const { cdpShot } = require('./shot_cdp.js');
 (async()=>{
   for (const w of [1440, 1366, 1280, 1180, 1024, 768, 390]){
-    const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+    const b = await launch();
     const page = await b.newPage({ viewport:{width:w, height:800} });
     await page.goto('http://localhost:8080/index.html?f='+Date.now(), { waitUntil:'domcontentloaded', timeout:60000 });
     await page.waitForTimeout(600);

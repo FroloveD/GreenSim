@@ -1,7 +1,6 @@
-const { chromium: pw } = require('playwright-core');
-const chromium = require('@sparticuz/chromium');
+const { launch } = require('./browser');
 (async()=>{
-  const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+  const b = await launch();
   const page = await b.newPage({ viewport:{width:1400, height:900} });
   const errs=[]; page.on('pageerror', e=>errs.push(e.message));
   await page.goto('http://localhost:8080/index.html?k='+Date.now(), { waitUntil:'domcontentloaded', timeout:60000 });

@@ -22,7 +22,9 @@ let page = 'greenhouse';
 let speed = 64, paused = false;   // скорость = игровых часов за реальную МИНУТУ
 let acc = 0, lastT = performance.now(), uiT = 0;
 let fc = null, endShown = false;
-const pending = { profile:'farm', crop:'tomato', weather:'normal', difficulty:'normal', campaign:false, sys:'soil' };
+const pending = { profile:'farm', crop:'tomato', weather:'normal', difficulty:'normal', campaign:false, sys:'soil',
+                  // где и когда начинаем: средняя полоса по умолчанию, дата — сегодняшняя
+                  site:'ekb', orient:'S', startDoy:(typeof todayDoy==='function'?todayDoy():91) };
 
 let toastTimer = 0;
 function toast(msg){
@@ -121,6 +123,27 @@ function loadFromText(text){
   catch(e){ toast('Не получилось: '+e.message); }
 }
 
+/* ---------------- перерисовка без «дрожи» ----------------
+   Главный цикл зовёт renderAll() ~8 раз в секунду. Если каждый раз заново
+   писать innerHTML, кнопки пересоздаются под курсором: hover слетает (визуально
+   «трясётся»), а клик теряется, если mouseup попал уже в новый элемент.
+   Поэтому: (1) одинаковый HTML не переписываем, (2) действия вешаем на
+   pointerdown — он срабатывает в момент нажатия, а не после отпускания.      */
+const _htmlCache = Object.create(null);
+let _datePickersReady = false;
+function setHTML(id, html){
+  const box = $(id);
+  if (!box) return false;
+  if (_htmlCache[id] === html) return false;
+  box.innerHTML = html; _htmlCache[id] = html;
+  return true;
+}
+function press(el, fn){
+  if (!el) return;
+  el.onpointerdown = (e)=>{ if (e.button && e.button !== 0) return; e.preventDefault(); fn(e); };
+  el.onclick = (e)=>{ e.preventDefault(); };      // клик не дублирует действие
+}
+
 /* ---------------- стартовый экран ---------------- */
 function buildStart(){
   const camp = $('campPick');
@@ -211,6 +234,63 @@ function buildStart(){
       <div class="h"><b>${d.name}</b></div>
       <div class="d">${d.note}<br>постоянные ×${d.fixedF.toFixed(2)} · аварии ×${d.failF.toFixed(1)} · цена ×${d.priceF.toFixed(2)}</div>
     </div>`).join('');
+  // 5. локация старта: климат берём из норм по точке (открытые данные)
+  if ($('sitePick')) $('sitePick').innerHTML = SITE_LIST.map(x=>{
+    const N = siteNormals(x);
+    const summer = Math.round(N.temp[6]), winter = Math.round(N.temp[0]);
+    return `<div class="card" data-site="${x.id}" style="cursor:pointer;${x.id===pending.site?'border-color:var(--acc)':''}">
+      <div class="h"><b>${x.name}</b><span class="price" style="font-size:11px">${summer>0?'+':''}${summer}° / ${winter>0?'+':''}${winter}°</span></div>
+      <div class="d">${x.note}</div>
+      <div class="hint">широта ${x.lat.toFixed(1)}° · солнце ${Math.round(N.sun[6]*100)} % летом, ${Math.round(N.sun[0]*100)} % зимой · регион: ${N.region}</div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('[data-site]').forEach(e=>e.onclick=()=>{ pending.site=e.dataset.site; buildStart(); });
+  if ($('siteHint')){
+    const S = siteById(pending.site), N = siteNormals(S);
+    $('siteHint').innerHTML = `Нормы — средние многолетние (1991–2020) по открытым данным.
+      ${S.name}: ${Math.round(N.temp[0])}…${Math.round(N.temp[6])} °C по месяцам,
+      солнце ${Math.round(N.sun[0]*100)}…${Math.round(N.sun[6]*100)} % от возможного.`;
+  }
+  // 6. сторона дома: куда смотрит остекление — от неё зависит, как ходит солнце
+  if ($('orientPick')) $('orientPick').innerHTML = Object.keys(ORIENTS).map(k=>{
+    const O = ORIENTS[k];
+    return `<div class="card" data-orient="${k}" style="cursor:pointer;${k===pending.orient?'border-color:var(--acc)':''}">
+      <div class="h"><b>${O.name}</b><span class="price" style="font-size:11px">${O.az}°</span></div>
+      <div class="d">${O.note}</div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('[data-orient]').forEach(e=>e.onclick=()=>{ pending.orient=e.dataset.orient; buildStart(); });
+  // 7. дата старта
+  const mSel = $('dateMonth'), dSel = $('dateDay');
+  if (mSel && dSel){
+    if (!_datePickersReady){
+      _datePickersReady = true;
+      mSel.innerHTML = MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+      dSel.innerHTML = Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
+      const pick = ()=>{ pending.startDoy = doyFromDate(+mSel.value, +dSel.value); buildStart(); };
+      mSel.onchange = pick; dSel.onchange = pick;
+      const bt = $('btnDateToday'), bs = $('btnDateSpring');
+      if (bt) bt.onclick = ()=>{ pending.startDoy = todayDoy(); buildStart(); };
+      if (bs) bs.onclick = ()=>{ pending.startDoy = 91; buildStart(); };
+    }
+    const dd = dateFromDoy(((pending.startDoy-1)%365)+1);
+    mSel.value = String(dd.month); dSel.value = String(dd.day);
+    if ($('dateSummary')){
+      // честное предупреждение: зимой на балконе и света мало, и холодно
+      const N0 = siteNormals(siteById(pending.site));
+      const t0 = Math.round(normAt(N0.temp, pending.startDoy));
+      const s0 = Math.round(normAt(N0.sun, pending.startDoy)*100);
+      const hard = t0 < 12 || s0 < 30;
+      $('dateSummary').innerHTML =
+        `старт ${fmtDate(pending.startDoy)} · сегодня ${todayLabel()} · ` +
+        (pending.startDoy === todayDoy() ? '<b>как за окном</b>' : 'не сегодня') +
+        ` · норма ${t0>0?'+':''}${t0} °C, солнце ${s0} %` +
+        (hard ? ` <b style="color:var(--warn)">— холодно и мало света: куст будет расти медленно, для быстрого сезона лучше март–сентябрь</b>` : '');
+    }
+  }
+  setLbl('lblPlace', 'Где и когда начинаем', 7);
+  setLbl('lblOrient', 'Сторона дома (куда смотрит остекление)', 8);
+  setLbl('lblDate', 'Дата старта', 9);
   document.querySelectorAll('[data-diff]').forEach(e=>e.onclick=()=>{ pending.difficulty=e.dataset.diff; buildStart(); });
   document.querySelectorAll('[data-profile]').forEach(e=>e.onclick=()=>{ pending.profile=e.dataset.profile; buildStart(); });
   document.querySelectorAll('[data-crop]').forEach(e=>e.onclick=()=>{ pending.crop=e.dataset.crop; buildStart(); });
@@ -241,6 +321,8 @@ function startGame(){
   const seed = 20260415 + (pending.weather==='cloudy'?7:0) + (pending.weather==='hot'?13:0) + (pending.crop.length*3);
   world = makeWorld({ profile:pending.campaign?'balcony':pending.profile, crop:pending.crop, weather:pending.weather,
                       difficulty:pending.difficulty, seed, campaign:pending.campaign,
+                      site:pending.site, orient:pending.orient,
+                      startDoy:(pending.startDoy!=null?pending.startDoy:todayDoy()),
                       // в кампании на балконе — только грунт, остальное откроется с главой
                       sys:(pending.campaign && pending.sys && GROW_SYS[pending.sys] && GROW_SYS[pending.sys].ch>0)
                           ? 'soil' : pending.sys });
@@ -372,9 +454,15 @@ bodyCls('add','on-gh');
 function renderTop(){
   if (!world) return;
   const P = PROFILES[world.profile], C = CROPS[world.crop];
-  $('tProfile').textContent = P.name + ' · ' + P.area + ' м² · ' + (sysOf(world).short||'').toLowerCase() + ' · ' +
+  // в шапке помещается ~200 px: место и сторона короткие, подробности — в подсказке
+  const siteShort = world.site ? (siteById(world.site.id).short || world.site.name) : '';
+  const sideShort = world.site ? ((ORIENTS[world.site.orient]||ORIENTS.S).short || 'юг') : '';
+  $('tProfile').textContent = P.name + ' · ' + P.area + ' м²' +
+    (siteShort ? ' · ' + siteShort : '') + (sideShort ? ' · ' + sideShort : '');
+  $('tProfile').title = P.name + ' · ' + P.area + ' м² · ' + (sysOf(world).short||'').toLowerCase() + ' · ' +
     (DIFFICULTY[world.diffId]?DIFFICULTY[world.diffId].name.toLowerCase():'обычная') +
-    (world.weather==='cloudy'?' · пасмурно':world.weather==='hot'?' · жарко':'');
+    (world.weather==='cloudy'?' · пасмурно':world.weather==='hot'?' · жарко':'') +
+    (world.site ? ' · ' + world.site.name + ' · ' + ((ORIENTS[world.site.orient]||ORIENTS.S).name.toLowerCase()) : '');
   $('tDay').textContent = 'Д ' + world.day;
   $('tSeason').textContent = 'из ' + (world.seasonDays || CFG.seasonDays);
   $('tDate').textContent = fmtDate(world.doy) + ' 2026';
@@ -398,6 +486,11 @@ function gauge(label, val, min, max, unit, cls, digits){
   return `<div class="g"><span>${label}</span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
     <b>${val.toFixed(digits===undefined?1:digits)}${unit}</b></div>`;
 }
+/* цвет шкалы влаги: сухо и перелив — красным, норма — спокойным */
+function soilCls(w){
+  const st = soilState(w);
+  return st.key==='dry' || st.key==='wilt' ? 'hot' : (st.key==='wet' ? 'cold' : '');
+}
 function renderGauges(){
   const m = world.meas, C = CROPS[world.crop];
   const tCls = m.temp>C.heatTol ? 'hot' : (m.temp<C.coldTol ? 'cold' : '');
@@ -406,6 +499,7 @@ function renderGauges(){
     gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0) +
     gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0) +
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0) +
+    gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0) +
     gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0);
   // подсказка о дрейфе датчиков
   const drift = Math.abs(world.drift.temp)+Math.abs(world.drift.rh)/10;
@@ -413,10 +507,13 @@ function renderGauges(){
   let hint = '';
   if (world.has.secondSensor){
     hint = `Расхождение датчиков: ΔT ${world.drift.temp>=0?'+':''}${world.drift.temp.toFixed(1)} K, `+
-           `ΔRH ${world.drift.rh>=0?'+':''}${world.drift.rh.toFixed(1)}%`;
+           `ΔRH ${world.drift.rh>=0?'+':''}${world.drift.rh.toFixed(1)}%, `+
+           `Δвлага ${world.drift.soil>=0?'+':''}${world.drift.soil.toFixed(1)}%`;
   } else if (world.has.alarm){
     const dT = world.meas.temp - world.temp, dR = world.meas.rh - world.rh;
-    hint = `Контрольный прибор: ΔT ${dT>=0?'+':''}${dT.toFixed(1)} K, ΔRH ${dR>=0?'+':''}${dR.toFixed(1)}%`;
+    const dS = (world.meas.moist||0) - (world.moist||0);
+    hint = `Контрольный прибор: ΔT ${dT>=0?'+':''}${dT.toFixed(1)} K, ΔRH ${dR>=0?'+':''}${dR.toFixed(1)}%, `+
+           `Δвлага ${dS>=0?'+':''}${dS.toFixed(1)}%`;
   } else if (drift > 0.6 || days > 25){
     hint = `Датчики не калибровались ${days} дн. — показания могут врать`;
   }
@@ -577,6 +674,13 @@ function renderAlerts(){
   for (const k in w.equip) if (!w.equip[k].ok && equipInstalled(w,k)) broken.push(EQUIP_DEFS[k].name);
   if (!w.power) out.push(['bad','Нет электричества: отопление и форточки не работают']);
   if (broken.length) out.push(['bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт']);
+  // гарантия: возврат денег за прибор, сломавшийся на 180–364-й день
+  if (w.warranty && w.warranty.length){
+    for (const r of w.warranty){
+      const left = Math.max(0, r.due - w.day);
+      out.push(['ok', `Гарантия: ${r.name} — ${money(r.eur)} вернут через ${left} дн (${fmtDate(w.doy + left)})`]);
+    }
+  }
   // климат по датчикам
   if (w.meas.temp > C.heatTol) out.push(['warn', `Перегрев ${w.meas.temp.toFixed(1)} °C — аборт завязей, откройте форточки или затенение`]);
   if (w.meas.temp < C.coldTol) out.push(['warn', `Холод ${w.meas.temp.toFixed(1)} °C — рост останавливается`]);
@@ -592,7 +696,7 @@ function renderAlerts(){
   if (hasLight(w) && w.ctrl.alarmOn){
     const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
     const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
-    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу в «Параметрах»`]);
+    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу кнопкой «Досветка» под сценой`]);
     if (!inside && w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: окно закончилось — выключите лампу, она ест электричество впустую`]);
   } else if (hasLight(w) && w.ctrl.lampEnabled && (w.hour < 4 || w.hour > 22)) {
     out.push(['warn', 'Досветка горит ночью: растение не фотосинтезирует, а счётчик крутится — выключите лампу']);
@@ -600,7 +704,14 @@ function renderAlerts(){
   // запасы
   if (w.stock.fertKg < 5) out.push(['warn','Удобрения заканчиваются — рост замедлится']);
   if (w.has.co2 && w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
-  if (w.stock.waterM3 < 3) out.push(['bad','Нет воды — растения в стрессе']);
+  if (w.stock.waterM3 < 3) out.push(['bad','Нет воды в баке — полить нечем, купите воду в магазине']);
+  // влага субстрата: датчик показывает проценты, поливает игрок руками
+  {
+    const st = soilState(w), m = Math.round(w.moist||0);
+    if (st.key === 'wilt') out.push(['bad', `Субстрат ${m}%: куст вянет — полейте срочно (кнопка «Полить» или клик по горшку)`]);
+    else if (st.key === 'dry') out.push(['warn', `Субстрат ${m}%: сухо, устьица закрываются — полейте (кнопка «Полить» или клик по горшку)`]);
+    else if (st.key === 'wet') out.push(['warn', `Субстрат ${m}%: перелив, корни без воздуха — откройте проветривание, полив подождите`]);
+  }
   // контракты
   for (const ct of w.contracts){
     if (!ct.done && ct.deadline - w.day <= 5) out.push(['warn', `Контракт «${ct.label}»: осталось ${ct.deadline-w.day} дн., недопоставка ${num(ct.leftKg)} кг`]);
@@ -613,7 +724,10 @@ function renderAlerts(){
     for (const ev of w.events) if (ev.inFuture && ev.label) out.push(['warn', `${ev.label} через ${Math.max(1,Math.round(ev.inDays))} дн.`]);
   }
   if (!out.length) out.push(['ok','Критических рисков нет']);
-  $('alerts').innerHTML = out.slice(0,6).map(([k,t])=>`<div class="alert ${k}">${t}</div>`).join('');
+  // сначала плохие, потом предупреждения: будильник не должен теряться за мелочью
+  const rank = {bad:0, warn:1, ok:2};
+  out.sort((a,b)=>(rank[(a[0])]||9)-(rank[(b[0])]||9));
+  $('alerts').innerHTML = out.slice(0,8).map(([k,t])=>`<div class="alert ${k}">${t}</div>`).join('');
 }
 
 /* ---------------- дашборд: цели сезона ---------------- */
@@ -674,7 +788,7 @@ function renderStock(){
       <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}% · −${(100/l.shelf).toFixed(0)}%/сут</b></div>`;
   }).join('');
   const freeKg = whFreeL(world)/WH.bulkHarvest;
-  $('stock').innerHTML = `
+  const stockHtml = `
     <div class="g" style="grid-template-columns:64px 1fr 74px">
       <span>занято</span>
       <div class="bar"><i style="width:${pct}%;${pct>88?'background:linear-gradient(90deg,#ffb86b,#ff7b72)':''}"></i></div>
@@ -695,24 +809,25 @@ function renderStock(){
       <button class="btn good" id="btnSellAll" ${storeKg(world)>0.5?'':'disabled'}>Продать всё · ${money2(priceToday(world))}/кг</button>
       <button class="btn" id="btnWhExpand" title="Вторая секция: +600 л места, но и содержание">+секция ${money(whSectionCost(world))}</button>
     </div>`;
+  setHTML('stock', stockHtml);
   const sell = $('btnSellAll');
-  if (sell) sell.onclick = ()=>{
+  if (sell) press(sell, ()=>{
     const r = sellHarvest(world, world.crop, null);
     toast(r.ok ? `Продано ${num(r.kg)} кг за ${money(r.eur)}` : 'На складе нет продукции');
     renderAll(); if (page==='shop') renderShop();
-  };
+  });
   const ex = $('btnWhExpand');
-  if (ex) ex.onclick = ()=>{
+  if (ex) press(ex, ()=>{
     const r = addSection(world);
     toast(r.ok ? `Склад: ${world.wh.sections} секций (${money(-r.cost)}). Содержание ${money2(whRentDay(world))}/сут`
                : r.msg);
     renderAll(); if (page==='shop') renderShop();
-  };
+  });
 }
 function renderContracts(){
   const act = world.contracts.filter(c=>!c.done);
-  if (!act.length){ $('contracts').innerHTML = `<div class="hint">Нет активных. Предложения — в магазине.</div>`; return; }
-  $('contracts').innerHTML = act.map(c=>{
+  if (!act.length){ setHTML('contracts', `<div class="hint">Нет активных. Предложения — в магазине.</div>`); return; }
+  const cHtml = act.map(c=>{
     const pct = clamp(1-c.leftKg/c.kg,0,1)*100;
     const canDeliver = storeKg(world, c.crop) > 1;
     return `<div style="margin-bottom:7px">
@@ -722,11 +837,12 @@ function renderContracts(){
         Поставить со склада</button>
     </div>`;
   }).join('');
-  document.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=()=>{
-    const r = deliverContract(world, b.dataset.deliver);
-    toast(r.ok ? `Поставлено ${num(r.kg)} кг за ${money(r.eur)}${r.bonus?' · бонус '+money(r.bonus):''}` : r.msg);
-    renderAll(); if (page==='shop') renderShop();
-  });
+  if (setHTML('contracts', cHtml))
+    document.querySelectorAll('[data-deliver]').forEach(b=>press(b, ()=>{
+      const r = deliverContract(world, b.dataset.deliver);
+      toast(r.ok ? `Поставлено ${num(r.kg)} кг за ${money(r.eur)}${r.bonus?' · бонус '+money(r.bonus):''}` : r.msg);
+      renderAll(); if (page==='shop') renderShop();
+    }));
 }
 function renderMail(){
   const box = $('mail');
@@ -751,8 +867,8 @@ function renderMail(){
   } else {
     html += `<div class="hint">Писем нет.</div>`;
   }
-  box.innerHTML = html;
-  document.querySelectorAll('[data-mail]').forEach(b=>b.onclick=()=>openMail(b.dataset.mail));
+  if (setHTML('mail', html))
+    document.querySelectorAll('[data-mail]').forEach(b=>press(b, ()=>openMail(b.dataset.mail)));
 }
 function openMail(id){
   const m = world.mail.find(x=>x.id===id);
@@ -764,11 +880,11 @@ function openMail(id){
         ${o.label}${o.desc?`<div class="hint" style="color:#3a2d12">${o.desc}</div>`:''}</button>`).join('')}
     </div>`;
   $('mailModal').classList.add('on');
-  document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-answer]').forEach(b=>press(b, ()=>{
     answerMail(world, id, +b.dataset.answer);
     $('mailModal').classList.remove('on');
     renderAll(); toast('Ответ отправлен');
-  });
+  }));
 }
 
 function renderLog(){
@@ -874,6 +990,17 @@ function renderSettings(){
       <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
     </div>
     <div class="card">
+      <div class="h"><b>Место и дата</b></div>
+      <div class="d" style="color:var(--txt)">${(world.site&&world.site.name)||'Екатеринбург'} · ${(ORIENTS[(world.site&&world.site.orient)||'S']||ORIENTS.S).name}</div>
+      <div class="hint">старт ${fmtDate(world.startDoy||world.doy)} · день ${world.day} из ${world.seasonDays||CFG.seasonDays}</div>
+      ${(()=>{ const N = siteNormals(world.site||{region:'uralsib'});
+        const now = Math.round(normAt(N.temp, world.doy));
+        return `<div class="hint">норма сейчас ${now>0?'+':''}${now} °C · солнце ${Math.round(normAt(N.sun, world.doy)*100)} % от возможного
+        · регион ${N.region}</div>
+        <div class="hint">данные: средние многолетние 1991–2020 по открытым источникам (Гидрометцентр, Википедия).
+        Смена места и даты — только новой игрой: климат сезона не подменяется на ходу.</div>`; })()}
+    </div>
+    <div class="card">
       <div class="h"><b>Система выращивания</b></div>
       <div class="d" style="color:var(--txt)">${sysOf(world).name}</div>
       <div class="hint" style="margin-bottom:8px">${sysOf(world).note}</div>
@@ -902,12 +1029,37 @@ function renderSettings(){
       ${slider('afrom','Будильник: включать с',0,23,1,c.alarmFrom,v=>String(v).padStart(2,'0')+':00')}
       ${slider('ato','Будильник: выключать в',1,24,1,c.alarmTo,v=>(v>=24?'24:00':String(v).padStart(2,'0')+':00'))}
       <div class="hint">Сейчас ${fmtHour(Math.floor(world.hour))}:${String(Math.floor((world.hour%1)*60)).padStart(2,'0')} · ${alarmState(world)}</div>` : ''}
-      <div class="hint">Автоматики нет: лампа горит ровно тогда, когда вы её включили, и всё это время ест электричество.</div>
+      <div class="hint">Можно вручную (лампа горит, пока не выключите) или по таймеру — карточка «Таймеры и автоматизация» ниже. Будильник только напоминает и сам ничего не переключает.</div>
       <div class="row"><label>Термоэкран ${world.has.screen?'':'<span style="color:var(--dim)">(не куплен)</span>'}</label>
         <button class="btn ${c.screenOn?'good':''}" id="btnScreenSet">${c.screenOn?'вкл':'выкл'}</button></div>
       <div class="row"><label>Затеняющая сетка ${world.has.shade?'':'<span style="color:var(--dim)">(не куплена)</span>'}</label>
         <button class="btn ${c.shadeOn?'good':''}" id="btnShadeSet">${c.shadeOn?'вкл':'выкл'}</button></div>
       <div class="hint">Экран экономит тепло ночью, сетка спасает от перегрева днём — но обе забирают свет.</div>
+    </div>
+    <div class="card" id="autoCard">
+      <div class="h"><b>Таймеры и автоматизация</b></div>
+      ${AUTO_KEYS.map(k=>{
+        const a = world.auto[k.id] || {on:false};
+        const ok = autoAllowed(world, k.id);
+        const why = autoWhy(world, k.id);
+        const now = world.hour;
+        let nowText = '';
+        if (k.id==='lamp')  nowText = a.on ? (inWindow(now, a.from, a.to) ? 'сейчас в окне · лампа по расписанию' : 'вне окна · лампа выключена') : '';
+        if (k.id==='water') nowText = a.on ? (inWindow(now, a.from, a.to) ? `сейчас в окне · цель ${a.target}%` : 'вне окна · полива нет') : '';
+        if (k.id==='co2')   nowText = a.on ? (inWindow(now, a.from, a.to) ? 'клапан открыт для цели' : 'вне окна · клапан закрыт') : '';
+        if (k.id==='full')  nowText = a.on ? 'автопилот: свет по кроне, влага по датчику, CO₂ у цели' : '';
+        return `<div class="row"><label>${k.name}
+            <div class="hint">${ok ? k.note : '<span style="color:var(--warn)">'+why+'</span>'}</div>
+            ${nowText ? `<div class="hint" style="color:var(--acc)">${nowText}</div>` : ''}
+          </label>
+          <button class="btn ${a.on?'good':''}" data-auto="${k.id}" ${ok?'':'disabled'}>${a.on?'вкл':'выкл'}</button></div>
+          ${(a.on && ok && k.id!=='full') ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-2px 0 8px">
+            <span class="hint">с</span><input type="number" min="0" max="24" step="1" value="${a.from}" data-autonum="${k.id}.from" style="width:62px">
+            <span class="hint">до</span><input type="number" min="0" max="24" step="1" value="${a.to}" data-autonum="${k.id}.to" style="width:62px">
+            ${k.id==='water' ? `<span class="hint">цель влаги</span><input type="number" min="20" max="90" step="1" value="${a.target||55}" data-autonum="${k.id}.target" style="width:62px"><span class="hint">%</span>` : ''}
+          </div>` : ''}`;
+      }).join('')}
+      <div class="hint">Свободный сезон открывает всё сразу. В кампании таймеры приходят по шагам: свет → полив → CO₂ → полная автоматизация (нужен климат-контроллер). Кнопка «Досветка» под сценой сильнее расписания: нажали — таймер света выключается, и лампа снова в руках.</div>
     </div>
     <div class="card">
       <div class="h"><b>Питание (fertigation)</b></div>
@@ -1015,10 +1167,9 @@ function renderSettings(){
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
   $('btnLampSet').onclick = ()=>{
-    if (!hasLight(world)) return toast('Сначала купите лампу в магазине');
-    world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-    toast(world.ctrl.lampEnabled ? lightName(world)+': включена вручную' : 'Досветка выключена');
-    renderSettings(); renderTop(); renderAlerts();
+    const r = toggleLamp(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderSettings(); renderTop(); renderAlerts(); }
   };
   if ($('btnAlarmSet')) $('btnAlarmSet').onclick = ()=>{
     world.ctrl.alarmOn = !world.ctrl.alarmOn;
@@ -1034,6 +1185,19 @@ function renderSettings(){
   $('btnScreenSet').onclick = ()=>{ if (!world.has.screen) return toast('Сначала купите термоэкран'); world.ctrl.screenOn = !world.ctrl.screenOn; renderSettings(); };
   $('btnShadeSet').onclick = ()=>{ if (!world.has.shade) return toast('Сначала купите сетку'); world.ctrl.shadeOn = !world.ctrl.shadeOn; renderSettings(); };
   $('recipeSel').onchange = e => { world.ctrl.recipe = e.target.value; };
+  document.querySelectorAll('[data-auto]').forEach(b=>b.onclick=()=>{
+    const id = b.dataset.auto, cur = !!(world.auto[id] && world.auto[id].on);
+    const r = setAuto(world, id, !cur);
+    toast(r.msg);
+    renderSettings(); renderAll(); saveNow(true);
+  });
+  document.querySelectorAll('[data-autonum]').forEach(inp=>{
+    inp.onchange = ()=>{
+      const [id, field] = inp.dataset.autonum.split('.');
+      setAutoTime(world, id, field, inp.value);
+      renderSettings(); renderAll(); saveNow(true);
+    };
+  });
   $('btnCamInv').onclick = ()=>{
     setCamInvertY(!camInvertY);
     toast(camInvertY ? 'Наклон мышью: инверсия (тянете вверх — смотрите ниже)' : 'Наклон мышью: обычно');
@@ -1127,6 +1291,8 @@ const TUTOR = [
     done:()=>(world.soldKg||0) > 0.5 },
   { text:'Откройте «Параметры» и поднимите целевой CO₂ до 800 ppm — при хорошем свете это даёт до +15% фотосинтеза.',
     done:()=>world.ctrl.co2Set >= 800 },
+  { text:'Влага в горшке падает от испарения. Когда датчик покажет меньше 40 %, нажмите «Полить» под сценой или щёлкните по горшку: одна доза — 15 %. Держите 45–60 %.',
+    done:()=>(world.wateredTotalL||0) > 0 },
   { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр ${money(28)}, клейкие ловушки ${money(45)}, бочка воды ${money(90)} — купите одну вещь.',
     done:()=>world.has.alarm||world.has.sticky||world.has.circFan||world.has.handDose||
             world.has.humid||world.has.ups||world.has.film||world.has.climatePC||world.has.ledStrip },
@@ -1134,11 +1300,24 @@ const TUTOR = [
     done:()=>tutorFlags.pred }
 ];
 
+/* свернуть подсказку: она больше не висит над сценой, если игрок уже прочитал */
+let tutorFoldT = 0, tutorFoldStep = -1;
+function tutorFold(min){
+  const box = $('tutor'); if (!box) return;
+  box.classList.toggle('min', !!min);
+  const b = $('tutorFold'); if (b) b.textContent = min ? 'развернуть' : 'свернуть';
+}
 function renderTutor(){
   const box = $('tutor');
   if (!box) return;
   if (tutorDone || !world || page !== 'greenhouse' || tutorStep >= TUTOR.length){ box.classList.remove('on'); return; }
   $('tutorStep').textContent = `Шаг ${tutorStep+1} из ${TUTOR.length}`;
+  // новый шаг — снова разворачиваем и через 9 секунд сворачиваем сами
+  if (tutorFoldStep !== tutorStep){
+    tutorFoldStep = tutorStep; tutorFold(false);
+    clearTimeout(tutorFoldT);
+    tutorFoldT = setTimeout(()=>{ if ($('tutor') && $('tutor').classList.contains('on')) tutorFold(true); }, 9000);
+  }
   $('tutorText').textContent = TUTOR[tutorStep].text;
   $('tutorDots').innerHTML = TUTOR.map((_,i)=>
     `<i class="${i<tutorStep?'done':i===tutorStep?'on':''}"></i>`).join('');
@@ -1160,6 +1339,11 @@ function tutorTick(){
   renderTutor();
 }
 $('tutorSkip').onclick = ()=>{ tutorDone = true; $('tutor').classList.remove('on'); toast('Обучение пропущено'); };
+$('tutorFold').onclick = ()=>{
+  const box = $('tutor');
+  tutorFold(!box.classList.contains('min'));
+  clearTimeout(tutorFoldT);          // ручной выбор игрока автоматика не перебивает
+};
 
 /* ---------------- карточка органа под курсором ---------------- */
 let hoverStamp = 0, hoverKey = '';
@@ -1347,6 +1531,18 @@ document.querySelectorAll('.camNav [data-cam]').forEach(b=>{
 function handleClick(cx, cy){
   const hit = hitTest(cx, cy);
   if (!hit) return;
+  if (hit.kind==='pot'){
+    const r = water(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
+    return;
+  }
+  if (hit.kind==='lamp'){
+    const r = toggleLamp(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
+    return;
+  }
   if (hit.kind==='fruit'){
     const rev = harvestFruit(world, hit.plant, hit.fruit);
     if (rev>0) toast('+'+money(rev)+' за плод');
@@ -1437,21 +1633,56 @@ $('btnPrune').onclick = ()=>{
   renderAll();
 };
 $('btnLampQuick').onclick = ()=>{
-  if (!world.has.led) return toast('Купите LED в магазине');
-  world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-  toast(world.ctrl.lampEnabled?'Досветка включена':'Досветка выключена');
+  const r = toggleLamp(world);
+  toast(r.msg);
+  if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
 $('btnShadeQuick').onclick = ()=>{
-  if (!world.has.shade) return toast('Купите затеняющую сетку');
+  if (!world.has.shade) return toast('Сначала купите затеняющую сетку в магазине');
   world.ctrl.shadeOn = !world.ctrl.shadeOn;
   toast(world.ctrl.shadeOn?'Сетка опущена':'Сетка поднята');
+  syncLightButtons(); renderAll(); if (page==='settings') renderSettings();
 };
+$('btnWaterQuick').onclick = ()=>{
+  const r = water(world);
+  toast(r.msg);
+  if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
+};
+/* подсветка состояния на кнопках под сценой: включено — зелёная */
+function syncLightButtons(){
+  if (!world) return;
+  const l = $('btnLampQuick');
+  if (l){
+    l.classList.toggle('good', !!world.ctrl.lampEnabled && hasLight(world));
+    l.textContent = (!!world.ctrl.lampEnabled && hasLight(world)) ? 'Досветка: вкл' : 'Досветка';
+    l.title = hasLight(world)
+      ? (world.ctrl.lampEnabled ? lightName(world)+' горит — нажмите, чтобы выключить'
+                                : lightName(world)+' выключена — нажмите, чтобы включить')
+      : 'Лампы нет: покупается в магазине';
+  }
+  const s = $('btnShadeQuick');
+  if (s) s.classList.toggle('good', !!world.ctrl.shadeOn);
+  const wb = $('btnWaterQuick');
+  if (wb){
+    const m = Math.round(world.meas && world.meas.moist!==undefined ? world.meas.moist : world.moist || 0);
+    const st = soilState(world);
+    wb.textContent = 'Полить ' + m + '%';
+    wb.classList.toggle('warn', st.key === 'dry' || st.key === 'wilt');
+    wb.classList.toggle('good', st.key === 'ok');
+    wb.title = st.key === 'ok'
+      ? 'Влага в норме — поливать не обязательно'
+      : (st.key === 'wet' ? 'Перелив: дайте субстрату подсохнуть, помогает проветривание'
+                          : 'Субстрат сухой — полейте');
+  }
+}
 
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
+  if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
+  syncLightButtons();
   tutorTick();
 }
 

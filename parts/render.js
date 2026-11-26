@@ -305,27 +305,39 @@ function drawScene(){
     // лампа на потолке — ориентир: видно, что смотрим вверх
     poly([{x:1.55,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.65},{x:1.55,y:2.66,z:1.65}],
          '#2a1d0e','#0a0806',2);
-    // стена комнаты с окном — рисуем сразу за полом, иначе она закрывает растения
+    // Задняя стена балкона — глухая, с дверью в комнату. Солнце приходит
+    // с передней стороны (остекление лоджии), поэтому растения стоят к нему
+    // кроной: раньше окно висело здесь, за спиной у камеры.
     poly([{x:0,y:2.7,z:CFG.floorD},{x:CFG.floorW,y:2.7,z:CFG.floorD},
           {x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
        '#7a5426','#0a0806',3.5);
     const dayL = clamp(Math.sin((world.hour-5.2)/13.5*Math.PI), 0, 1);
-    const winLit = `rgb(${Math.round(lerp(56,255,dayL))},${Math.round(lerp(58,232,dayL))},${Math.round(lerp(92,150,dayL))})`;
-    poly([{x:2.45,y:2.05,z:CFG.floorD-0.03},{x:3.65,y:2.05,z:CFG.floorD-0.03},
-          {x:3.65,y:0.62,z:CFG.floorD-0.03},{x:2.45,y:0.62,z:CFG.floorD-0.03}],
-       winLit,'#0a0806',4);
-    poly([{x:3.045,y:2.05,z:CFG.floorD-0.04},{x:3.075,y:2.05,z:CFG.floorD-0.04},
-          {x:3.075,y:0.62,z:CFG.floorD-0.04},{x:3.045,y:0.62,z:CFG.floorD-0.04}],
+    // дверь в комнату: проём, наличник, тёмное стекло и ручка
+    poly([{x:2.32,y:2.08,z:CFG.floorD-0.03},{x:3.52,y:2.08,z:CFG.floorD-0.03},
+          {x:3.52,y:0,z:CFG.floorD-0.03},{x:2.32,y:0,z:CFG.floorD-0.03}],
+       '#5a3d1c','#0a0806',3.5);
+    poly([{x:2.44,y:1.96,z:CFG.floorD-0.05},{x:3.40,y:1.96,z:CFG.floorD-0.05},
+          {x:3.40,y:0.06,z:CFG.floorD-0.05},{x:2.44,y:0.06,z:CFG.floorD-0.05}],
+       `rgba(${Math.round(lerp(24,96,dayL))},${Math.round(lerp(18,78,dayL))},${Math.round(lerp(12,52,dayL))},.92)`,
+       '#0a0806',2.5);
+    poly([{x:2.44,y:1.02,z:CFG.floorD-0.06},{x:3.40,y:1.02,z:CFG.floorD-0.06},
+          {x:3.40,y:0.98,z:CFG.floorD-0.06},{x:2.44,y:0.98,z:CFG.floorD-0.06}],
        '#0a0806', null, 0);
-    poly([{x:2.45,y:1.345,z:CFG.floorD-0.04},{x:3.65,y:1.345,z:CFG.floorD-0.04},
-          {x:3.65,y:1.325,z:CFG.floorD-0.04},{x:2.45,y:1.325,z:CFG.floorD-0.04}],
-       '#0a0806', null, 0);
+    poly([{x:3.26,y:1.12,z:CFG.floorD-0.06},{x:3.34,y:1.12,z:CFG.floorD-0.06},
+          {x:3.34,y:0.96,z:CFG.floorD-0.06},{x:3.26,y:0.96,z:CFG.floorD-0.06}],
+       '#c8a860', null, 0);
     // тёплый пол — доски
     for (let i=0;i<7;i++){
       const z0 = i*(CFG.floorD/7)+0.05, z1 = z0 + CFG.floorD/7 - 0.06;
       poly([{x:0.05,y:0.002,z:z0},{x:CFG.floorW-0.05,y:0.002,z:z0},
             {x:CFG.floorW-0.05,y:0.002,z:z1},{x:0.05,y:0.002,z:z1}],
            i%2? '#3a2712':'#452e16', '#1a1108', 1);
+    }
+    // солнце из остекления ложится пятном на пол у передней стены
+    if (dayL > 0.02){
+      poly([{x:0.35,y:0.004,z:0.12},{x:CFG.floorW-0.35,y:0.004,z:0.12},
+            {x:CFG.floorW-0.35,y:0.004,z:1.15},{x:0.35,y:0.004,z:1.15}],
+           `rgba(255,226,150,${(0.16*dayL).toFixed(3)})`, null, 0);
     }
   }
 
@@ -363,14 +375,22 @@ function drawScene(){
     }});
   }
 
-  // досветка
-  if (world.light.lampOn){
+  // досветка: светильники видны всегда, когда лампа есть — иначе по выключенной
+  // лампе некуда щёлкнуть. Горит — тёплый блик, выключена — серый корпус.
+  if (hasLight(world)){
+    const lit = lightLit(world);
     for (let i=0;i<4;i++){
       const x = 0.6+i*0.94;
       items.push({z: depthOf({x, y:CFG.ridgeY-0.42, z:1.5}), draw(){
         poly([{x:x-0.1,y:CFG.ridgeY-0.42,z:1.28},{x:x+0.1,y:CFG.ridgeY-0.42,z:1.28},
               {x:x+0.1,y:CFG.ridgeY-0.42,z:1.72},{x:x-0.1,y:CFG.ridgeY-0.42,z:1.72}],
-              'rgba(255,235,170,.75)');
+              lit ? 'rgba(255,235,170,.85)' : 'rgba(64,58,48,.92)');
+        if (!lit){                       // выключен: тёмный корпус с тонкой кромкой
+          const q = project({x, y:CFG.ridgeY-0.42, z:1.5});
+          ctx.strokeStyle = 'rgba(200,190,164,.45)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(3, 0.02*q.s), 0, 6.2832); ctx.stroke();
+          return;
+        }
         const q = project({x, y:CFG.ridgeY-0.42, z:1.5});
         const g = ctx.createRadialGradient(q.x,q.y,2,q.x,q.y,150);
         g.addColorStop(0,'rgba(255,230,150,.12)'); g.addColorStop(1,'rgba(255,230,150,0)');
@@ -463,13 +483,26 @@ function drawScene(){
     if (interior){
       // перила балкона — передний план
       if (world.profile === 'balcony'){
-        poly([{x:0,y:0.95,z:0.06},{x:CFG.floorW,y:0.95,z:0.06},
-              {x:CFG.floorW,y:0.88,z:0.06},{x:0,y:0.88,z:0.06}], '#8a6a34','#0a0806',3);
-        for (let i=0;i<=8;i++){
-          const x = i*(CFG.floorW/8);
-          line3({x,y:0.88,z:0.06},{x,y:0.12,z:0.06},'#0a0806',3.5);
-          line3({x,y:0.88,z:0.06},{x,y:0.12,z:0.06},'#c8a860',1.6);
+        // Передняя стена — остекление лоджии: низкий парапет, выше стекло в рамах.
+        // Свет идёт отсюда, растения обращены к нему кроной.
+        const dl = clamp(Math.sin((world.hour-5.2)/13.5*Math.PI), 0, 1);
+        // Нижняя часть — тоже стекло (в лоджиях ставят стеклянный фартук),
+        // иначе глухой парапет закрывал бы растения от камеры.
+        poly([{x:0,y:2.7,z:0.06},{x:CFG.floorW,y:2.7,z:0.06},
+              {x:CFG.floorW,y:0.02,z:0.06},{x:0,y:0.02,z:0.06}],
+             `rgba(196,226,250,${(0.03+0.11*dl).toFixed(3)})`,'#0a0806',2.2);
+        // поручень и нижняя обвязка
+        line3({x:0,y:0.02,z:0.06},{x:CFG.floorW,y:0.02,z:0.06},'#0a0806',3);
+        line3({x:0,y:0.97,z:0.06},{x:CFG.floorW,y:0.97,z:0.06},'#0a0806',3.4);
+        line3({x:0,y:0.97,z:0.06},{x:CFG.floorW,y:0.97,z:0.06},'#c8a860',2.0);
+        // рамы: пять стоек и поперечина
+        for (let i=0;i<=4;i++){
+          const x = i*(CFG.floorW/4);
+          line3({x,y:2.7,z:0.06},{x,y:0.02,z:0.06},'#0a0806',3.4);
+          line3({x,y:2.7,z:0.06},{x,y:0.02,z:0.06},'#c8a860',1.5);
         }
+        line3({x:0,y:1.86,z:0.06},{x:CFG.floorW,y:1.86,z:0.06},'#0a0806',2.8);
+        line3({x:0,y:1.86,z:0.06},{x:CFG.floorW,y:1.86,z:0.06},'#c8a860',1.1);
       }
     } else {
       poly([{x:0,y:CFG.eaveY,z:CFG.floorD},{x:CFG.floorW,y:CFG.eaveY,z:CFG.floorD},
@@ -549,6 +582,12 @@ const VESSEL = {
   aero: {rb:0.125, rt:0.095, h:0.19, mouth:0.19, wall:'#e8e3d2', rim:'#f2eee0', top:'#2b2116', mist:true}
 };
 function vesselGeom(sys){ return VESSEL[sys] || VESSEL.soil; }
+/* цвет грунта по влаге: 14% — сухая пыль, 55% — норма, 90% — тёмная мокрая земля */
+function soilColor(m){
+  const t = clamp(((m===undefined?55:m) - 10)/85, 0, 1);
+  const lerpC = (a,b,k)=>Math.round(a + (b-a)*k);
+  return 'rgb('+lerpC(138,58,t)+','+lerpC(112,40,t)+','+lerpC(72,24,t)+')';
+}
 function vesselMouth(sys){ return vesselGeom(sys).mouth; }
 
 function drawVessel(p){
@@ -600,7 +639,8 @@ function drawVessel(p){
   ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fill();
   // поверхность ёмкости (грунт / раствор / крышка)
   loop(top);
-  ctx.fillStyle = g.top; ctx.fill();
+  // грунт: сухой — светлый и пыльный, политый — тёмный и влажный
+  ctx.fillStyle = g.soil ? soilColor(world.moist) : g.top; ctx.fill();
   ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.stroke();
   // обод
   loop(top);
@@ -643,11 +683,34 @@ function drawVessel(p){
 }
 
 /* ---------- клики по сцене ---------- */
+/* центры светильников досветки: по ним же рисуется свет и ловится клик */
+function lampSpots(){
+  const out = [];
+  if (!world || !hasLight(world)) return out;
+  for (let i=0;i<4;i++) out.push({x:0.6+i*0.94, y:CFG.ridgeY-0.42, z:1.5});
+  return out;
+}
 function hitTest(cx, cy){
   refreshView();
   const C = CROPS[world.crop];
   const rect = canvas.getBoundingClientRect();
   const x = cx-rect.left, y = cy-rect.top;
+  // 0) горшок: клик по ёмкости — полить (вода на всю грядку, зона одна)
+  {
+    const base = plantBaseY(world), g = vesselGeom(world.sys || 'soil');
+    for (const p of world.plants){
+      if (p.dead) continue;
+      const q = project({x:p.x, y:base - g.h*0.5, z:p.z});
+      const rr = Math.max(13, g.rt*q.s*1.05);
+      if (Math.hypot(q.x-x, q.y-y) < rr) return {kind:'pot', plant:p};
+    }
+  }
+  // 0б) светильник досветки — клик включает и выключает лампу
+  for (const sp of lampSpots()){
+    const q = project(sp);
+    const rr = Math.max(11, 0.075*q.s);
+    if (Math.hypot(q.x-x, q.y-y) < rr) return {kind:'lamp'};
+  }
   // 1) плоды
   for (const p of world.plants) for (const tr of p.trusses){
     for (let fi=0; fi<tr.fruits.length; fi++){
@@ -680,6 +743,24 @@ function hitTest(cx, cy){
 function organInfo(hit){
   if (!hit) return null;
   const C = CROPS[world.crop];
+  if (hit.kind==='pot'){
+    const st = soilState(world);
+    const d = waterDose(world);
+    return {title:'Горшок', rows:[
+      ['влага', Math.round(world.meas && world.meas.moist!==undefined ? world.meas.moist : world.moist)+'% ('+st.word+')'],
+      ['полив', d.litres+' л из бака'],
+      ['клик', 'полить грядку']
+    ]};
+  }
+  if (hit.kind==='lamp'){
+    const lit = lightLit(world);
+    return {title:'Досветка', rows:[
+      ['лампа', lightName(world)],
+      ['состояние', lit ? 'горит' : (world.ctrl.lampEnabled ? 'включена, но нет электричества' : 'выключена')],
+      ['свет', lit ? '+'+(world.has.led?(world.upg.ledBoost?280:190):(world.has.ledStrip?60:90))+' µmol/м²·с' : '0 µmol/м²·с'],
+      ['клик', lit ? 'выключить лампу' : 'включить лампу']
+    ]};
+  }
   if (hit.kind==='fruit'){
     const f = hit.fruit;
     const grams = (f.mass/C.fruitSink)*C.fruitFresh*1000;

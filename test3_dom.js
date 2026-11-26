@@ -1,6 +1,7 @@
+const path=require('path');
 // Дымовой тест интерфейса: заглушки DOM/Canvas + прогон кадров и всех страниц
 const fs=require('fs');
-const src=fs.readFileSync('/home/user/greenhouse/index.html','utf8');
+const src=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const js=src.slice(src.indexOf('<script>')+8, src.lastIndexOf('</script>'));
 const noop=()=>{};
 const store={};

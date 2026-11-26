@@ -1,5 +1,4 @@
-const { chromium: pw } = require('playwright-core');
-const chromium = require('@sparticuz/chromium');
+const { launch } = require('./browser');
 const { cdpShot } = require('./shot_cdp.js');
 (async()=>{
   const sizes = [
@@ -7,7 +6,7 @@ const { cdpShot } = require('./shot_cdp.js');
     {n:'phone',  w:390,  h:844, touch:true}
   ];
   for (const sz of sizes){
-    const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+    const b = await launch();
     const page = await b.newPage({ viewport:{width:sz.w,height:sz.h} });
     const ctx = { close: ()=>b.close() };
     const errs=[]; page.on('pageerror', e=>errs.push(e.message));
