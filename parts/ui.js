@@ -61,7 +61,11 @@ function peekSaveMeta(){
   try { const m = store.getM(); return m ? JSON.parse(m) : null; } catch(e){ return null; }
 }
 function saveNow(silent){
-  if (!world) return false;
+  // Учебная сессия изолирована: она не должна перезаписывать последнее сохранение.
+  if (!world || trainingMode) {
+    if (!silent && trainingMode) toast('Учебная сессия не сохраняется');
+    return false;
+  }
   try {
     store.set(serializeWorld(world));
     store.setM(JSON.stringify({ day:world.day, doy:world.doy, money:Math.round(world.money),
@@ -1832,15 +1836,6 @@ $('obGloss').onclick = ()=>{ $('help').classList.remove('on'); trainingHold=fals
 obPaint();
 $('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
-function openNewGame(mode){pending.training=mode==='training';pending.campaign=mode==='campaign';pending.profile=mode==='campaign'?'balcony':(mode==='training'?'hobby':'farm');$('mainMenu').classList.remove('on');$('start').classList.add('on');buildStart();}
-$('menuTraining').onclick=()=>openNewGame('training');
-$('menuCampaign').onclick=()=>openNewGame('campaign');
-$('menuFree').onclick=()=>openNewGame('free');
-$('menuContinue').onclick=()=>loadFromStorage();
-$('menuSettings').onclick=()=> $('mainSettings').classList.add('on');
-$('mainSettingsClose').onclick=()=> $('mainSettings').classList.remove('on');
-$('menuCameraInvert').onclick=()=>{setCamInvertY(!camInvertY);$('menuCameraInvert').textContent=camInvertY?'Наклон камеры: инвертирован':'Наклон камеры: обычный';};
-$('menuCurrency').onchange=e=>setCurrency(e.target.value);
 // Main menu routes the player into a mode before opening the existing setup wizard.
 function openNewGame(mode){
   pending.training=mode==='training'; pending.campaign=mode==='campaign';
