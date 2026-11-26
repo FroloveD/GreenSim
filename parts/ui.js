@@ -151,6 +151,9 @@ function press(el, fn){
 
 /* ---------------- стартовый экран ---------------- */
 function buildStart(){
+  const title=$('startTitle'), hint=$('startModeHint');
+  if(title) title.textContent=pending.training?'Ознакомительная сессия':(pending.campaign?'Новая кампания':'Свободная игра');
+  if(hint) hint.textContent=pending.training?'Учебный запуск с базовым профилем. Время остановится, пока открыто вводное обучение.':(pending.campaign?'Кампания: фиксированный старт и последовательные главы.':'Настройте капитал, культуру, оборудование и сложность свободного сезона.');
   const camp = $('campPick');
   if (camp){
     camp.innerHTML = `<div class="card" data-camp="1" style="cursor:pointer;${pending.campaign?'border-color:var(--acc)':''}">
