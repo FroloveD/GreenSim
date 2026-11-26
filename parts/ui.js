@@ -799,6 +799,7 @@ function renderStock(){
     <div class="kv"><span>CO₂</span><b style="${s.co2Kg<8?'color:var(--bad)':''}">${s.co2Kg.toFixed(s.co2Kg<10?1:0)} кг</b></div>
     <div class="kv"><span>Семена</span><b>${num(s.seeds)} шт</b></div>
     <div class="kv"><span>Вода (в баке)</span><b style="${s.waterM3<5?'color:var(--bad)':''}">${s.waterM3.toFixed(0)} м³</b></div>
+    ${marketBlock(world)}
     <div class="hint" style="margin-top:6px">${wh.sections} секц. · содержание ${money2(whRentDay(world))}/сут ·
       свободно ${num(freeKg)} кг</div>
     <div class="hint">Лёжкость ${CROPS[world.crop].name.split(' ')[0].toLowerCase()}: ${CROPS[world.crop].shelfDays} дн →
@@ -824,6 +825,34 @@ function renderStock(){
     renderAll(); if (page==='shop') renderShop();
   });
 }
+/* Рынок: цена сегодня, из чего она собрана и что будет через неделю.
+   Игрок должен видеть решение «продать сейчас или подождать», а не одно число. */
+function marketBlock(w){
+  const crop = w.crop, C = CROPS[crop];
+  const price = priceToday(w, crop);
+  const ahead = seasonAhead(w, crop, 21);   // трёхнедельный горизонт: за неделю рынок почти не двигается
+  const noise = (w.market && w.market.mult && w.market.mult[crop]) || 1;
+  const season = seasonFactor(crop, w.doy);
+  const hist = (w.market.hist && w.market.hist[crop]) || [];
+  const max = Math.max(1.2, ...hist), min = Math.min(0.6, ...hist);
+  const W = 100, H = 22;
+  const bars = hist.length > 1 ? hist.map((v,i)=>{
+    const x = i/(hist.length-1)*W;
+    const y = H - (v - min)/(max - min || 1)*H;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ') : '';
+  const arrow = ahead.pct > 0.02 ? '▲ дорожает' : ahead.pct < -0.02 ? '▼ дешевеет' : '→ ровно';
+  const cls = ahead.pct > 0.02 ? 'ok' : ahead.pct < -0.02 ? 'warn' : '';
+  return `<div class="kv"><span>Цена ${C.name.split(' ')[0].toLowerCase()}</span><b>${money2(price)}/кг</b></div>
+    <div class="kv"><span>сезон ×${season.toFixed(2)} · спрос дня ×${noise.toFixed(2)}</span><b class="${cls}">${arrow}</b></div>
+    ${bars ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:22px;margin:3px 0 1px">
+      <polyline points="${bars}" fill="none" stroke="var(--acc)" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+    </svg>` : `<div class="hint" style="margin:2px 0 1px">график цены появится через пару дней</div>`}
+    <div class="hint">через 3 недели ${money2(C.price*w.profilePriceF*ahead.next*noise)}/кг
+      (${ahead.pct>0?'+':''}${Math.round(ahead.pct*100)}%) ·
+      ${ahead.pct < -0.03 ? 'лучше продать сейчас' : ahead.pct > 0.03 ? 'можно подождать' : 'время не решает'}</div>`;
+}
+
 function renderContracts(){
   const act = world.contracts.filter(c=>!c.done);
   if (!act.length){ setHTML('contracts', `<div class="hint">Нет активных. Предложения — в магазине.</div>`); return; }
@@ -832,6 +861,12 @@ function renderContracts(){
     const canDeliver = storeKg(world, c.crop) > 1;
     return `<div style="margin-bottom:7px">
       <div class="kv"><span>${c.label} ×${c.priceMult}</span><b>${num(c.delivered)}/${num(c.kg)} кг</b></div>
+      ${(()=>{ const cc = c.crop || world.crop;
+        const lock = c.priceLock || CROPS[cc].price*world.profilePriceF*c.priceMult;
+        const now = priceToday(world, cc);
+        const note = !c.priceLock ? '' : now < lock ? ' — рынок ниже, контракт выгоден'
+                                            : now > lock ? ' — рынок выше, партию лучше продать свободно' : '';
+        return `<div class="hint">цена зафиксирована при подписании: ${money2(lock)}/кг${note}</div>`; })()}
       <div class="g"><span>до D${c.deadline}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct|0}%</b></div>
       <button class="btn" data-deliver="${c.id}" style="margin-top:4px" ${canDeliver?'':'disabled'}>
         Поставить со склада</button>
