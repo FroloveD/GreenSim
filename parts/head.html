@@ -479,6 +479,21 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     0%,100%{outline-color:rgba(122,216,160,.65);box-shadow:0 0 0 3px rgba(122,216,160,.10),0 0 12px rgba(122,216,160,.20)}
     50%{outline-color:var(--acc);box-shadow:0 0 0 7px rgba(122,216,160,.22),0 0 25px rgba(122,216,160,.42)}
   }
+
+  /* ---- компактные карточки настроек ---- */
+  .setgrid{gap:7px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+  .setgrid .card{padding:8px 9px;gap:4px;box-shadow:3px 3px 0 rgba(10,8,6,.65)}
+  .setgrid .card .h{gap:5px;margin-bottom:0}
+  .setgrid .card .h b{font-size:11.5px}
+  .setgrid .row{gap:6px;margin-bottom:6px}
+  .setgrid .row label{font-size:10.8px;line-height:1.3}
+  .setgrid .row .val{font-size:11px;min-width:54px}
+  .setgrid .hint{font-size:9.8px;line-height:1.32}
+  .setgrid input[type=range]{margin:1px 0}
+  .setgrid input[type=range]+div[style*="height:8px"]{height:4px!important}
+  .setgrid .kv{padding:2px 0;font-size:10.5px}
+  @media(max-width:720px){.setgrid{grid-template-columns:1fr;gap:6px}.setgrid .card{padding:7px 8px}}
+
 </style>
 </head>
 <body>
