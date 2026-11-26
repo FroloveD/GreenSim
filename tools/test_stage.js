@@ -3,7 +3,7 @@ const fs=require('fs'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','parts','core.js'),'utf8');
 const a=src.indexOf('// === SIM CORE START ==='),b=src.indexOf('// === SIM CORE END ===');
 const M=new Function(src.slice(a,b)+`
- return {CROPS,makeWorld,cropStage,stageRecipe,stageFit,fertFactors,diagnose};
+ return {CROPS,STAGE_RECIPES,makeWorld,cropStage,stageRecipe,stageFit,fertFactors,diagnose};
 `)();
 let fails=0;
 const ok=(c,m,x)=>{if(!c)fails++;console.log((c?'✅ ':'❌ ')+m+(x!==undefined?' — '+x:''));};
