@@ -1471,7 +1471,7 @@ function seasonAhead(w, crop, days){
 function priceToday(w, crop){
   const C = CROPS[crop||w.crop];
   const m = (w.market && w.market.mult && w.market.mult[C.id]) || 1;
-  return C.price * w.profilePriceF * seasonFactor(C.id, w.doy) * m;
+  return C.price * w.profilePriceF * seasonFactor(C.id, w.doy) * m * (w.repF || 1);
 }
 function marketTrend(w, crop){
   const h = (w.market.hist[crop]||[]);
@@ -1837,7 +1837,8 @@ function makeWorld(opts){
     useWaterM3: 0, useFertKg: 0,
     // Суточная световая сумма и фотопериод; сохраняются между сессиями.
     dliAcc:0, dliLampAcc:0, lampHoursDay:0, photoHoursDay:0,
-    dliYest:0, dliLampYest:0, lampHoursYest:0, photoHoursYest:0
+    dliYest:0, dliLampYest:0, lampHoursYest:0, photoHoursYest:0,
+    repF:1, rep:0, seasons:1, carry:null
   };
   // абсолютные характеристики теплицы (масштабируются по площади)
   w.env = {
@@ -1858,6 +1859,7 @@ function makeWorld(opts){
     w.money = 100; w.startMoney = 100;
     campaignTick(w);
   }
+  if (opts.carry) applyCarry(w, opts.carry);
   return w;
 }
 
@@ -2427,6 +2429,10 @@ function deserializeWorld(text){
   if (!w.drift) w.drift = {temp:0, rh:0, co2:0, soil:0};
   if (w.drift.soil === undefined) w.drift.soil = 0;
   if (w.waterStress === undefined) w.waterStress = 0;
+  if (w.rep === undefined) w.rep = 0;
+  if (!Number.isFinite(w.repF)) w.repF = 1;
+  if (!Number.isFinite(w.seasons)) w.seasons = 1;
+  if (w.carry === undefined) w.carry = null;
   // Миграция: старые сохранения не содержали накопители DLI/фотопериода.
   for (const k of ['dliAcc','dliLampAcc','lampHoursDay','photoHoursDay','dliYest','dliLampYest','lampHoursYest','photoHoursYest'])
     if (!Number.isFinite(w[k])) w[k] = 0;
@@ -2441,6 +2447,58 @@ function deserializeWorld(text){
   pack.v = SAVE_VERSION;
   rebuildGraph(w);
   return pack;
+}
+
+/* ---------------- Следующий сезон с переносом ----------------
+   Оборудование, деньги, склад, глава кампании и репутация переезжают в новый
+   сезон; куст, история и рынок начинаются заново. Это превращает сезон из
+   отдельной игры в хозяйство, которое строится годами.                       */
+function carrySnapshot(w){
+  const has = {}, upg = {};
+  for (const k in w.has) if (w.has[k]) has[k] = true;
+  for (const k in w.upg) if (w.upg[k] && typeof w.upg[k] !== 'number') upg[k] = true;
+  const rep = Math.round((w.rep||0) + (w.missionsDone||0)*2 + (w.harvestedKg||0)/40
+                          + (w.contracts||[]).filter(c=>c.done).length*3);
+  return {
+    at: Date.now(), day: w.day, seasons: (w.seasons||1)+1,
+    profile: w.profile, crop: w.crop, sys: w.sys,
+    site: (w.site&&w.site.id)||'ekb', orient: (w.site&&w.site.orient)||'S',
+    money: Math.round(w.money),
+    startMoney: Math.max(1, Math.round(w.money)),
+    has, upg, sections: (w.wh&&w.wh.sections)||2,
+    stock: {fertKg: Math.max(0, Math.round((w.stock.fertKg||0))),
+            co2Kg: Math.max(0, Math.round((w.stock.co2Kg||0))),
+            waterM3: Math.max(0, Math.round((w.stock.waterM3||0))),
+            seeds: Math.max(0, Math.round((w.stock.seeds||0)))},
+    camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice()} : null,
+    houses: ((w.net&&w.net.houses)||[]).map(h=>({crop:h.crop, price:h.price})),
+    rep,
+    prev: {harvestedKg: Math.round(w.harvestedKg||0), revenue: Math.round(w.revenue||0),
+           cost: Math.round(seasonCost(w)), profit: Math.round((w.money||0)-(w.startMoney||0)),
+           days: w.day, priceF: w.profilePriceF, diffId: w.diffId}
+  };
+}
+function applyCarry(w, c){
+  if (!c) return w;
+  // деньги переезжают как есть: минус — это долг хозяйства, а не «сброс»
+  if (c.money !== undefined){
+    w.money = Math.round(c.money);
+    w.startMoney = Math.max(1, Math.round(c.startMoney || c.money || 1));
+  }
+  for (const k in (c.has||{})) if (c.has[k]) w.has[k] = true;
+  for (const k in (c.upg||{})) if (c.upg[k]) w.upg[k] = true;
+  if (c.sections) w.wh.sections = Math.max(w.wh.sections, c.sections|0);
+  if (c.stock) for (const k in c.stock) if (w.stock[k] !== undefined) w.stock[k] = Math.max(w.stock[k], c.stock[k]);
+  if (c.camp && w.camp){ w.camp.ch = Math.min(3, c.camp.ch|0); w.camp.seen = (c.camp.seen||[]).slice(); }
+  if (c.houses && c.houses.length && w.net)
+    w.net.houses = c.houses.map(h=>({crop:h.crop, price:h.price, day:1}));
+  w.rep = c.rep|0;
+  w.repF = 1 + Math.min(0.06, (w.rep||0)*0.0015);
+  w.seasons = c.seasons|0 || 2;
+  w.carry = {rep:w.rep, seasons:w.seasons, money:w.money, prev:c.prev||null, at:c.at||Date.now()};
+  // перенос в кампании: глава не откатывается назад
+  if (w.camp && c.camp) campaignTick(w);
+  return w;
 }
 
 /* ---------------- Диагностика: что ограничивает урожай ---------------- */
