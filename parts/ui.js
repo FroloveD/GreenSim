@@ -547,7 +547,8 @@ function setPage(p){
   canvas.style.display = (p==='greenhouse') ? 'block' : 'none';
   if (p==='shop') renderShop();
   if (p==='settings') renderSettings();
-  renderTutor();
+  tutorTick();
+  if (p==='shop') renderShop(); // после перехода на шаг покупки подсветить нужную карточку
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setPage(b.dataset.tab));
 
