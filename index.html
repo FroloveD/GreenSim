@@ -494,6 +494,17 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .setgrid .kv{padding:2px 0;font-size:10.5px}
   @media(max-width:720px){.setgrid{grid-template-columns:1fr;gap:6px}.setgrid .card{padding:7px 8px}}
 
+
+  /* ---- ручное управление климатом на основном экране ---- */
+  .climate-controls{display:grid;grid-template-columns:1fr;gap:5px;margin-top:7px;padding-top:7px;border-top:1px solid var(--line2)}
+  .climate-control{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 7px}
+  .climate-control label{font-size:10px;color:var(--dim);line-height:1.2}
+  .climate-control .climate-value{font:10px var(--mono);white-space:nowrap}
+  .climate-control input{grid-column:1/-1;width:100%;margin:1px 0 3px}
+  .climate-control.is-disabled{opacity:.45}
+  #dashGrid .col.left>[data-p="climate"]{overflow-y:auto;scrollbar-width:thin}
+  @media(max-width:720px){.climate-controls{gap:7px}.climate-control label{font-size:11px}}
+
 </style>
 </head>
 <body>
@@ -551,6 +562,25 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
       <div class="panel" data-p="climate">
         <h2>Климат (по датчикам)</h2>
         <div id="gauges"></div>
+        <div id="climateControls" class="climate-controls">
+          <div class="climate-control">
+            <label for="ghHeat">Отопление включать ниже</label>
+            <div class="climate-value"><b id="ghHeatVal">—</b></div>
+            <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="0">
+          </div>
+          <div class="climate-control">
+            <label for="ghVent">Проветривание включать выше</label>
+            <div class="climate-value"><b id="ghVentVal">—</b></div>
+            <input id="ghVent" type="range" min="14" max="38" step="0.5" value="0">
+          </div>
+          <div class="climate-control" id="ghCo2Control">
+            <label for="ghCo2">Целевой CO₂</label>
+            <div class="climate-value"><b id="ghCo2Val">—</b></div>
+            <input id="ghCo2" type="range" min="400" max="1200" step="25" value="0">
+            <div class="hint" id="ghCo2Hint"></div>
+          </div>
+          <div class="hint">Ручные уставки оборудования. Автоматические таймеры настраиваются отдельно.</div>
+        </div>
         <div class="hint" id="driftHint"></div>
       </div>
       <div class="panel" data-p="why">
@@ -4416,7 +4446,7 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 
 let world = null;
 let page = 'greenhouse';
-let settingsSection = 'climate';
+let settingsSection = 'grow';
 let trainingMode = false, trainingHold = false;
 let speed = 64, paused = false;   // скорость = игровых часов за реальную МИНУТУ
 let acc = 0, lastT = performance.now(), uiT = 0;
@@ -5100,6 +5130,38 @@ function renderGauges(){
   $('driftHint').innerHTML = hint ? `<span style="color:var(--warn)">⚠ ${hint}</span>` : 'показания датчиков, не «истина»';
 }
 
+
+function renderClimateControls(){
+  if (!world) return;
+  const fields = [
+    ['ghHeat','ghHeatVal','heatSet',v=>v.toFixed(1)+' °C'],
+    ['ghVent','ghVentVal','ventSet',v=>v.toFixed(1)+' °C'],
+    ['ghCo2','ghCo2Val','co2Set',v=>Math.round(v)+' ppm']
+  ];
+  fields.forEach(([inputId,valueId,key,fmt])=>{
+    const input=$(inputId), value=$(valueId);
+    if (!input || !value) return;
+    if (document.activeElement !== input) input.value=world.ctrl[key];
+    value.textContent=fmt(world.ctrl[key]);
+    if (!input.dataset.bound){
+      input.oninput=()=>{
+        world.ctrl[key]=parseFloat(input.value);
+        value.textContent=fmt(world.ctrl[key]);
+      };
+      input.onchange=()=>saveNow(true);
+      input.dataset.bound='1';
+    }
+  });
+  const co2=$('ghCo2'), co2Hint=$('ghCo2Hint'), co2Control=$('ghCo2Control');
+  if (co2){
+    co2.disabled=!world.has.co2;
+    if(co2Hint) co2Hint.textContent=world.has.co2
+      ? 'Уставка клапана обогащения воздуха.'
+      : 'Нет оборудования CO₂: настройка станет доступна после покупки.';
+    if(co2Control) co2Control.classList.toggle('is-disabled',!world.has.co2);
+  }
+}
+
 /* ---------------- дашборд: финансы ---------------- */
 function renderFinance(){
   const w = world;
@@ -5645,26 +5707,6 @@ function renderSettings(){
   $('settingsBody').innerHTML = `
   <div class="setgrid">
     <div class="card">
-      <div class="h"><b>Климат</b></div>
-      ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
-      ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
-      ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
-        : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет оборудования</span></div>
-           <div class="hint">На балконе и в комнате клапана нет: воздух и так меняется через щели. Появится вместе с теплицей.</div>`}
-      <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
-    </div>
-    <div class="card">
-      <div class="h"><b>Место и дата</b></div>
-      <div class="d" style="color:var(--txt)">${(world.site&&world.site.name)||'Екатеринбург'} · ${(ORIENTS[(world.site&&world.site.orient)||'S']||ORIENTS.S).name}</div>
-      <div class="hint">старт ${fmtDate(world.startDoy||world.doy)} · день ${world.day} из ${world.seasonDays||CFG.seasonDays}</div>
-      ${(()=>{ const N = siteNormals(world.site||{region:'uralsib'});
-        const now = Math.round(normAt(N.temp, world.doy));
-        return `<div class="hint">норма сейчас ${now>0?'+':''}${now} °C · солнце ${Math.round(normAt(N.sun, world.doy)*100)} % от возможного
-        · регион ${N.region}</div>
-        <div class="hint">данные: средние многолетние 1991–2020 по открытым источникам (Гидрометцентр, Википедия).
-        Смена места и даты — только новой игрой: климат сезона не подменяется на ходу.</div>`; })()}
-    </div>
-    <div class="card">
       <div class="h"><b>Система выращивания</b></div>
       <div class="d" style="color:var(--txt)">${sysOf(world).name}</div>
       <div class="hint" style="margin-bottom:8px">${sysOf(world).note}</div>
@@ -5888,7 +5930,7 @@ function renderSettings(){
   if (settingsGrid) {
     const cards = [...settingsGrid.children];
     const groups = [
-      {id:'climate',title:'Климат и место',icon:'☀',test:/^(Климат|Место и дата|Погода за окном)$/},
+      {id:'climate',title:'Погода',icon:'☀',test:/^Погода за окном$/},
       {id:'grow',title:'Выращивание',icon:'🌱',test:/^(Система выращивания|Свет и экраны|Свет за сутки \(DLI\)|Питание \(fertigation\))$/},
       {id:'auto',title:'Автоматизация',icon:'⏱',test:/^Таймеры и автоматизация$/},
       {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(Камера|Валюта|Приложение)$/},
@@ -6518,7 +6560,7 @@ function renderAll(){
     ? 'Максимальная скорость кампании — 64×'
     : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
-  renderTop(); renderGauges(); renderFinance(); renderAlerts();
+  renderTop(); renderGauges(); renderClimateControls(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   syncLightButtons();
   tutorTick();
