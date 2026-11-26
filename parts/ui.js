@@ -1813,13 +1813,35 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+/* Следующий сезон: хозяйство (деньги, оборудование, склад, глава, репутация)
+   переезжает, куст и история начинаются заново. */
+function startNextSeason(){
+  if (!world) return;
+  const prev = world;
+  const carry = carrySnapshot(prev);
+  const opts = { profile: prev.profile, crop: prev.crop, sys: prev.sys,
+    seed: (prev.seed + 7919) >>> 0, difficulty: prev.diffId, campaign: !!prev.camp,
+    site: (prev.site && prev.site.id) || 'ekb', orient: (prev.site && prev.site.orient) || 'S',
+    startDoy: prev.doy, carry, weather: prev.weather };
+  world = makeWorld(opts);
+  if (prev.realWeather && prev.realWeather.t) world.realWeather = prev.realWeather;
+  if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
+  document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
+  endShown = false; paused = false; speed = 64; acc = 0; lastT = performance.now(); fc = null;
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
+  $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
+  setPage('greenhouse'); renderAll(); saveNow(true);
+  toast(`Сезон ${world.seasons}: хозяйство перенесено · репутация ${world.rep} · баланс ${money(world.money)}`);
+}
+
 function showEnd(){
   endShown = true;
   const w = world;
   const cost = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const profit = w.money - w.startMoney;
   const kgm2 = w.harvestedKg/w.area;
-  const kwhm2 = w.energyKWh/w.area;
+  const kwhSum = w.energyTotal || w.energyKWh || 0;
+  const kwhm2 = kwhSum/w.area;
   const verdict = profit > w.startMoney*0.4
     ? 'Отличный сезон: климат, свет и питание сработали вместе.'
     : profit > 0
@@ -1835,14 +1857,24 @@ function showEnd(){
     <div class="kv"><span>Урожай</span><b>${num(w.harvestedKg)} кг · ${kgm2.toFixed(1)} кг/м²</b></div>
     <div class="kv"><span>Выручка</span><b>${money(w.revenue)}</b></div>
     <div class="kv"><span>Затраты всего</span><b>−${money(cost)}</b></div>
-    <div class="kv"><span>Энергия</span><b>${num(w.energyKWh)} кВт·ч · ${kwhm2.toFixed(0)} кВт·ч/м²</b></div>
+    <div class="kv"><span>Энергия за сезон</span><b>${num(Math.round(kwhSum))} кВт·ч · ${kwhm2.toFixed(0)} кВт·ч/м²</b></div>
     <div class="kv"><span>Инцидентов</span><b>${w.incidents||0}</b></div>
     <div class="kv"><span>Заданий выполнено</span><b>${w.missionsDone}</b></div>
+    <div class="kv"><span>Себестоимость 1 кг</span><b>${costPerKg(w)==null?'—':money2(costPerKg(w))} · цена дня ${money2(priceToday(w,w.crop))}</b></div>
+    <div class="kv"><span>Свет за сутки</span><b>${(()=>{ const hs=(w.history||[]).filter(h=>h.dli>0); return hs.length?'в среднем '+ (hs.reduce((a,b)=>a+b.dli,0)/hs.length).toFixed(1)+' моль/м²':'—'; })()}</b></div>
+    <div class="kv"><span>Репутация</span><b>${w.rep||0}${w.carry?' · перенесена':''}</b></div>
     <div class="kv"><span>Итог</span><b class="${profit>=0?'pos':'neg'}">${money(profit)}</b></div>
     <div class="hint" style="margin-top:10px">${verdict}</div>
-    <p style="margin-top:14px"><button class="btn good" onclick="location.reload()">Новый сезон</button></p>
+    <div class="hint" style="margin-top:8px">Следующий сезон: деньги (и долг), оборудование, склад, глава кампании и репутация
+      переезжают. Куст, история и рынок начинаются заново.${
+        profit < 0 ? '<br><b style="color:var(--warn)">Баланс в минусе: он переедет как долг хозяйства. Если это не по силам — «Начать заново».</b>' : ''}</div>
+    <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn good" id="btnNextSeason">Следующий сезон с хозяйством</button>
+      <button class="btn" onclick="location.reload()">Начать заново</button></p>
   </div>`;
   document.body.appendChild(div);
+  const nb = div.querySelector('#btnNextSeason');
+  if (nb) nb.onclick = ()=>{ div.remove(); startNextSeason(); };
 }
 
 window.addEventListener('pagehide', ()=>{ if (world && !world.over) saveNow(true); });
