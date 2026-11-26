@@ -500,7 +500,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .climate-control{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 7px}
   .climate-control label{font-size:10px;color:var(--dim);line-height:1.2}
   .climate-control .climate-value{font:10px var(--mono);white-space:nowrap}
-  .climate-control input{grid-column:1/-1;width:100%;margin:1px 0 3px}
+  .climate-control input{grid-column:1/-1;width:100%;margin:1px 0 3px}.climate-control>.btn{grid-column:1/-1;justify-self:start;padding:4px 9px;font-size:10px}.climate-control>.btn.good{border-color:#54e58a;background:rgba(84,229,138,.18);color:#d9ffe6}
   .climate-control.is-disabled{opacity:.45}
   .climate-controls>.hint,#ghCo2Hint{display:none!important}
   #dashGrid .col.left>[data-p="climate"]{overflow-y:auto;scrollbar-width:thin}
@@ -519,7 +519,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .sensor-label:after{content:attr(data-tip);display:none;position:absolute;z-index:50;left:0;top:calc(100% + 5px);width:min(220px,70vw);padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#101d17;color:var(--txt);font:10px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:none;letter-spacing:0;white-space:normal;box-shadow:0 6px 18px #0008;pointer-events:none}
   @media(hover:hover) and (pointer:fine){.sensor-label:hover:after,.sensor-label:focus:after{display:block}}
   @media(hover:none),(pointer:coarse){.sensor-label.tip-open:after{display:block}}
-  .tutor-shop-buy{outline:2px solid var(--acc)!important;box-shadow:0 0 0 4px rgba(122,216,160,.12)}
+  .tutor-shop-buy{border:2px solid #54e58a!important;outline:2px solid rgba(84,229,138,.55)!important;outline-offset:1px;box-shadow:0 0 0 4px rgba(84,229,138,.2),0 0 18px rgba(84,229,138,.24)!important}
 
 </style>
 </head>
@@ -582,13 +582,15 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
         <div id="gauges"></div>
         <div id="climateControls" class="climate-controls">
           <div class="climate-control">
-            <label for="ghHeat" class="sensor-label" data-tip-key="heatSet" data-tip="Порог температуры: если воздух холоднее заданного значения, система отопления получает команду включиться." tabindex="0" role="button">Отопление включать ниже<i>ⓘ</i></label>
+            <label for="ghHeat" class="sensor-label" data-tip-key="heatSet" data-tip="В ручном режиме отопление работает только когда включено кнопкой. Уставка используется после открытия климатической автоматизации." tabindex="0" role="button">Отопление · уставка автоматики<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghHeatVal">—</b></div>
+            <button type="button" class="btn" id="ghHeatToggle">Отопление: выкл</button>
             <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="0">
           </div>
           <div class="climate-control">
-            <label for="ghVent" class="sensor-label" data-tip-key="ventSet" data-tip="Порог проветривания: при превышении температуры открывается вентиляция, чтобы отводить лишнее тепло." tabindex="0" role="button">Проветривание включать выше<i>ⓘ</i></label>
+            <label for="ghVent" class="sensor-label" data-tip-key="ventSet" data-tip="В ручном режиме проветривание работает только когда включено кнопкой. Уставка используется после открытия климатической автоматизации." tabindex="0" role="button">Проветривание · уставка автоматики<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghVentVal">—</b></div>
+            <button type="button" class="btn" id="ghVentToggle">Проветривание: выкл</button>
             <input id="ghVent" type="range" min="14" max="38" step="0.5" value="0">
           </div>
           <div class="climate-control" id="ghCo2Control">
@@ -597,7 +599,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
             <input id="ghCo2" type="range" min="400" max="1200" step="25" value="0">
             <div class="hint" id="ghCo2Hint"></div>
           </div>
-          <div class="hint">Ручные уставки оборудования. Автоматические таймеры настраиваются отдельно.</div>
+          <div class="hint">В начале кампании включайте и выключайте отопление и проветривание вручную. Уставки температуры начнут управлять ими после открытия полной климатической автоматизации.</div>
         </div>
         <div class="hint" id="driftHint"></div>
         </div>
