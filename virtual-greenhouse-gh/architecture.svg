@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 660" width="980" height="660" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f8f78"/>
+    </marker>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d9a94a"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a1712"/><stop offset="1" stop-color="#060d0a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="980" height="660" fill="url(#bg)" rx="14"/>
+  <text x="28" y="38" fill="#dcefe3" font-size="17" font-weight="600" font-family="-apple-system,Segoe UI,Inter,sans-serif">Архитектура «Виртуальной теплицы»</text>
+  <text x="28" y="58" fill="#7d9a8c" font-size="11" font-family="-apple-system,Segoe UI,Inter,sans-serif">рантайм в браузере + офлайн-калибровка против VPL (Julia)</text>
+
+  <!-- BROWSER -->
+  <rect x="22" y="78" width="640" height="410" rx="12" fill="rgba(122,216,160,.03)" stroke="#2a4a3b" stroke-dasharray="5 4"/>
+  <text x="38" y="100" fill="#7ad8a0" font-size="11" letter-spacing="1.4">БРАУЗЕР</text>
+
+  <!-- UI -->
+  <rect x="38" y="112" width="180" height="72" rx="9" fill="#0f1f18" stroke="#3a6b53"/>
+  <text x="52" y="134" fill="#dcefe3" font-size="12">UI / HUD</text>
+  <text x="52" y="152" fill="#7d9a8c" font-size="9.5">датчики · финансы · спарклайн</text>
+  <text x="52" y="168" fill="#7d9a8c" font-size="9.5">инспектор графа · оверлеи</text>
+
+  <!-- SIM CORE -->
+  <rect x="38" y="204" width="404" height="262" rx="10" fill="#0c1a14" stroke="#7ad8a0"/>
+  <text x="52" y="226" fill="#7ad8a0" font-size="11.5">SIM CORE — Web Worker</text>
+  <text x="52" y="242" fill="#5f8f78" font-size="9">фиксированный шаг 5 игровых минут · детерминированный PRNG</text>
+
+  <rect x="52" y="254" width="182" height="40" rx="7" fill="#12241b" stroke="#315a46"/>
+  <text x="62" y="272" fill="#dcefe3" font-size="10.5">graphs.ts</text>
+  <text x="62" y="286" fill="#7d9a8c" font-size="8.5">правила / запросы (PlantGraphs)</text>
+
+  <rect x="246" y="254" width="182" height="40" rx="7" fill="#12241b" stroke="#315a46"/>
+  <text x="256" y="272" fill="#dcefe3" font-size="10.5">geometry.ts</text>
+  <text x="256" y="286" fill="#7d9a8c" font-size="8.5">turtle → позы, нормали</text>
+
+  <rect x="52" y="302" width="182" height="40" rx="7" fill="#12241b" stroke="#315a46"/>
+  <text x="62" y="320" fill="#dcefe3" font-size="10.5">light.wasm</text>
+  <text x="62" y="334" fill="#7d9a8c" font-size="8.5">воксельный LAD + лучи (Rust)</text>
+
+  <rect x="246" y="302" width="182" height="40" rx="7" fill="#12241b" stroke="#315a46"/>
+  <text x="256" y="320" fill="#dcefe3" font-size="10.5">ecophys.ts</text>
+  <text x="256" y="334" fill="#7d9a8c" font-size="8.5">Farquhar-lite, транспирация</text>
+
+  <rect x="52" y="350" width="182" height="40" rx="7" fill="#12241b" stroke="#315a46"/>
+  <text x="62" y="368" fill="#dcefe3" font-size="10.5">climate.ts</text>
+  <text x="62" y="382" fill="#7d9a8c" font-size="8.5">T / RH / CO₂, релаксация</text>
+
+  <rect x="246" y="350" width="182" height="40" rx="7" fill="#12241b" stroke="#315a46"/>
+  <text x="256" y="368" fill="#dcefe3" font-size="10.5">economy.ts</text>
+  <text x="256" y="382" fill="#7d9a8c" font-size="8.5">source–sink, рынок, контракты</text>
+
+  <rect x="52" y="400" width="376" height="1" fill="#24463a"/>
+  <text x="52" y="422" fill="#7d9a8c" font-size="9">порядок шага: климат → свет → фотосинтез → рост → экономика</text>
+  <text x="52" y="440" fill="#7d9a8c" font-size="9">сохранение = seed + журнал ввода (детерминированный replay)</text>
+  <text x="52" y="458" fill="#5f8f78" font-size="9">кадр sim &lt; 4 мс · свет 1–4 раза в игровой час</text>
+
+  <!-- RENDER -->
+  <rect x="458" y="112" width="188" height="72" rx="9" fill="#0f1f18" stroke="#3a6b53"/>
+  <text x="472" y="134" fill="#dcefe3" font-size="12">RENDER</text>
+  <text x="472" y="152" fill="#7d9a8c" font-size="9.5">WebGL2 / WebGPU</text>
+  <text x="472" y="168" fill="#7d9a8c" font-size="9.5">инстансинг · тепловая карта</text>
+
+  <!-- arrays between sim & render -->
+  <path d="M 442 250 L 552 190" stroke="#5f8f78" stroke-width="1.4" fill="none" marker-end="url(#ar)"/>
+  <text x="392" y="204" fill="#5f8f78" font-size="8.5">ArrayBuffer: позы, цвет, PAR</text>
+  <path d="M 552 200 L 442 268" stroke="#5f8f78" stroke-width="1" fill="none" marker-end="url(#ar)" stroke-dasharray="3 3"/>
+  <text x="392" y="222" fill="#5f8f78" font-size="8.5">клик: орган → действие</text>
+  <path d="M 128 184 L 128 204" stroke="#5f8f78" stroke-width="1.4" fill="none" marker-end="url(#ar)"/>
+
+  <!-- CALIBRATION -->
+  <rect x="678" y="78" width="280" height="410" rx="12" fill="rgba(217,169,74,.04)" stroke="#6b5a2a" stroke-dasharray="5 4"/>
+  <text x="694" y="100" fill="#ffd479" font-size="11" letter-spacing="1.4">КАЛИБРОВКА (офлайн)</text>
+  <text x="694" y="118" fill="#9c8a5c" font-size="9">Julia · VPL — эталонная физика</text>
+
+  <rect x="694" y="132" width="248" height="34" rx="7" fill="#1a1710" stroke="#5c4d24"/>
+  <text x="704" y="153" fill="#e8dcc0" font-size="10">PlantGraphs.jl — та же топология</text>
+
+  <rect x="694" y="174" width="248" height="34" rx="7" fill="#1a1710" stroke="#5c4d24"/>
+  <text x="704" y="195" fill="#e8dcc0" font-size="10">PlantRayTracer.jl — BVH, 10⁴–10⁵ лучей</text>
+
+  <rect x="694" y="216" width="248" height="34" rx="7" fill="#1a1710" stroke="#5c4d24"/>
+  <text x="704" y="237" fill="#e8dcc0" font-size="10">SkyDomes.jl · Ecophys.jl · PlantBiophysics</text>
+
+  <rect x="694" y="266" width="248" height="68" rx="7" fill="#141a12" stroke="#6b5a2a"/>
+  <text x="704" y="286" fill="#ffd479" font-size="10">сравнение прогонов</text>
+  <text x="704" y="302" fill="#9c8a5c" font-size="8.8">профиль PPFD по слоям · ассимиляция</text>
+  <text x="704" y="316" fill="#9c8a5c" font-size="8.8">сухая масса · кВт·ч/м²</text>
+  <text x="704" y="330" fill="#9c8a5c" font-size="8.8">приёмка: MAPE &lt; 7%</text>
+
+  <rect x="694" y="348" width="248" height="52" rx="7" fill="#141a12" stroke="#6b5a2a"/>
+  <text x="704" y="368" fill="#ffd479" font-size="10">фит суррогата</text>
+  <text x="704" y="384" fill="#9c8a5c" font-size="8.8">k (экстинкция), размер вокселя,</text>
+  <text x="704" y="396" fill="#9c8a5c" font-size="8.8">коэффициенты диффузной фракции</text>
+
+  <rect x="694" y="414" width="248" height="52" rx="7" fill="#141a12" stroke="#6b5a2a"/>
+  <text x="704" y="434" fill="#e8dcc0" font-size="10">экспорт параметров → runtime</text>
+  <text x="704" y="450" fill="#9c8a5c" font-size="8.8">JSON: cхема сценария + коэффициенты</text>
+
+  <!-- arrow calibration → runtime -->
+  <path d="M 694 440 L 620 470" stroke="#d9a94a" stroke-width="1.4" fill="none" marker-end="url(#ar2)"/>
+  <text x="560" y="492" fill="#9c8a5c" font-size="8.5">JSON-параметры</text>
+  <path d="M 442 430 L 670 430" stroke="#d9a94a" stroke-width="1" fill="none" marker-end="url(#ar2)" stroke-dasharray="3 3"/>
+  <text x="470" y="424" fill="#9c8a5c" font-size="8.5">тот же сценарий →</text>
+
+  <!-- GAMEPLAY LAYER bottom -->
+  <rect x="22" y="506" width="936" height="128" rx="12" fill="rgba(122,216,160,.03)" stroke="#2a4a3b"/>
+  <text x="38" y="528" fill="#7ad8a0" font-size="11" letter-spacing="1.4">ИГРОВОЙ ЦИКЛ</text>
+
+  <rect x="38" y="540" width="168" height="40" rx="7" fill="#0f1f18" stroke="#315a46"/>
+  <text x="48" y="558" fill="#dcefe3" font-size="10">микро: 5 мин</text>
+  <text x="48" y="572" fill="#7d9a8c" font-size="8.5">климат → свет → рост</text>
+
+  <rect x="222" y="540" width="168" height="40" rx="7" fill="#0f1f18" stroke="#315a46"/>
+  <text x="232" y="558" fill="#dcefe3" font-size="10">день</text>
+  <text x="232" y="572" fill="#7d9a8c" font-size="8.5">сводка, сбор, уставки</text>
+
+  <rect x="406" y="540" width="168" height="40" rx="7" fill="#0f1f18" stroke="#315a46"/>
+  <text x="416" y="558" fill="#dcefe3" font-size="10">неделя</text>
+  <text x="416" y="572" fill="#7d9a8c" font-size="8.5">обрезка, апгрейды, болезни</text>
+
+  <rect x="590" y="540" width="168" height="40" rx="7" fill="#0f1f18" stroke="#315a46"/>
+  <text x="600" y="558" fill="#dcefe3" font-size="10">сезон: 90 дней</text>
+  <text x="600" y="572" fill="#7d9a8c" font-size="8.5">контракты, отчёт, рейтинг</text>
+
+  <rect x="774" y="540" width="168" height="40" rx="7" fill="#12241b" stroke="#7ad8a0"/>
+  <text x="784" y="558" fill="#7ad8a0" font-size="10">результат</text>
+  <text x="784" y="572" fill="#5f8f78" font-size="8.5">€ · кг/м² · кВт·ч/м²</text>
+
+  <text x="38" y="606" fill="#7d9a8c" font-size="9">Столпы: структура видна · свет = физика · климат = бюджет · ошибки видны в морфологии</text>
+  <text x="38" y="622" fill="#5f8f78" font-size="9">Прототип: index.html (8 растений ≙ 1000 на 400 м², grid cloner-приём из PlantRayTracer)</text>
+</svg>

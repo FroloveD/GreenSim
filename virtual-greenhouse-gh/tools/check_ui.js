@@ -1,0 +1,39 @@
+const { chromium: pw } = require('playwright-core');
+const chromium = require('@sparticuz/chromium');
+(async()=>{
+  const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+  const page = await browser.newPage({ viewport:{width:1280, height:900} });
+  const errs=[];
+  page.on('pageerror', e=>errs.push('PAGEERROR: '+e.message));
+  page.on('console', m=>{ if(m.type()==='error') errs.push('CONSOLE: '+m.text()); });
+  await page.goto('http://localhost:8080/index.html?c=1', { waitUntil:'domcontentloaded', timeout:60000 });
+  await page.waitForTimeout(700);
+  await page.click('#startBtn');
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path:'/home/user/shots/30_free_before.png' });
+  const before = await page.evaluate(()=>({yaw:+cam.yaw.toFixed(3), pitch:+cam.pitch.toFixed(3)}));
+  await page.mouse.move(700, 480);
+  await page.mouse.down();
+  for (let i=1;i<=12;i++){ await page.mouse.move(700+i*18, 480+i*4); await page.waitForTimeout(16); }
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const after = await page.evaluate(()=>({yaw:+cam.yaw.toFixed(3), pitch:+cam.pitch.toFixed(3), mode:cam.mode}));
+  console.log('камера до', JSON.stringify(before), '→ после', JSON.stringify(after),
+              (before.yaw!==after.yaw ? 'ВРАЩАЕТСЯ ✓' : 'НЕ ВРАЩАЕТСЯ ✗'));
+  await page.screenshot({ path:'/home/user/shots/31_free_after_drag.png' });
+  await page.mouse.move(700, 480); await page.mouse.wheel(0, -400); await page.waitForTimeout(200);
+  console.log('зум:', await page.evaluate(()=>+cam.zoom.toFixed(2)));
+  await page.click('.tabs button[data-tab="shop"]');
+  const t1 = await page.evaluate(()=>document.getElementById('tHour').textContent);
+  await page.waitForTimeout(2500);
+  const t2 = await page.evaluate(()=>document.getElementById('tHour').textContent);
+  console.log('часы в магазине:', t1, '→', t2, (t1!==t2?'ИДУТ ✓':'СТОЯТ ✗'));
+  await page.screenshot({ path:'/home/user/shots/32_shop_running.png' });
+  await page.click('.tabs button[data-tab="greenhouse"]');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path:'/home/user/shots/33_greenhouse.png' });
+  const box = await page.evaluate(()=>{ const c=document.getElementById('scene'); return {w:c.width,h:c.height,cw:c.clientWidth,ch:c.clientHeight}; });
+  console.log('canvas', JSON.stringify(box));
+  console.log('ошибки:', errs.length? errs.slice(0,5).join(' | '):'нет');
+  await browser.close();
+})();

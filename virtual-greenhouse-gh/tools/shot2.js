@@ -1,0 +1,33 @@
+const { chromium: pw } = require('playwright-core');
+const chromium = require('@sparticuz/chromium');
+(async()=>{
+  const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+  const page = await browser.newPage({ viewport:{width:1440, height:900} });
+  const errs=[];
+  page.on('pageerror', e=>errs.push('PAGEERROR: '+e.message));
+  page.on('console', m=>{ if(m.type()==='error') errs.push('CONSOLE: '+m.text()); });
+  await page.goto('http://localhost:8080/index.html?f=1', { waitUntil:'domcontentloaded', timeout:60000 });
+  await page.waitForTimeout(600);
+  await page.click('#startBtn');
+  await page.waitForTimeout(600);
+  // дорастить до зрелой теплицы (сбор каждый день, как играет человек)
+  await page.evaluate(()=>{ const w=window.VG.world;
+    for(let d=0; d<55; d++){ for(let k=0;k<24;k++) window.VG.sim(1); window.VG.harvest(); } });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path:'/home/user/shots/20_mature_free.png' });
+  await page.evaluate(()=>window.VG.cam('top')); await page.waitForTimeout(400);
+  await page.screenshot({ path:'/home/user/shots/21_mature_top.png' });
+  await page.evaluate(()=>window.VG.cam('plant')); await page.waitForTimeout(400);
+  await page.screenshot({ path:'/home/user/shots/22_mature_plant.png' });
+  await page.evaluate(()=>window.VG.cam('front')); await page.waitForTimeout(400);
+  await page.screenshot({ path:'/home/user/shots/23_mature_front.png' });
+  await page.evaluate(()=>window.VG.cam('free'));
+  await page.click('.tabs button[data-tab="shop"]'); await page.waitForTimeout(500);
+  await page.screenshot({ path:'/home/user/shots/24_shop.png' });
+  await page.click('.tabs button[data-tab="greenhouse"]');
+  await page.click('#btnPred'); await page.click('[data-pred="14"]');
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path:'/home/user/shots/25_forecast14.png' });
+  console.log('ошибки:', errs.length? errs.slice(0,6).join(' | '):'нет');
+  await browser.close();
+})();

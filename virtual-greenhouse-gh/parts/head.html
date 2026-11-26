@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="cache-control" content="no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<meta name="build" content="2026-11-26 · скорости от реального часа, гидропоника, камера">
+<title>Виртуальная теплица 2.0 — симулятор</title>
+<style>
+  :root{
+    --bg:#07100c; --panel:rgba(8,20,15,.965); --panel2:rgba(10,24,19,.985);
+    --line:rgba(122,216,160,.22); --line2:rgba(122,216,160,.12);
+    --acc:#7ad8a0; --acc2:#ffd479; --txt:#dcefe3; --dim:#8aa79a; --bad:#ff7b72; --warn:#ffb86b; --blue:#79c7ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--txt);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+  canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab}
+  canvas#scene.drag{cursor:grabbing}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 34px rgba(0,0,0,.45);padding:10px 11px}
+  h1,h2,h3{margin:0;letter-spacing:.2px}
+  h1{font-size:13px;font-weight:600}
+  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--dim);margin:0 0 7px;font-weight:600}
+  h3{font-size:12px;font-weight:600}
+  /* ---- верхняя панель ---- */
+  #top{position:fixed;top:8px;left:8px;right:8px;min-height:52px;display:flex;align-items:center;
+    flex-wrap:wrap;row-gap:6px;gap:12px;padding:6px 12px;z-index:30}
+  .brand{display:flex;flex-direction:column;line-height:1.15;white-space:nowrap}
+  .brand b{font-size:12.5px}
+  .brand span{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+  .tabs{display:flex;gap:4px;margin-left:6px}
+  .tabs button{font:inherit;font-size:12px;padding:7px 13px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--dim);cursor:pointer;transition:.14s}
+  .tabs button:hover{color:var(--txt);background:rgba(122,216,160,.08)}
+  .tabs button.on{background:rgba(122,216,160,.16);border-color:var(--line);color:#eafff2}
+  .metrics{display:flex;gap:13px;margin-left:auto;align-items:center;flex-wrap:nowrap}
+  .brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px}
+  .metric{display:flex;flex-direction:column;line-height:1.15;min-width:52px;white-space:nowrap}
+  .metric b{font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap}
+  .metric span{font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim)}
+  .metric.money b{color:var(--acc2)}
+  .speeds{display:flex;gap:4px;align-items:center}
+  .speeds button{font:inherit;font-family:var(--mono);font-size:11px;padding:5px 8px;border-radius:7px;border:1px solid var(--line2);background:rgba(122,216,160,.06);color:var(--dim);cursor:pointer}
+  .speeds button:hover{background:rgba(122,216,160,.16);color:var(--txt)}
+  .speeds button.on{background:rgba(122,216,160,.3);border-color:var(--acc);color:#eafff2}
+  /* ---- страницы ---- */
+  .page{display:none;position:fixed;inset:0;padding:68px 8px 20px;overflow:auto}
+#page-shop,#page-settings{background:linear-gradient(180deg,#08120e,#060d0a 60%)}
+  .page.on{display:block}
+  /* ---- дашборд ---- */
+  #dashGrid{position:fixed;inset:68px 8px 8px;display:grid;grid-template-columns:212px 1fr 248px;gap:8px;pointer-events:none}
+  /* страница-контейнер прозрачна для мыши: сцена под ней должна получать клики и drag */
+  #page-greenhouse{pointer-events:none}
+  #dashGrid .col,#center,#center .spacer{pointer-events:none}
+  #page-greenhouse .panel,#page-greenhouse .camBar,#page-greenhouse .quickBar,#page-greenhouse .bottomBar{pointer-events:auto}
+  .col{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:100%}
+  #center{display:flex;flex-direction:column;gap:8px;justify-content:space-between}
+  #center .spacer{flex:1}
+  .g{display:grid;grid-template-columns:38px 1fr 54px;align-items:center;gap:6px;font-size:11px;margin-bottom:5px}
+  .g span{color:var(--dim)}
+  .g .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+  .g .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),#4fb27a);transition:width .25s}
+  .g .bar i.hot{background:linear-gradient(90deg,#ffb86b,#ff7b72)}
+  .g .bar i.cold{background:linear-gradient(90deg,#79c7ff,#4a8fd6)}
+  .g b{font-family:var(--mono);text-align:right;font-weight:500}
+  .kv{display:flex;justify-content:space-between;font-size:11px;padding:1.5px 0;border-bottom:1px dotted var(--line2)}
+  .kv:last-child{border:0}
+  .kv span{color:var(--dim)} .kv b{font-family:var(--mono);font-weight:500}
+  .kv b.pos{color:var(--acc)} .kv b.neg{color:var(--bad)}
+  .camBar{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+  .camBar button,.btn{font:inherit;font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid var(--line);background:rgba(122,216,160,.08);color:var(--txt);cursor:pointer;transition:.13s;white-space:nowrap}
+  .camBar button:hover,.btn:hover{background:rgba(122,216,160,.2)}
+  .camBar button.on{background:rgba(122,216,160,.3);border-color:var(--acc)}
+  .btn.warn{background:rgba(255,184,107,.12);border-color:rgba(255,184,107,.35)}
+  .btn.good{background:rgba(122,216,160,.2);border-color:var(--acc)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .task{padding:6px 7px;border-radius:8px;background:rgba(122,216,160,.07);border:1px solid var(--line2);margin-bottom:6px;font-size:11px;line-height:1.35}
+  .task .r{color:var(--acc2);font-family:var(--mono)}
+  .task.done{opacity:.45;text-decoration:line-through}
+  #log{font-family:var(--mono);font-size:10px;color:var(--dim);display:flex;flex-direction:column-reverse;gap:1px;max-height:150px;overflow:hidden}
+  #log .hl{color:var(--acc)} #log .bad{color:var(--bad)} #log .warn{color:var(--warn)}
+  .alert{padding:6px 8px;border-radius:8px;font-size:11px;margin-bottom:5px;border:1px solid;line-height:1.3}
+  .alert.bad{background:rgba(255,123,114,.1);border-color:rgba(255,123,114,.4);color:#ffb3ad}
+  .alert.warn{background:rgba(255,184,107,.1);border-color:rgba(255,184,107,.35);color:#ffd3a1}
+  .alert.ok{background:rgba(122,216,160,.08);border-color:var(--line);color:#bfe8cf}
+  /* ---- прогноз ---- */
+  #pred{position:fixed;top:68px;right:264px;width:330px;max-height:calc(100% - 130px);overflow-y:auto;z-index:28;display:none}
+  #pred.on{display:block}
+  .spark{display:flex;align-items:flex-end;gap:1px;height:34px;margin:6px 0}
+  .spark i{flex:1;min-height:2px;border-radius:1px;opacity:.9}
+  /* ---- магазин ---- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:10px}
+  .card{background:var(--panel2);border:1px solid var(--line2);border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:7px}
+  .card .h{display:flex;align-items:baseline;gap:7px}
+  .card .h b{font-size:12.5px}
+  .card .d{font-size:11px;color:var(--dim);line-height:1.4;flex:1}
+  .card .f{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .price{font-family:var(--mono);font-size:13px;color:var(--acc2)}
+  .sect{margin:0 0 16px}
+  .sect h3{margin-bottom:8px;color:var(--acc);font-size:12px;text-transform:uppercase;letter-spacing:1px}
+  /* ---- параметры ---- */
+  .setgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .row:last-child{margin-bottom:0}
+  .row label{flex:1;font-size:11.5px;color:var(--dim)}
+  .row .val{font-family:var(--mono);font-size:12px;min-width:62px;text-align:right}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;background:rgba(122,216,160,.22);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--acc);cursor:pointer;box-shadow:0 0 0 3px rgba(122,216,160,.15)}
+  input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:var(--acc);cursor:pointer}
+  select{font:inherit;font-size:11.5px;background:rgba(122,216,160,.08);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:4px 6px}
+  .hint{font-size:10.5px;color:var(--dim);line-height:1.45}
+  code{font-family:var(--mono);font-size:11px;background:rgba(122,216,160,.12);padding:1px 4px;border-radius:4px}
+  /* обучение */
+  #tutor{position:fixed;left:50%;top:calc(var(--topH) + 14px);transform:translateX(-50%) translateY(-6px);width:min(460px,92vw);
+    background:rgba(9,22,17,.97);border:1px solid var(--acc);border-radius:11px;padding:9px 12px;z-index:40;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.2s;font-size:11.5px;line-height:1.35}
+  #tutor.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  #tutor .ttl{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9.5px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-bottom:4px}
+  #tutor .ttl button{font:inherit;font-family:var(--mono);font-size:9.5px;background:none;border:none;color:var(--dim);cursor:pointer;text-transform:none;letter-spacing:0}
+  #tutor .ttl button:hover{color:var(--bad)}
+  #tutor .dots{display:flex;gap:4px;margin-top:7px}
+  #tutor .dots i{width:16px;height:3px;border-radius:2px;background:rgba(122,216,160,.22)}
+  #tutor .dots i.on{background:var(--acc)}
+  #tutor .dots i.done{background:rgba(122,216,160,.6)}
+  /* карточка органа */
+  #hoverCard{position:fixed;z-index:45;display:none;pointer-events:none;background:rgba(6,16,12,.97);
+    border:1px solid var(--line);border-radius:9px;padding:6px 9px;font-size:10.5px;line-height:1.45;
+    font-family:var(--mono);color:var(--txt);box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:230px}
+  #hoverCard b{color:var(--acc2);font-weight:600}
+  #hoverCard .k{color:var(--dim)}
+  .goal{margin-bottom:7px}
+  .goal .g{grid-template-columns:1fr auto;margin-bottom:2px}
+  #toast{position:fixed;left:50%;bottom:126px;transform:translateX(-50%) translateY(10px);background:rgba(9,22,17,.96);border:1px solid var(--line);border-radius:9px;padding:7px 14px;font-size:12px;opacity:0;pointer-events:none;transition:.22s;z-index:60}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* ---- модальные окна ---- */
+  .modal{position:fixed;inset:0;background:rgba(3,8,6,.86);display:none;place-items:center;z-index:100;padding:20px}
+  .modal.on{display:grid}
+  .modal .sheet{width:min(760px,96vw);max-height:88vh;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .modal h1{font-size:18px;margin-bottom:10px;color:var(--acc2)}
+  .modal p,.modal li{font-size:12px;color:#c5dccd;line-height:1.6}
+  .modal table{width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0}
+  .modal td,.modal th{border-bottom:1px solid var(--line2);padding:4px 6px;text-align:left;vertical-align:top}
+  .modal th{color:var(--dim);font-weight:500}
+  .modal h3{color:var(--acc);font-size:12.5px;margin:14px 0 6px}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-thumb{background:rgba(122,216,160,.22);border-radius:4px}
+  @media (max-width:1080px){
+    #dashGrid{grid-template-columns:190px 1fr}
+    #dashGrid .col.right{display:none}
+  }
+  @media (max-width:760px){
+    #dashGrid{grid-template-columns:1fr}
+    #dashGrid .col.left{display:none}
+    .metrics .metric:nth-child(n+4){display:none}
+  }
+
+  /* ================= BORDERLANDS: комикс-обводка, жёлтый, ржавчина ================= */
+  :root{
+    --bg:#151009; --panel:#20180f; --panel2:#241b11;
+    --line:#0a0806; --line2:rgba(10,8,6,.85);
+    --acc:#ffc21a; --acc2:#ff8a1e; --txt:#f8ecd6; --dim:#c2a67e;
+    --bad:#ff4d3d; --warn:#ff9a2e; --blue:#57c8ff; --ink:#0a0806;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  body{background:#151009;color:var(--txt);
+    font:13px/1.42 "Trebuchet MS","Segoe UI",Tahoma,sans-serif;overflow:hidden}
+  /* бумажная «грязная» текстура поверх всего */
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:5;
+    background-image:radial-gradient(rgba(0,0,0,.5) 1px,transparent 1.2px);background-size:4px 4px;opacity:.10;
+    mix-blend-mode:multiply}
+  canvas#scene{image-rendering:auto}
+  .panel{background:var(--panel);border:3px solid var(--ink);border-radius:5px;
+    box-shadow:5px 5px 0 rgba(10,8,6,.9), inset 0 0 0 1px rgba(255,194,26,.10);
+    backdrop-filter:none;-webkit-backdrop-filter:none;padding:9px 10px}
+  h1,h2,h3{font-family:"Arial Black","Haettenschweiler",Impact,"Trebuchet MS",sans-serif;letter-spacing:.3px}
+  h2{display:inline-block;background:var(--acc);color:#1a1206;font-size:10px;text-transform:uppercase;
+    letter-spacing:1.4px;padding:2px 8px 2px 7px;margin:0 0 8px;transform:skew(-9deg);
+    border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);font-weight:900}
+  h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  /* верхняя панель */
+  #top{border-radius:5px}
+  .brand b{font-family:"Arial Black",Impact,sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--acc);text-shadow:2px 2px 0 var(--ink)}
+  .brand span{color:var(--dim);letter-spacing:1.2px;font-size:9px}
+  .tabs button{font-family:"Arial Black",Impact,sans-serif;text-transform:uppercase;letter-spacing:.7px;
+    border:2px solid transparent;border-radius:4px;color:var(--dim);font-size:11px}
+  .tabs button:hover{background:rgba(255,194,26,.14);color:#fff}
+  .tabs button.on{background:var(--acc);color:#1a1206;border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+  .metric b{font-family:var(--mono);font-weight:800;color:var(--txt)}
+  .metric span{color:var(--dim);letter-spacing:1px}
+  .metric.money b{color:var(--acc)}
+  .speeds button{font-family:var(--mono);font-weight:700;border:2px solid var(--ink);border-radius:4px;
+    background:#2a2015;color:var(--dim);box-shadow:2px 2px 0 var(--ink)}
+  .speeds button:hover{background:#3a2c1b;color:#fff}
+  .speeds button.on{background:var(--acc);color:#1a1206}
+  /* кнопки */
+  .btn,.camBar button{font-family:"Arial Black",Impact,sans-serif;text-transform:uppercase;letter-spacing:.5px;
+    font-size:10.5px;padding:6px 10px;border:2px solid var(--ink);border-radius:4px;background:#2b2116;
+    color:var(--txt);box-shadow:3px 3px 0 var(--ink);transition:transform .08s}
+  .btn:hover,.camBar button:hover{background:#3a2d1c;transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink)}
+  .btn:active,.camBar button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+  .btn.good{background:#a8e05a;color:#14200a}
+  .btn.warn{background:var(--acc2);color:#1a0d04}
+  .btn:disabled{opacity:.45;box-shadow:none;transform:none}
+  .camBar button.on{background:var(--acc);color:#1a1206}
+  /* полосы и графики */
+  .g .bar{height:7px;background:#0f0b07;border:1.5px solid var(--ink);border-radius:3px}
+  .g .bar i{background:repeating-linear-gradient(115deg,var(--acc) 0 6px,#e0a100 6px 12px)}
+  .g .bar i.hot{background:repeating-linear-gradient(115deg,#ff6a2c 0 6px,#e04a1c 6px 12px)}
+  .g .bar i.cold{background:repeating-linear-gradient(115deg,#57c8ff 0 6px,#2f9fd6 6px 12px)}
+  .kv{border-bottom:1px dotted rgba(194,166,126,.28)}
+  .kv b{color:#fff}
+  /* мелочи */
+  .task{background:#2a1f14;border:2px solid var(--ink);border-radius:4px;box-shadow:2px 2px 0 rgba(10,8,6,.7)}
+  .task .r{color:var(--acc)}
+  .alert{border-width:2px;border-style:solid;border-radius:4px;box-shadow:2px 2px 0 rgba(10,8,6,.6);font-weight:600}
+  .alert.bad{background:#3a1410;border-color:var(--bad);color:#ffd9d3}
+  .alert.warn{background:#3a2710;border-color:var(--warn);color:#ffe3bd}
+  .alert.ok{background:#1e2c12;border-color:#a8e05a;color:#e6ffd0}
+  #log{color:var(--dim)} #log .hl{color:#a8e05a}
+  .card{background:var(--panel2);border:2px solid var(--ink);border-radius:4px;box-shadow:4px 4px 0 rgba(10,8,6,.75)}
+  .card:hover{border-color:var(--acc)}
+  .price{color:var(--acc);font-weight:800;font-family:var(--mono)}
+  .sect h3{color:var(--acc)}
+  input[type=range]{height:5px;background:#0f0b07;border:1.5px solid var(--ink);border-radius:3px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:2px;
+    background:var(--acc);border:2px solid var(--ink);box-shadow:1px 1px 0 var(--ink);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:2px;background:var(--acc);
+    border:2px solid var(--ink);cursor:pointer}
+  select{background:#2b2116;border:2px solid var(--ink);border-radius:4px;color:var(--txt)}
+  code{background:#2b2116;color:var(--acc);border-radius:3px}
+  #pred{border-width:3px}
+  #tutor{background:#241a10;border:3px solid var(--acc);border-radius:5px;box-shadow:6px 6px 0 rgba(10,8,6,.85)}
+  #tutor .ttl{color:var(--acc);font-weight:700}
+  #tutor .dots i{background:#3a2c1b;border:1px solid var(--ink)}
+  #tutor .dots i.on{background:var(--acc)} #tutor .dots i.done{background:#a8e05a}
+  #hoverCard{background:#1b140c;border:2px solid var(--ink);border-radius:4px;box-shadow:4px 4px 0 rgba(10,8,6,.8);color:var(--txt)}
+  #hoverCard b{color:var(--acc)}
+  #toast{background:var(--acc);color:#1a1206;border:3px solid var(--ink);border-radius:5px;
+    box-shadow:4px 4px 0 rgba(10,8,6,.9);font-weight:800;text-transform:none;font-size:12px}
+  .modal{background:rgba(8,6,3,.9)}
+  .modal .sheet{background:#241b11;border:4px solid var(--ink);border-radius:6px;box-shadow:9px 9px 0 rgba(0,0,0,.75)}
+  .modal h1{font-family:"Arial Black",Impact,sans-serif;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--acc);text-shadow:2px 2px 0 var(--ink)}
+  .modal h3{color:var(--acc2)}
+  .modal p,.modal li{color:#e8d5b6}
+  .modal td,.modal th{border-bottom:1px solid rgba(194,166,126,.25)}
+  #mailBox .btn{display:block;width:100%;margin-bottom:6px}
+  ::-webkit-scrollbar-thumb{background:#3a2c1b;border-radius:3px}
+  /* шапка-«наклейка» на сцене */
+  .hint{color:var(--dim)}
+
+  /* ================= ПЛАНШЕТ И ТЕЛЕФОН ================= */
+  :root{ --topH:52px; }
+  .page{padding:calc(var(--topH) + 16px) 8px 20px}
+  #dashGrid{inset:calc(var(--topH) + 16px) 8px 8px}
+  #pred{top:calc(var(--topH) + 16px)}
+  #dock{display:none}
+
+  /* ---- планшет: слева показания, справа выдвижная шторка с остальным ---- */
+  @media (max-width:1180px){
+    :root{ --topH:58px; }
+    #top{gap:8px}
+    .brand{display:none}
+    #btnPanels,#btnSave{display:none}
+    .speeds button{padding:4px 5px;font-size:10px}
+    .metrics{gap:9px}
+    #toast{bottom:172px}
+    #dashGrid{grid-template-columns:186px 1fr;inset:calc(var(--topH) + 16px) 8px 62px}
+    .metrics .metric:nth-child(4){display:none}
+    #dashGrid .col.right{position:fixed;right:8px;top:calc(var(--topH) + 16px);bottom:62px;width:min(400px,50vw);
+      display:flex;flex-direction:column;gap:6px;overflow-y:auto;padding:0;z-index:48;
+      transform:translateX(calc(100% + 20px));transition:transform .2s ease;pointer-events:auto}
+    body.sheet-open #dashGrid .col.right{transform:none}
+    #dashGrid .col.right .panel{display:none}
+    #dashGrid .col.right .panel.sel{display:block}
+    #dock{display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:55;gap:5px;padding:5px;
+      overflow-x:auto;background:var(--panel);border:3px solid var(--ink);border-radius:6px;
+      box-shadow:4px 4px 0 rgba(10,8,6,.7)}
+    body.on-gh.narrow #dock{display:flex}
+    #dock button{flex:1 1 0;min-width:0;font:inherit;font-size:11px;font-weight:800;padding:7px 11px;white-space:nowrap;
+      border:2px solid var(--ink);border-radius:4px;background:#2b2116;color:var(--txt);
+      box-shadow:2px 2px 0 var(--ink);cursor:pointer;text-transform:uppercase;letter-spacing:.4px}
+    #dock button.on{background:var(--acc);color:#1a1206}
+  }
+
+  /* ---- телефон: только сцена, док снизу, панели в шторке ---- */
+  @media (max-width:720px){
+    :root{ --topH:92px; }
+    body{font-size:12px}
+    #top{height:auto;flex-wrap:wrap;gap:5px 8px;padding:5px 7px;align-items:center}
+    .brand{display:none}
+    .tabs{margin-left:0;gap:3px}
+    .tabs button{padding:5px 9px;font-size:11px}
+    .metrics{width:100%;gap:9px;margin-left:0;flex-wrap:wrap}
+    .metric{min-width:0}
+    .metric b{font-size:11.5px}
+    .metric span{font-size:8px;letter-spacing:.4px}
+    .metrics .metric:nth-child(4),.metrics .metric:nth-child(5){display:none}
+    .speeds{margin-left:auto;gap:3px}
+    .speeds button{padding:4px 6px;font-size:10px;box-shadow:1px 1px 0 var(--ink)}
+    #btnPanels,#btnPred,#btnSave{display:none}
+    #dashGrid{grid-template-columns:1fr;inset:calc(var(--topH) + 10px) 6px 58px}
+    #center{justify-content:flex-end}
+    #center .spacer{display:none}
+    #center > .panel{padding:5px 6px;align-self:stretch}
+    .camBar{gap:4px}
+    .camBar button{font-size:10px;padding:6px 8px}
+    #sceneHint{display:none}
+    #center .panel .btn{font-size:11px;padding:7px 6px;flex:1 1 44%}
+    #center .panel:last-child{flex-wrap:wrap}
+    /* шторка: обе колонки становятся одним выдвижным листом */
+    #dashGrid .col.left,#dashGrid .col.right{position:fixed;left:6px;right:6px;bottom:58px;top:auto;width:auto;
+      max-height:46vh;overflow-y:auto;display:none;flex-direction:column;gap:6px;z-index:48;
+      transform:none;transition:none;background:transparent;padding:0}
+    body.sheet-open #dashGrid .col.left,body.sheet-open #dashGrid .col.right{display:flex}
+    #dashGrid .col .panel{display:none}
+    #dashGrid .col .panel.sel{display:block}
+    #toast{top:calc(var(--topH) + 6px);bottom:auto;font-size:11px;padding:6px 10px;max-width:92vw}
+    #tutor{top:calc(var(--topH) + 8px);bottom:auto;width:calc(100vw - 12px);padding:8px 10px}
+    #pred{left:6px;right:6px;width:auto;max-height:70vh}
+    .modal{padding:8px}
+    .modal .sheet{width:100%;max-height:92vh;padding:14px 13px}
+    .modal h1{font-size:15px}
+    #start .grid,.grid{grid-template-columns:1fr!important}
+    .setgrid{grid-template-columns:1fr}
+    .card{padding:9px 10px}
+    #log{max-height:110px}
+  }
+  @media (max-width:420px){
+    #dock button{font-size:9.5px;padding:6px 2px;letter-spacing:0}
+    #top{padding:4px 6px}
+    .metrics{gap:7px}
+  }
+
+  /* ---- обучающий магазин: замки глав и «зачем» ---- */
+  .card.locked{opacity:.62;border-style:dashed;background:#1a1409}
+  .card .lock{font-family:var(--mono);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+    background:#3a2c1b;border:2px solid var(--ink);border-radius:3px;padding:1px 5px;color:var(--warn);white-space:nowrap}
+  .why{font-size:10.5px;line-height:1.4;color:#e0cfa8;background:rgba(255,194,26,.07);
+    border-left:4px solid var(--acc);padding:5px 7px;border-radius:3px}
+  .why b{color:var(--acc);text-transform:uppercase;font-size:9px;letter-spacing:.6px}
+
+  /* ---- верхняя панель: не даём кнопкам уезжать за край ---- */
+  @media (max-width:1500px){
+    .metrics .metric:nth-child(4){display:none}   /* прибыль/сут — есть в «Экономике» */
+    #btnSave{display:none}
+    .speeds{gap:3px}
+    .speeds button{padding:5px 7px}
+    #top{gap:9px}
+  }
+
+  /* ---- кнопки поворота камеры ---- */
+  .camNav{display:inline-flex;gap:3px;align-items:center;margin-left:4px;padding-left:6px;border-left:2px solid var(--ink)}
+  .camNav button{font:inherit;font-size:11px;font-weight:800;line-height:1;width:26px;height:26px;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;border:2px solid var(--ink);border-radius:4px;
+    background:#2b2116;color:var(--txt);box-shadow:2px 2px 0 var(--ink);cursor:pointer}
+  .camNav button:hover{background:#3a2d1c}
+  .camNav button:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+  body{user-select:none;-webkit-user-select:none}
+  input,select,textarea{user-select:text;-webkit-user-select:text}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<!-- ============ ВЕРХНЯЯ ПАНЕЛЬ ============ -->
+<div id="top" class="panel">
+  <div class="brand"><b>Виртуальная теплица</b><span id="tProfile">Ферма · 400 м²</span></div>
+  <div class="tabs">
+    <button class="on" data-tab="greenhouse">Теплица</button>
+    <button data-tab="shop">Магазин</button>
+    <button data-tab="settings">Параметры</button>
+  </div>
+  <div class="metrics">
+    <div class="metric"><b id="tDay">Д 1</b><span id="tSeason">из '+world.seasonDays</span></div>
+    <div class="metric"><b id="tDate">1 апр</b><span id="tHour">06:00</span></div>
+    <div class="metric money"><b id="tMoney">10 000 €</b><span>баланс</span></div>
+    <div class="metric"><b id="tProfit">0 €</b><span>прибыль/сут</span></div>
+    <div class="metric"><b id="tCrop">🍅 томат</b><span id="tYield">0 кг</span></div>
+    <div class="speeds">
+      <button id="btnPause">⏸</button>
+      <button class="spd" data-s="1">1×</button>
+      <button class="spd" data-s="4">4×</button>
+      <button class="spd" data-s="16">16×</button>
+      <button class="spd" data-s="32">32×</button>
+      <button class="spd on" data-s="64">64×</button>
+      <button class="spd" data-s="480">480×</button>
+      <button id="btnPanels" title="Панели данных">Панели</button>
+      <button id="btnPred">Прогноз</button>
+      <button id="btnSave" title="Сохранить сезон (Ctrl+S)"><svg width="13" height="13" viewBox="0 0 16 16" style="vertical-align:-2px" aria-hidden="true"><path d="M2 2h9l3 3v9H2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5 2v4h6V2M5 10h6v4H5z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+      <button id="btnHelp">?</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ СТРАНИЦА: ТЕПЛИЦА ============ -->
+<div id="page-greenhouse" class="page on">
+  <div id="dashGrid">
+    <div class="col left">
+      <div class="panel" data-p="climate">
+        <h2>Климат (по датчикам)</h2>
+        <div id="gauges"></div>
+        <div class="hint" id="driftHint"></div>
+      </div>
+      <div class="panel" data-p="why">
+        <h2>Почему так</h2>
+        <div id="diagnosis"></div>
+      </div>
+      <div class="panel" data-p="finance">
+        <h2>Экономика</h2>
+        <div id="finance"></div>
+      </div>
+      <div class="panel" data-p="risks">
+        <h2>Риски</h2>
+        <div id="alerts"></div>
+      </div>
+    </div>
+
+    <div id="center">
+      <div class="spacer"></div>
+      <div class="panel" style="align-self:center;padding:6px 8px">
+        <div class="camBar" id="camBar">
+          <button data-view="top">Сверху</button>
+          <button data-view="front">Фронт</button>
+          <button data-view="bed">Грядка</button>
+          <button data-view="plant">Растение</button>
+          <button data-view="free" class="on">Свободно</button><button id="btnLayer" title="Раскрасить листья по освещённости (клавиша L)">Слой света</button>
+          <span class="camNav" title="Поворот камеры — то же, что тянуть мышью или пальцем">
+            <button data-cam="left" aria-label="Повернуть влево"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M7 1L2 5l5 4z" fill="currentColor"/></svg></button>
+            <button data-cam="right" aria-label="Повернуть вправо"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l5 4-5 4z" fill="currentColor"/></svg></button>
+            <button data-cam="up" aria-label="Смотреть выше" title="Смотреть выше"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 7l4-5 4 5z" fill="currentColor"/></svg></button>
+            <button data-cam="down" aria-label="Смотреть ниже" title="Смотреть ниже"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3l4 5 4-5z" fill="currentColor"/></svg></button>
+            <button data-cam="in" aria-label="Приблизить">+</button>
+            <button data-cam="out" aria-label="Отдалить">−</button>
+            <button data-cam="reset" aria-label="Сбросить ракурс">⟲</button>
+          </span>
+        </div>
+      </div>
+      <div class="panel" style="display:flex;gap:6px;align-items:center;justify-content:center;padding:7px 9px">
+        <button class="btn good" id="btnHarvest">Собрать урожай</button>
+        <button class="btn" id="btnPrune">Обрезать нижние листья</button>
+        <button class="btn" id="btnLampQuick">Досветка</button>
+        <button class="btn" id="btnShadeQuick">Затенение</button>
+        <span class="hint" id="sceneHint">клик по плоду — сбор · по листу — обрезка · по растению — фокус</span>
+      </div>
+    </div>
+
+    <div class="col right">
+      <div class="panel" id="mailPanel" data-p="mail">
+        <h2>Почта наставника</h2>
+        <div id="mail"></div>
+      </div>
+      <div class="panel" data-p="goals">
+        <h2>Цели сезона</h2>
+        <div id="goals"></div>
+      </div>
+      <div class="panel" data-p="missions">
+        <h2>Задания</h2>
+        <div id="missions"></div>
+      </div>
+      <div class="panel" data-p="stock">
+        <h2>Склад</h2>
+        <div id="stock"></div>
+      </div>
+      <div class="panel" data-p="net" style="display:none">
+        <h2>Сеть теплиц</h2>
+        <div id="netBox"></div>
+      </div>
+      <div class="panel" data-p="contracts">
+        <h2>Контракты</h2>
+        <div id="contracts"></div>
+      </div>
+      <div class="panel" data-p="log">
+        <h2>Журнал</h2>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ СТРАНИЦА: МАГАЗИН ============ -->
+<div id="page-shop" class="page">
+  <div id="shopBody"></div>
+</div>
+
+<!-- ============ СТРАНИЦА: ПАРАМЕТРЫ ============ -->
+<div id="page-settings" class="page">
+  <div id="settingsBody"></div>
+</div>
+
+<!-- ============ ПРОГНОЗ ============ -->
+<div id="pred" class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <h2 style="margin:0">Прогноз</h2>
+    <button class="btn" id="predClose" style="padding:2px 7px">✕</button>
+  </div>
+  <div class="hint" style="margin-bottom:8px">Считается на копии вашего мира с текущими настройками и независимой погодой. Это оценка, а не гарантия.</div>
+  <div style="display:flex;gap:6px;margin-bottom:8px">
+    <button class="btn" data-pred="7">7 дней</button>
+    <button class="btn" data-pred="14">14 дней</button>
+    <button class="btn" data-pred="30">30 дней</button>
+  </div>
+  <div id="predBody" class="hint">Нажмите «7 дней», чтобы построить прогноз.</div>
+</div>
+
+<!-- ============ МОДАЛЬНЫЕ ОКНА ============ -->
+<div id="help" class="modal">
+  <div class="sheet">
+    <h1>Как играть</h1>
+    <p>Три страницы: <b>Теплица</b> — дашборд (наблюдение), <b>Магазин</b> — траты, <b>Параметры</b> — настройки климата и питания.</p>
+    <p style="margin-bottom:8px">Скорость считается от реального времени: <b>1× — один игровой час за реальную минуту</b>
+    (сутки за 24 минуты). Дальше по кнопкам: 4× — сутки за 6 минут, 16× — за 90 секунд, 32× — за 45 секунд,
+    64× — за 22 секунды, 480× — сутки за 3 секунды. Пауза «1:1» — секунда за секунду. Шаг симуляции
+    подстраивается под скорость, поэтому на медленных скоростях климат живёт плавно, а на быстрых не «звенит».</p>
+    <h3>С чего начать</h3>
+    <p style="margin-bottom:8px">1) Соберите урожай — плоды на сцене и в алертах; 2) в магазине откройте
+    <b>«Бюджетный старт»</b>: термометр-гигрометр (28 €), клейкие ловушки (45 €), бочка воды (90 €) —
+    это дешевле одного мешка удобрений и сразу снимает часть рисков; 3) в «Параметрах» поднимите
+    целевой CO₂ до 800 ppm; 4) перед тратами загляните в «Прогноз» — он покажет, окупится ли решение.</p>
+    <h3>Склад и деньги</h3>
+    <p style="margin-bottom:8px">Урожай больше не превращается в деньги сам по себе: он ложится на <b>склад</b>.
+    Каждая культура хранится свой срок — салат 4 дня, огурец 7, черри 9, томат 12; чем дольше лежит, тем ниже
+    качество и цена. Кнопка <b>«Продать всё»</b> в панели «Склад» продаёт по <b>цене дня</b> (она меняется каждый день,
+    видно в магазине), контракты забирают продукцию со склада с наценкой. Склад не резиновый: он измеряется
+    в литрах, начинается с одной–четырёх секций, расширяется кнопкой «+секция» — и каждая секция добавляет
+    к постоянным расходам. Если места нет, покупка не пройдёт, а урожай останется на грядке.</p>
+    <h3>Пауза и время</h3>
+    <p style="margin-bottom:8px">Пауза не останавливает время: на ней одна реальная секунда равна одной игровой
+    (сутки — 24 часа), так что микроклимат продолжает жить. Кнопки 1×…64× ускоряют, «Прогноз» считает вперёд без
+    вас. Если закрыть вкладку, растения продолжат расти по реальным часам — при возврате вы увидите, что
+    изменилось, но не больше трёх суток за раз.</p>
+    <h3>Кампания</h3>
+    <p style="margin-bottom:8px">Режим «со 100 €»: балкон 4 м² → комната 20 м² → теплица 400 м² → <b>сеть филиалов</b>.
+    Цель главы — продажи, а не баланс (кредит не считается заработком). Когда цель взята, в «Почте» появляется
+    письмо от тёти Розы: переезд, кредит или остаться. Выбор меняет стартовые условия следующей главы.</p>
+    <p style="margin-bottom:8px">В кампании магазин работает как обучение: вещи открываются <b>по главам</b>, и у каждой
+    написано «зачем» — что она решает и почему без неё плохо. На балконе доступны термометр, ловушки, лампа-лента,
+    удобрения и калибровка; обдув, EC-метр, датчики и сетка появляются в комнате; климат-контроллер, дозирование,
+    работник, сервис и страховка — в теплице. В свободном сезоне ограничений нет, но подписи «зачем» остаются.</p>
+    <h3>Сеть теплиц</h3>
+    <p style="margin-bottom:8px">Финальная цель кампании — не одна теплица, а сеть. Филиал — 400 м² под наёмным
+    агрономом: он приносит урожай и продаёт его оптом, но берёт за это управляющего, энергию и расходники
+    (около 48 € в сутки). Каждый следующий филиал дороже на 25%. Филиал моделируется <b>укрупнённо</b>
+    (кг с м² в сутки, оптовая цена, содержание) — покамерный климат и органы считаются только в вашей теплице.
+    Панель «Сеть» показывает доход, содержание и чистую прибыль по каждому филиалу.</p>
+    <h3>Что вы управляете</h3>
+    <table>
+      <tr><th>Рычаг</th><th>Эффект</th><th>Цена</th></tr>
+      <tr><td>Отопление / вентиляция</td><td>температура, влажность, CO₂ (проветривание выдувает газ)</td><td>энергия</td></tr>
+      <tr><td>CO₂</td><td>+30% фотосинтеза при хорошем свете</td><td>кг газа</td></tr>
+      <tr><td>Досветка</td><td>свет в пасмурные дни и утром</td><td>кВт·ч</td></tr>
+      <tr><td>Термоэкран / затенение</td><td>−55% теплопотерь / −45% солнца</td><td>апгрейд</td></tr>
+      <tr><td>EC / pH / рецепт</td><td>усвоение питания, кальций, качество плодов</td><td>кг удобрений, вода</td></tr>
+      <tr><td>Обрезка, сбор</td><td>светопроницаемость полога, урожай</td><td>труд</td></tr>
+      <tr><td>Сервис, страховка, метеосервис</td><td>риски: отказы, инциденты, прогноз погоды</td><td>деньги</td></tr>
+      <tr><td>Дешёвая мелочь: контрольный термометр, ловушки, обдув, ИБП, плёнка</td><td>дрейф датчиков, вредители, гнили, отключения света</td><td>25–500 €</td></tr>
+    </table>
+    <h3>Подсказки на экране</h3>
+    <p style="margin-bottom:8px">Панель <b>«Почему так»</b> объясняет, что сейчас ограничивает рост (свет, CO₂, питание, болезнь).
+    Кнопка <b>«Слой света»</b> (клавиша L) раскрашивает листья по освещённости — видно, где полог съедает свет.
+    Наведите курсор на лист или плод: покажет возраст, площадь, перехваченный свет и ассимиляцию органа.
+    <b>«Цели сезона»</b> — четыре измеримых ориентира вместо абстрактного «заработать побольше».</p>
+    <h3>Важное про датчики</h3>
+    <p>Дашборд показывает <b>показания датчиков</b>, а не истинные значения. Со временем они «плывут» — калибровка в магазине (Сервис) сбрасывает дрейф, второй комплект датчиков сигнализирует о расхождении.</p>
+    <h3>Камеры, мышь и палец</h3>
+    <p style="margin-bottom:8px"><b>1</b> сверху (план), <b>2</b> фронт (разрез), <b>3</b> грядка, <b>4</b> растение,
+    <b>5</b> свободное вращение. В перспективных видах: тянуть мышью или пальцем — поворот, колесо или щипок двумя
+    пальцами — зум, правая кнопка (или Shift) — сдвиг точки взгляда, двойной щелчок — вернуть исходный ракурс.
+    Переход между видами плавный: из «грядки» и «растения» камера выходит в свободный вид без прыжка.
+    Клик (без перетаскивания) по плоду — сбор, по листу — обрезка, по растению — фокус.</p>
+    <h3>Планшет и телефон</h3>
+    <p>На широком экране три колонки. На планшете и телефоне правая часть интерфейса уезжает в шторку:
+    внизу — док с кнопками «Климат», «Почему», «Деньги», «Дела», «Склад», «Почта»; сцена занимает весь экран,
+    панель открывается поверх и закрывается повторным нажатием. Всё управление — пальцем.</p>
+    <h3>Цель</h3>
+    <p>Сезон 90 дней. Считается итоговая прибыль: урожай + контракты − энергия − CO₂ − вода и удобрения − труд − фиксированные расходы − штрафы. Профиль «Хобби» стартует с 1 000 €, «Ферма» — 10 000 €, «Агрокомплекс» — 100 000 €.</p>
+    <p class="hint">Модель: граф органов + воксельная трассировка света + Фаркуар + энергобаланс теплицы. Подробности — в readme.md и GDD.md.</p>
+    <p style="margin-top:14px"><button class="btn good" id="helpClose">Понятно</button></p>
+  </div>
+</div>
+
+<div id="mailModal" class="modal">
+  <div class="sheet" id="mailBox"></div>
+</div>
+
+<div id="start" class="modal on">
+  <div class="sheet">
+    <h1>Новый сезон</h1>
+    <p>Выберите капитал, культуру и сложность. От капитала зависит площадь теплицы, цена реализации и постоянные расходы.</p>
+    <div id="resumeBox"></div>
+    <h3>1. Режим</h3>
+    <div class="grid" id="campPick" style="grid-template-columns:1fr 1fr"></div>
+    <h3 id="lblCapital">2. Капитал и площадь</h3>
+    <div class="grid" id="profilePick" style="grid-template-columns:1fr 1fr 1fr"></div>
+    <h3 id="lblCrop">2. Культура</h3>
+    <div class="grid" id="cropPick" style="grid-template-columns:1fr 1fr"></div>
+    <h3 id="lblSys">4. Система выращивания</h3>
+    <div class="grid" id="sysPick" style="grid-template-columns:1fr 1fr"></div>
+    <h3 id="lblWeather">3. Погодный режим</h3>
+    <div class="grid" id="seedPick" style="grid-template-columns:1fr 1fr 1fr"></div>
+    <h3 id="lblDiff">4. Сложность</h3>
+    <div class="grid" id="diffPick" style="grid-template-columns:1fr 1fr 1fr"></div>
+    <p style="margin-top:16px"><button class="btn good" id="startBtn">Начать сезон</button></p>
+  </div>
+</div>
+
+<!-- обучение: короткие шаги на первые дни -->
+<div id="tutor">
+  <div class="ttl"><span id="tutorStep">Шаг 1 из 6</span><button id="tutorSkip" title="Пропустить обучение">пропустить</button></div>
+  <div id="tutorText"></div>
+  <div class="dots" id="tutorDots"></div>
+</div>
+
+<!-- карточка органа под курсором -->
+<div id="hoverCard"></div>
+
+<!-- док: выбор панели на планшете и телефоне -->
+<div id="dock"></div>
+
+<div id="toast"></div>
+<script>

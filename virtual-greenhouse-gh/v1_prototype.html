@@ -1,0 +1,1335 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Виртуальная теплица — прототип FSPM-симулятора</title>
+<style>
+  :root{
+    --bg:#07100c; --panel:rgba(9,22,17,.86); --line:rgba(122,216,160,.22);
+    --acc:#7ad8a0; --acc2:#ffd479; --txt:#dcefe3; --dim:#8aa79a; --bad:#ff7b72; --warn:#ffb86b;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+  }
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab}
+  #c.drag{cursor:grabbing}
+  .panel{
+    position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 10px 34px rgba(0,0,0,.45); padding:10px 11px;
+  }
+  h1,h2,h3{margin:0;font-weight:600;letter-spacing:.2px}
+  h1{font-size:13px} h2{font-size:11px;text-transform:uppercase;letter-spacing:1.1px;color:var(--dim);margin-bottom:7px}
+  #top{top:10px;left:10px;right:10px;display:flex;align-items:center;gap:14px;padding:8px 12px}
+  #top .brand{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+  #top .brand small{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+  .metrics{display:flex;gap:16px;margin-left:auto;align-items:center;flex-wrap:wrap}
+  .metric{display:flex;flex-direction:column;line-height:1.15;min-width:56px}
+  .metric b{font-family:var(--mono);font-size:14px}
+  .metric span{font-size:9.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim)}
+  .money b{color:var(--acc2)}
+  #left{top:64px;left:10px;width:216px;max-height:calc(100% - 150px);overflow-y:auto}
+  #right{top:64px;right:10px;width:238px;max-height:calc(100% - 150px);overflow-y:auto}
+  #bottom{bottom:10px;left:10px;right:10px;display:flex;gap:8px;align-items:center;padding:8px 10px;flex-wrap:wrap}
+  .row{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .row:last-child{margin-bottom:0}
+  .row label{flex:1;color:var(--dim);font-size:11px}
+  .row .val{font-family:var(--mono);font-size:12px;color:var(--txt);min-width:46px;text-align:right}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;background:rgba(122,216,160,.25);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--acc);cursor:pointer;box-shadow:0 0 0 3px rgba(122,216,160,.16)}
+  input[type=range]::-moz-range-thumb{width:11px;height:11px;border:0;border-radius:50%;background:var(--acc);cursor:pointer}
+  button{
+    font:inherit;font-size:11.5px;color:var(--txt);background:rgba(122,216,160,.1);
+    border:1px solid var(--line);border-radius:8px;padding:5px 9px;cursor:pointer;transition:.13s;
+  }
+  button:hover{background:rgba(122,216,160,.2)}
+  button.on{background:rgba(122,216,160,.32);border-color:var(--acc);color:#eafff2}
+  button.warn{background:rgba(255,184,107,.12);border-color:rgba(255,184,107,.35)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .gauges{display:grid;gap:6px;margin-bottom:9px}
+  .g{display:grid;grid-template-columns:34px 1fr 52px;align-items:center;gap:6px;font-size:11px}
+  .g span{color:var(--dim)}
+  .g .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+  .g .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),#4fb27a);transition:width .3s}
+  .g .bar i.hot{background:linear-gradient(90deg,#ffb86b,#ff7b72)}
+  .g .bar i.cold{background:linear-gradient(90deg,#79c7ff,#4a8fd6)}
+  .g b{font-family:var(--mono);text-align:right;font-weight:500}
+  .sep{height:1px;background:var(--line);margin:9px 0}
+  #log{font-family:var(--mono);font-size:10.5px;color:var(--dim);max-height:96px;overflow:hidden;display:flex;flex-direction:column-reverse;gap:1px}
+  #log div.hl{color:var(--acc)}
+  #log div.warn{color:var(--warn)}
+  #log div.bad{color:var(--bad)}
+  #inspector .tree{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:pre;overflow-x:auto;line-height:1.5;background:rgba(0,0,0,.28);padding:6px 7px;border-radius:7px;max-height:150px;overflow-y:auto}
+  .kv{display:flex;justify-content:space-between;font-size:11px;padding:1.5px 0;border-bottom:1px dotted rgba(122,216,160,.1)}
+  .kv span{color:var(--dim)} .kv b{font-family:var(--mono);font-weight:500}
+  .tag{display:inline-block;font-size:9.5px;padding:1px 5px;border-radius:4px;background:rgba(122,216,160,.14);color:var(--acc);margin-left:4px}
+  .hint{font-size:10.5px;color:var(--dim);line-height:1.4}
+  #spark{display:flex;align-items:flex-end;gap:1px;height:30px;margin-top:8px}
+  #spark i{flex:1;min-height:2px;border-radius:1px;opacity:.85}
+  #end{position:fixed;inset:0;background:rgba(3,8,6,.88);display:none;place-items:center;z-index:110;backdrop-filter:blur(6px);padding:20px}
+  #end.show{display:grid}
+  #end .card{max-width:520px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 26px}
+  #end h1{font-size:19px;margin-bottom:14px;color:var(--acc2)}
+  #end .kv{font-size:13px;padding:3px 0}
+  #end .verdict{margin-top:14px;font-size:12.5px;line-height:1.6;color:#c5dccd}
+  #toast{
+    position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(12px);
+    background:rgba(9,22,17,.95);border:1px solid var(--line);border-radius:9px;padding:7px 13px;
+    font-size:12px;opacity:0;pointer-events:none;transition:.25s;z-index:50;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #help{
+    position:fixed;inset:0;background:rgba(3,8,6,.82);display:none;place-items:center;z-index:100;
+    backdrop-filter:blur(4px);padding:20px;
+  }
+  #help.show{display:grid}
+  #help .card{max-width:720px;max-height:86vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  #help h1{font-size:17px;margin-bottom:10px}
+  #help h3{color:var(--acc);font-size:12.5px;margin:16px 0 6px;text-transform:none;letter-spacing:0}
+  #help p,#help li{font-size:12px;color:#c5dccd;line-height:1.6}
+  #help table{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0}
+  #help td,#help th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+  #help th{color:var(--dim);font-weight:500}
+  code{font-family:var(--mono);font-size:11px;background:rgba(122,216,160,.12);padding:1px 4px;border-radius:4px}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-thumb{background:rgba(122,216,160,.22);border-radius:4px}
+  @media (max-width:900px){
+    #left,#right{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="top" class="panel">
+  <div class="brand"><h1>Виртуальная теплица</h1><small>FSPM-прототип</small></div>
+  <div class="metrics">
+    <div class="metric"><b id="mDay">Д 1</b><span id="mSeason">из 90</span></div>
+    <div class="metric"><b id="mClock">06:00</b><span>время</span></div>
+    <div class="metric money"><b id="mMoney">1200 €</b><span>баланс</span></div>
+    <div class="metric"><b id="mFruit">0</b><span>плодов</span></div>
+    <div class="metric"><b id="mPPFD">0</b><span>PPFD µмоль</span></div>
+    <div class="metric"><b id="mAssim">0</b><span>ассимиляты, г/сут</span></div>
+    <div style="display:flex;gap:5px;margin-left:4px">
+      <button id="btnPause">⏸</button>
+      <button class="speed" data-s="2">2×</button>
+      <button class="speed on" data-s="8">8×</button>
+      <button class="speed" data-s="32">32×</button>
+      <button id="btnHelp">?</button>
+    </div>
+  </div>
+</div>
+
+<div id="left" class="panel">
+  <h2>Экономика</h2>
+  <div class="kv"><span>Выручка вчера</span><b id="fRev">0 €</b></div>
+  <div class="kv"><span>Затраты вчера</span><b id="fCost">0 €</b></div>
+  <div class="kv"><span>Прибыль вчера</span><b id="fProfit">0 €</b></div>
+  <div class="kv"><span>Итого за сезон</span><b id="fTotal">0 €</b></div>
+  <div id="spark"></div>
+  <div class="sep"></div>
+  <h2>Климат</h2>
+  <div class="gauges" id="gauges"></div>
+  <div class="row"><label>Отопление ≥</label><span class="val" id="vHeat">18 °C</span></div>
+  <input type="range" id="heat" min="8" max="26" step="0.5" value="18">
+  <div class="row" style="margin-top:8px"><label>Вентиляция ≥</label><span class="val" id="vVent">24 °C</span></div>
+  <input type="range" id="vent" min="14" max="38" step="0.5" value="24">
+  <div class="row" style="margin-top:8px"><label>CO₂ ≥</label><span class="val" id="vCo2">700 ppm</span></div>
+  <input type="range" id="co2" min="400" max="1200" step="25" value="700">
+  <div class="sep"></div>
+  <h2>Свет и защита</h2>
+  <div class="row">
+    <button id="btnLamp" class="on">Досветка LED</button>
+    <button id="btnScreen">Экран</button>
+  </div>
+  <div class="sep"></div>
+  <h2>Уход</h2>
+  <div class="row">
+    <button id="btnPrune">Нижние листья</button>
+    <button id="btnHarvest">Собрать всё</button>
+  </div>
+  <div class="sep"></div>
+  <h2>Инвестиции</h2>
+  <div id="upgrades"></div>
+</div>
+
+<div id="right" class="panel">
+  <div id="inspector">
+    <h2>Структура растений</h2>
+    <div class="kv"><span>Растений</span><b id="iPlants">8</b></div>
+    <div class="kv"><span>Листьев (живых)</span><b id="iLeaves">0</b></div>
+    <div class="kv"><span>LAI (индекс листа)</span><b id="iLAI">0</b></div>
+    <div class="kv"><span>Средний свет листа</span><b id="iLight">0</b></div>
+    <div class="kv"><span>Биомасса, г CH₂O</span><b id="iBio">0</b></div>
+    <div class="kv"><span>Прирост за сутки</span><b id="iGrowth">0</b></div>
+    <div class="sep"></div>
+    <h2>Граф растения <span class="tag">VPL-стиль</span></h2>
+    <div class="tree" id="iTree">клик по растению → граф</div>
+    <div class="sep"></div>
+    <h2>Журнал</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<div id="bottom" class="panel">
+  <span class="hint">Мышь — вращать · колесо — зум · клик по листу — удалить (санитарная обрезка) · клик по красному плоду — собрать · клик по стеблю — граф</span>
+</div>
+
+<div id="toast"></div>
+
+<div id="end">
+  <div class="card">
+    <h1>Сезон закрыт</h1>
+    <div id="endBody"></div>
+    <p style="margin-top:16px"><button id="btnRestart">Новый сезон</button></p>
+  </div>
+</div>
+
+<div id="help">
+  <div class="card">
+    <h1>Виртуальная теплица — как это работает</h1>
+    <p>Прототип браузерного симулятора, в котором растение — не «уровень роста», а <b>граф органов</b>: стебли, листья, соцветия и плоды. Рост — это переписывание графа по правилам, свет — трассировка лучей, фотосинтез — модель Фаркуара. Ровно так устроен <code>VirtualPlantLab.jl</code>, только здесь всё на JavaScript ради запуска в браузере.</p>
+
+    <h3>Соответствие научному стеку VPL</h3>
+    <table>
+      <tr><th>Игра</th><th>VPL</th></tr>
+      <tr><td>Граф органов, правила роста и сенисенции</td><td><code>PlantGraphs.jl</code> — Rule / Query / переписывание графа</td></tr>
+      <tr><td>Позиции листьев, филлотаксис 137.5°, углы вставки</td><td><code>PlantGeomTurtle.jl</code> — черепашья графика, локальная геометрия</td></tr>
+      <tr><td>Воксельная сетка LAD + трассировка лучей солнца</td><td><code>PlantRayTracer.jl</code> — Монте-Карло, поглощённая мощность</td></tr>
+      <tr><td>Путь солнца, прямая + диффузная радиация</td><td><code>SkyDomes.jl</code>, солнечная геометрия</td></tr>
+      <tr><td>A = min(Ac, Aj) − Rd, отклик на T и CO₂</td><td><code>Ecophys.jl</code> / <code>PlantBiophysics.jl</code></td></tr>
+      <tr><td>Тепловой баланс, транспирация, RH, CO₂-баланс</td><td><code>PlantSimEngine.jl</code> — связывание процессов</td></tr>
+      <tr><td>Рендер 3D-сцен</td><td><code>PlantViz.jl</code> (Makie) → здесь свой мини-рендер</td></tr>
+    </table>
+
+    <h3>Игровой цикл</h3>
+    <p>Вы задаёте уставки климата (отопление, вентиляция, CO₂, досветка) и ухаживаете за растениями (обрезка нижних листьев, сбор плодов, инвестиции). Каждые 5 игровых минут считаются свет, фотосинтез и прирост биомассы. Прибыль = урожай − энергия − CO₂ − труд.</p>
+
+    <h3>Что проверять в прототипе</h3>
+    <ul>
+      <li><b>Досветка.</b> Включите LED и сравните дневную прибыль: в ясную погоду лампа не окупает 24 кВт·ч/ч, в пасмурную — окупает.</li>
+      <li><b>CO₂.</b> Поднимите уставку до 1000 ppm при хорошем свете: фотосинтез вырастет на ~30%, но счёт за CO₂ тоже. Найдите точку, где кривая прибыли ломается.</li>
+      <li><b>Обрезка.</b> Удалите нижние листья: они почти не фотосинтезируют (мало света), но дышат и затеняют. Смотрите на «средний свет листа».</li>
+      <li><b>Сырость.</b> При RH &gt; 91% растёт риск серой гнили — придётся открыть форточку, потеряв тепло и CO₂.</li>
+      <li><b>Перегрев.</b> Выше 30 °C растение в стрессе: завязи абортируются, урожай падает, а счёт за вентиляцию — нет.</li>
+    </ul>
+    <h3>Цель</h3>
+    <p>Сезон — 90 дней (с середины апреля). Итог сезона = баланс минус стартовые 7000 €. Хороший результат — 5–8 тыс. € прибыли при 25+ кг/м²; в минус уйти легко: достаточно держать 24 °C отопления при закрытых форточках.</p>
+    <p class="hint">Это прототип механик, а не финальная игра: параметры подобраны для играбельности, а не для валидации урожайности.</p>
+    <p style="margin-top:14px"><button id="btnClose">Понятно, играем</button></p>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   ЧАСТЬ 1. ЯДРО СИМУЛЯЦИИ (без DOM — можно гонять в Node для тестов)
+   ========================================================================= */
+// === SIM CORE START ===
+
+const CFG = {
+  lat: 52.0,
+  floorW: 4.0, floorD: 3.0,
+  get floorArea(){ return this.floorW * this.floorD; },
+  ridgeY: 3.1, eaveY: 2.5,
+  // --- производственная площадь: рендерим «пробную площадку», как grid cloner
+  //     в PlantRayTracer.jl, а климат и экономика считаются на всю теплицу ---
+  area: 400,             // м² товарной площади
+  plotArea: 12,          // м² отрендеренной площадки
+  plantScale: 125,       // 8 растений сцены ≙ 2.5 раст/м² × 400 м² = 1000 растений
+  volAir: 1160,          // м³
+  heatCap: 4.2e6,        // Дж/К (воздух + конструкция)
+  UA: 1150,              // Вт/К, теплопотери ограждения (с учётом базового экрана)
+  UAvent: 8000,          // Вт/К на единицу открытия форточки
+  glassTau: 0.70,        // пропускание стекла для PAR
+  frameShade: 0.12,
+  lampPPFD: 190,         // µмоль/м²/с под светильником
+  lampPowerKW: 24,       // 60 Вт/м² электрической мощности LED
+  heatPowerKW: 300,
+  co2Rate: 2000,         // ppm/ч при полной подаче
+  ventExchange: 7,       // обмен воздуха (1/ч) при полностью открытой форточке
+  phyllochron: 34,       // °C·сут на фитомер
+  baseTemp: 8,           // °C, порог развития
+  maxPhytomers: 30,
+  internode: 0.082,      // м
+  fruitSink: 15.0,       // г CH2O на плод
+  fruitFresh: 0.145,     // кг сырой массы на плод
+  pricePerKg: 1.7,       // €/кг
+  energyPrice: 0.11,     // €/кВт·ч
+  co2Price: 0.45,        // €/кг CO2
+  laborCost: 0.35,       // € за операцию
+  fixedCost: 55,         // €/сут: труд, вода, питание, амортизация
+  seasonDays: 90,        // длина сезона, дней
+  PPM2G: 2.1             // г CO2 на 1 ppm при объёме теплицы 1160 м³
+};
+
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function rnd(){ return Math.random(); }
+
+/* ---------- Солнце (упрощённая солнечная геометрия, ср. SkyDomes.jl) ---- */
+function sunPosition(doy, hour, latDeg){
+  const d2r = Math.PI/180;
+  const decl = 23.45*Math.sin(d2r*360*(284+doy)/365);
+  const phi = latDeg*d2r, d = decl*d2r;
+  const H = 15*(hour-12)*d2r;
+  const sinEl = Math.sin(phi)*Math.sin(d)+Math.cos(phi)*Math.cos(d)*Math.cos(H);
+  const el = Math.asin(clamp(sinEl,-1,1))/d2r;
+  const cosAz = (Math.sin(d)-Math.sin(phi)*sinEl)/(Math.cos(phi)*Math.cos(Math.asin(clamp(sinEl,-1,1)))||1e-6);
+  let az = Math.acos(clamp(cosAz,-1,1))/d2r;
+  if (H>0) az = 360-az;
+  return {el, az};
+}
+function sunVector(el, az){
+  const d2r = Math.PI/180;
+  const e = Math.max(el, -0.1)*d2r, a = az*d2r;
+  return {x: Math.cos(e)*Math.sin(a), y: Math.sin(e), z: Math.cos(e)*Math.cos(a)};
+}
+
+/* ---------- Внешний климат ---------- */
+function outsideClimate(w, doy, hour){
+  const season = Math.sin((doy-105)/365*2*Math.PI);          // пик ~ июль
+  const tMean = 9 + 9*season;
+  const tAmp = 6.5 - 1.5*season;
+  const temp = tMean + tAmp*Math.sin((hour-9)/24*2*Math.PI);
+  const s = sunPosition(doy, hour, CFG.lat);
+  const sinEl = Math.max(0, Math.sin(s.el*Math.PI/180));
+  const cloud = w.cloudToday;
+  const ppfd = 2100*Math.pow(sinEl,1.15)*(1-0.55*cloud);      // µмоль/м²/с
+  const rh = clamp(80 - 12*Math.sin((hour-6)/24*2*Math.PI) + 12*cloud, 35, 98);
+  return {temp, ppfd, rh, el:s.el, az:s.az, sun:s};
+}
+
+/* ---------- Растение как граф органов ---------------------------------- */
+let _organId = 1;
+function makePlant(x, z, id){
+  const p = {
+    id, x, z, age:0, tt:0, nPhy:0, apexY:0.06,
+    organs:[], leaves:[], trusses:[], fruits:[],
+    pool:0, bio:{leaf:0.25, stem:0.22, fruit:0}, carbonStatus:5, assimToday:0,
+    relLight:0.85, stress:0, topped:false, alive:true
+  };
+  p.root = {id:_organId++, type:'plant', parent:null, children:[], label:'plant#'+id};
+  for (let i=0;i<9;i++) emitPhytomer(p, i);
+  // нижние листья уже развёрнуты (растение из рассады)
+  for (const lf of p.leaves){ lf.age = 10-lf.i*1.05; lf.area = lf.maxA*(0.8-0.07*lf.i); }
+  // на нижних соцветиях уже есть завязи разного размера
+  for (const tr of p.trusses){
+    const n = 2 + Math.floor(rnd()*2);
+    for (let k=0;k<n;k++) addFruit(p, tr, 1.5 + rnd()*6);
+  }
+  p.tt = 9*CFG.phyllochron;
+  p.carbonStatus = 7;
+  return p;
+}
+
+function organNode(parent, type, label, extra){
+  const n = Object.assign({id:_organId++, type, parent, children:[], label}, extra||{});
+  if (parent) parent.children.push(n);
+  return n;
+}
+
+/** Правило графа: meristem → internode + leaf + (truss|bud). См. PlantGraphs.jl. */
+function emitPhytomer(p, i){
+  const apex = p.organs.filter(o=>o.type==='stem').length;
+  const az = (i*137.5)*Math.PI/180;              // филлотаксис
+  const gstem = organNode(p.root, 'stem', 'internode#'+(i+1));
+  const stem = {
+    type:'stem', id:gstem.id, node:gstem, i,
+    y0:0.06 + i*CFG.internode*0.8, y1:0.06 + (i+1)*CFG.internode*0.8,
+    age:0, elong:0, diameter:0.006+0.0004*i
+  };
+  const gleaf = organNode(gstem, 'leaf', 'leaf#'+(i+1));
+  const maxA = 0.055*(0.55+0.45*Math.min(1,i/6));
+  const leaf = {
+    type:'leaf', id:gleaf.id, node:gleaf, i, az,
+    tilt: 50*Math.PI/180 + (rnd()-0.5)*0.2,      // угол вставки ~50°
+    area: 0.004, maxA, age:0, relLight:0.8,
+    Iabs:0, A:0, vcmax:115, dead:false,
+    y: () => 0.06 + (leaf.i+1)*CFG.internode*0.8
+  };
+  p.leaves.push(leaf); p.organs.push(stem, leaf);
+  p.nPhy = i+1;
+  p.apexY = leaf.y() + 0.03;
+
+  // соцветие на каждом 3-м фитомере, начиная с 6-го
+  if (i>=4 && ((i-4)%2===0)){
+    const gtr = organNode(gstem, 'truss', 'truss#'+i);
+    const truss = {type:'truss', id:gtr.id, node:gtr, i, age:0, fruits:[], maxFruit:5+Math.floor(rnd()*3), flowered:0};
+    p.trusses.push(truss); p.organs.push(truss);
+  }
+}
+
+/** Правило: плоды в соцветии (завязь → плод). */
+function addFruit(p, tr, mass){
+  const gl = organNode(tr.node, 'fruit', 'fruit#'+p.fruits.length);
+  const f = {type:'fruit', id:gl.id, node:gl, truss:tr, mass:mass||0.05, ripe:false, harvested:false};
+  tr.fruits.push(f); p.fruits.push(f); p.organs.push(f);
+  return f;
+}
+
+function developTrusses(p, dtDays, carbon, stress){
+  // вероятность завязывания: при дефиците ассимилятов и стрессе растения
+  // часть завязей абортируется (как в реальном томате при слабом свете)
+  const setP = clamp(0.12 + carbon/9, 0.10, 1.0) * (1-0.7*clamp(stress,0,1));
+  // сколько плодов растение способно «выкормить»: 1 плод ≈ 1.6 г CH₂O/сут
+  const maxGrow = Math.max(1, Math.floor(carbon/1.6));
+  let grow = p.fruits.filter(f=>!f.ripe && !f.harvested).length;
+  for (const tr of p.trusses){
+    tr.age += dtDays;
+    if (grow < maxGrow && tr.age>2 && tr.fruits.length < tr.maxFruit && rnd() < dtDays*1.1*setP){
+      addFruit(p, tr, 0.05); grow++;
+    }
+  }
+}
+
+/* ---------- Свет: воксельная LAD + трассировка к солнцу ----------------
+   Аналог PlantRayTracer.jl, но с детерминированной сеткой вместо BVH:
+   для каждого листа трассируем K лучей в направлении солнца и накапливаем
+   ослабление exp(-k * LAD * путь). Плюс вертикальный интеграл LAI сверху. */
+const CELL = 0.25;
+const NX = Math.round(CFG.floorW/CELL), NY = 14, NZ = Math.round(CFG.floorD/CELL);
+const CELLV = CELL*CELL*CELL;
+
+/* Геометрия листа (аналог turtle-команды в PlantGeomTurtle.jl):
+   черешок отходит от стебля на petiole, пластинка наклонена на tilt
+   к вертикали и повёрнута на азимут az (филлотаксис 137.5°). */
+function leafGeom(lf, px, py, pz){
+  const tilt = lf.tilt, az = lf.az;
+  const dir = {x: Math.sin(tilt)*Math.cos(az), y: Math.cos(tilt), z: Math.sin(tilt)*Math.sin(az)};
+  let sx = -dir.z, sy = 0, sz = dir.x;                 // side = normalize(dir × up)
+  const sl = Math.hypot(sx,sz)||1; sx/=sl; sz/=sl;
+  let nrm = {x: dir.y*sz - dir.z*sy, y: dir.z*sx - dir.x*sz, z: dir.x*sy - dir.y*sx};
+  if (nrm.y < 0){ nrm = {x:-nrm.x, y:-nrm.y, z:-nrm.z}; }   // нормаль всегда «вверх»
+  const petiole = 0.085;
+  const base = {x: px + Math.cos(az)*petiole, y: py, z: pz + Math.sin(az)*petiole};
+  const len = Math.min(0.40, Math.sqrt(lf.area*2.05));
+  const wid = lf.area/Math.max(0.02, len);
+  const mid = {x: base.x+dir.x*len*0.45, y: base.y+dir.y*len*0.45, z: base.z+dir.z*len*0.45};
+  const tip = {x: base.x+dir.x*len, y: base.y+dir.y*len, z: base.z+dir.z*len};
+  const S = {x:sx, y:sy, z:sz};
+  const corners = [
+    base,
+    {x: mid.x+S.x*wid*0.5, y: mid.y+S.y*wid*0.5, z: mid.z+S.z*wid*0.5},
+    tip,
+    {x: mid.x-S.x*wid*0.5, y: mid.y-S.y*wid*0.5, z: mid.z-S.z*wid*0.5}
+  ];
+  const cen = corners.reduce((a,c)=>({x:a.x+c.x/4, y:a.y+c.y/4, z:a.z+c.z/4}), {x:0,y:0,z:0});
+  return {corners, dir, side:S, normal:nrm, base, tip, cen, len, wid};
+}
+
+/* ---------- Свет: воксельная LAD + трассировка к солнцу ----------------
+   Аналог PlantRayTracer.jl: для каждого листа трассируем K лучей в
+   направлении солнца и накапливаем ослабление exp(-k·LAD·L); диффузный
+   свет и досветка approximated вертикальным интегралом LAI сверху.     */
+function computeLight(w, dtDays){
+  const out = outsideClimate(w, w.doy, w.hour);
+  w.out = out;
+  const sun = sunVector(out.el, out.az);
+  const lampOn = w.ctrl.lampOn && (w.lampW||0) > 0;
+  const tauGH = CFG.glassTau*(1-CFG.frameShade);
+  const directIn = out.ppfd*tauGH;
+  const diffuseIn = out.ppfd*tauGH*0.28;
+
+  // 1) поле плотности площади листьев (LAD, м²/м³)
+  const lad = new Float32Array(NX*NY*NZ);
+  const leaves = [];
+  for (const p of w.plants) for (const lf of p.leaves){
+    if (lf.dead || lf.area < 1e-4) continue;
+    const g = leafGeom(lf, p.x, lf.y(), p.z);
+    leaves.push({lf, p, g});
+
+    // площадь листа распределяем по ячейкам, которые накрывает пластинка
+    let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9,mnz=1e9,mxz=-1e9;
+    for (const c of g.corners){
+      mnx=Math.min(mnx,c.x); mxx=Math.max(mxx,c.x);
+      mny=Math.min(mny,c.y); mxy=Math.max(mxy,c.y);
+      mnz=Math.min(mnz,c.z); mxz=Math.max(mxz,c.z);
+    }
+    const ix0=clamp(Math.floor(mnx/CELL),0,NX-1), ix1=clamp(Math.floor(mxx/CELL),0,NX-1);
+    const iy0=clamp(Math.floor(mny/CELL),0,NY-1), iy1=clamp(Math.floor(mxy/CELL),0,NY-1);
+    const iz0=clamp(Math.floor(mnz/CELL),0,NZ-1), iz1=clamp(Math.floor(mxz/CELL),0,NZ-1);
+    const nc = (ix1-ix0+1)*(iy1-iy0+1)*(iz1-iz0+1);
+    for (let iy=iy0;iy<=iy1;iy++) for (let iz=iz0;iz<=iz1;iz++) for (let ix=ix0;ix<=ix1;ix++)
+      lad[(iy*NZ+iz)*NX+ix] += lf.area/nc/CELLV;
+  }
+
+  const sample = (x,y,z) => {
+    const ix = Math.floor(x/CELL), iy = Math.floor(y/CELL), iz = Math.floor(z/CELL);
+    if (ix<0||ix>=NX||iy<0||iy>=NY||iz<0||iz>=NZ) return 0;
+    return lad[(iy*NZ+iz)*NX+ix];
+  };
+
+  const K = 5, k = 0.55, step = 0.16, jitter = 0.035;
+  let sumPPFD = 0, cnt = 0, laiAboveAll = 0;
+
+  for (const L of leaves){
+    const c = L.g.cen;
+    // вертикальный интеграл LAI над листом
+    let laiAbove = 0;
+    for (let y = c.y+0.02; y < CFG.ridgeY; y += CELL) laiAbove += sample(c.x, y, c.z)*CELL;
+    laiAboveAll += laiAbove;
+
+    const n = L.g.normal;
+    const cosSun = Math.max(0, n.x*sun.x + n.y*sun.y + n.z*sun.z);
+
+    let Tsum = 0;
+    for (let r=0;r<K;r++){
+      let dx = sun.x + (rnd()-0.5)*jitter, dy = sun.y + (rnd()-0.5)*jitter, dz = sun.z + (rnd()-0.5)*jitter;
+      const l = Math.hypot(dx,dy,dz)||1; dx/=l; dy/=l; dz/=l;
+      let tau = 1, x = c.x + dx*0.05, y = c.y + dy*0.05, z = c.z + dz*0.05;
+      for (let s=0;s<26 && y < CFG.ridgeY;s++){
+        tau *= Math.exp(-k*sample(x,y,z)*step);
+        x += dx*step; y += dy*step; z += dz*step;
+        if (x<0||x>CFG.floorW||z<0||z>CFG.floorD) break;
+      }
+      Tsum += tau;
+    }
+    const T = Tsum/K;
+    const dirAbs = directIn*T*Math.max(cosSun, 0.03);
+    const difAbs = diffuseIn*Math.exp(-0.6*laiAbove)*0.45;
+    const lampAbs = (lampOn?CFG.lampPPFD*Math.exp(-0.6*laiAbove)*0.55:0);
+    const I = 0.86*(dirAbs + difAbs + lampAbs);
+    L.lf.Iabs = I;
+    // «относительный свет» — доля от умеренного уровня 420 µмоль
+    L.lf.relLight = clamp(I/420, 0.05, 1.2);
+    sumPPFD += I; cnt++;
+  }
+
+  w.light = {
+    outside: out.ppfd, directIn, diffuseIn, sun,
+    meanLeaf: cnt? sumPPFD/cnt : 0,
+    canopyLAI: totalLAI(w),
+    LAI: cnt? laiAboveAll/cnt : 0,
+    lampOn, tauGH
+  };
+  return w.light;
+}
+
+function totalLAI(w){
+  let a = 0;
+  for (const p of w.plants) for (const lf of p.leaves) if (!lf.dead) a += lf.area;
+  return a/CFG.floorArea;
+}
+
+/* ---------- Фотосинтез листа (Farquhar-lite, ср. Ecophys.jl) ---------- */
+function leafAssimilation(Iabs, tempC, co2, ageDays, stress){
+  if (Iabs <= 1) return 0;
+  const fT = Math.exp(-Math.pow((tempC-26)/13,2));       // оптимум ~26 °C
+  const ageF = Math.exp(-Math.max(0, ageDays-12)/45);     // старение
+  const vcmax = 115*fT*ageF*(1-stress);
+  if (vcmax <= 0.5) return 0;
+  const jmax = 1.9*vcmax;
+  const theta = 0.7;
+  const Q = Iabs*0.85;
+  const J = (Q+jmax - Math.sqrt(Math.max(0, Math.pow(Q+jmax,2)-4*theta*Q*jmax)))/(2*theta);
+  const gam = 42.75*Math.pow(1.9,(tempC-25)/10);
+  const ci = 0.68*co2;
+  const Ac = vcmax*(ci-gam)/Math.max(1,(ci+320));
+  const Aj = J*(ci-gam)/Math.max(1,(4*ci+8*gam));
+  const Rd = 0.9*fT;
+  return Math.max(0, Math.min(Ac,Aj) - Rd);
+}
+
+/* ---------- Климат теплицы (энерго- и массобаланс) ----------
+   Вместо явной эйлеровой схемы (неустойчива при шаге 5 мин и большой
+   теплоёмкости/мощности) считаем релаксацию к равновесию: T→T_eq с
+   постоянной времени τ = C/UA. Так же для CO₂ и влажности.            */
+function climateTick(w, dtH){
+  const out = w.out;
+  const c = w.ctrl;
+  const sec = dtH*3600;
+  const ventOpen = clamp((w.temp - c.ventSet)/4, 0, 1);
+  const screenF = w.upg.screen && c.screen ? 0.45 : 1;   // термоэкран снижает потери
+  const ua = CFG.UA*screenF + CFG.UAvent*ventOpen;       // Вт/К
+
+  // транспирация (∝ свету и VPD) — латентный поток охлаждает теплицу
+  const lai = totalLAI(w);
+  const vpd = Math.max(0.1, satVap(w.temp)*(1-w.rh/100));
+  const densF = CFG.plantScale/(CFG.area/CFG.plotArea);   // плотность посадки относительно сцены
+  const transp = 0.0005*Math.max(0,w.light.meanLeaf)*lai*densF*(0.35+0.65*clamp(vpd/1.6,0,1.6))*CFG.area; // кг/ч
+  const latent = transp*2.45e6/3600;                     // Вт
+
+  // приход тепла
+  const solarGain = out.ppfd*0.48*CFG.area*CFG.glassTau*(1-CFG.frameShade)*0.85; // Вт
+  const lampHeat = (w.light.lampOn? CFG.lampPowerKW*1000*0.9 : 0);
+  let heatIn = 0;
+  if (w.temp < c.heatSet) heatIn = CFG.heatPowerKW*1000*clamp((c.heatSet-w.temp)/1.5,0,1);
+  w.heatUse = heatIn/1000;
+
+  // T_eq и релаксация (устойчиво при любом шаге)
+  const Q = solarGain + heatIn + lampHeat - latent;
+  const Teq = out.temp + Q/Math.max(1, ua);
+  const tauT = CFG.heatCap/Math.max(1, (ua + 60));      // сек (60 Вт/К — «прочие» потери)
+  w.temp = Teq + (w.temp-Teq)*Math.exp(-sec/tauT);
+  w.temp = clamp(w.temp, -5, 48);
+
+  // CO₂: потребление фотосинтезом + инжекция + обмен через форточку
+  const photoCO2 = (w.assimRate||0)*CFG.plantScale*44/30/24;   // г/ч на всю теплицу
+  const injG = (c.co2Set > w.co2) ? CFG.co2Rate*CFG.PPM2G*clamp((c.co2Set-w.co2)/60,0,1) : 0;
+  const netPPM = (injG - photoCO2)/CFG.PPM2G;            // ppm/ч
+  const exch = CFG.ventExchange*ventOpen;                // 1/ч
+  if (exch > 0.05){
+    const Ceq = outCO2() + netPPM/exch;
+    w.co2 = Ceq + (w.co2-Ceq)*Math.exp(-dtH/exch*1);
+  } else {
+    w.co2 += netPPM*dtH;
+  }
+  w.co2 = clamp(w.co2, 330, 1600);
+  w.co2Use = injG*dtH;
+
+  // влажность: приход от транспирации, уход через форточку/конденсацию
+  const wsat = satVap(w.temp)*1000;                      // г/м³
+  const addPct = transp*dtH/Math.max(6,wsat)/CFG.volAir*100;
+  const RHout = clamp(out.rh, 30, 98);
+  const exchRH = CFG.ventExchange*ventOpen*dtH;
+  w.rh = w.rh + addPct - exchRH*(w.rh-RHout)*0.55 - Math.max(0,(w.rh-88))*0.35*dtH;
+  w.rh = clamp(w.rh, 30, 99);
+
+  // стрессы растений
+  let st = 0;
+  if (w.temp>31) st += (w.temp-31)*0.05;
+  if (w.temp<9) st += (9-w.temp)*0.05;
+  if (w.rh>94) st += 0.01;
+  w.stress = clamp(st, 0, 0.6);
+
+  // риск серой гнили: сырость и отсутствие движения воздуха
+  const dRisk = (w.rh>91 ? 0.020 : 0) + (w.rh>86 ? 0.005 : 0) - ventOpen*0.011 - 0.0038;
+  w.disease = clamp(w.disease + dRisk*dtH, 0, 1);
+
+  // деньги: энергия, досветка, CO₂
+  const eurHeat = w.heatUse*dtH*CFG.energyPrice;
+  const eurLamp = (w.light.lampOn? CFG.lampPowerKW:0)*dtH*CFG.energyPrice;
+  const eurCO2  = injG*dtH/1000*CFG.co2Price;
+  w.costEnergy += eurHeat; w.costLamp += eurLamp; w.costCO2 += eurCO2;
+  w.money -= (eurHeat + eurLamp + eurCO2);
+  return w;
+}
+function satVap(t){ return 0.6108*Math.exp(17.27*t/(t+237.3)); } // кПа
+function outCO2(){ return 420; }
+
+/* ---------- Рост: фотосинтез → пул → партиционирование ---------------- */
+function growthTick(w, dtDays, dtH){
+  let dayAssim = 0;
+
+  for (const p of w.plants){
+    if (!p.alive) continue;
+    p.age += dtDays;
+    p.tt += Math.max(0, w.temp-CFG.baseTemp)*dtDays;
+    p.stress = w.stress;
+    p.disease = w.disease;
+
+    // 1) фотосинтез всех листьев
+    let pool = 0;
+    for (const lf of p.leaves){
+      if (lf.dead) { lf.A = 0; continue; }
+      lf.age += dtDays;
+      // рост площади листа (логистика), потолок зависит от света в период экспансии
+      const target = lf.maxA*(0.5+0.5*clamp(lf.relLight,0,1.1));
+      lf.area += (target-lf.area)*Math.min(1, dtDays*0.9);
+      lf.A = leafAssimilation(lf.Iabs, w.temp, w.co2, lf.age, p.stress);
+      // г CH2O: A[µmol/m²/s] × площадь × время × 30 мкг/µмоль
+      pool += lf.A*lf.area*dtDays*86400*30e-6;
+      // сенисенция: старые и затенённые листья
+      if (lf.age>55 || (lf.relLight<0.06 && lf.age>25)) lf.area *= (1-dtDays/6);
+      if (lf.area < 0.0035){ lf.dead = true; lf.area = 0; }
+    }
+    dayAssim += pool;
+    p.assimToday = (p.assimToday||0) + pool;
+
+    // 2) партиционирование
+    const fruitDemand = p.fruits.filter(f=>!f.ripe&&f.mass<CFG.fruitSink).length;
+    const fFruit = fruitDemand>0 ? clamp(0.30+0.055*fruitDemand, 0.30, 0.62) : 0.05;
+    const fLeaf = p.nPhy<CFG.maxPhytomers ? 0.30 : 0.14;
+    const fStem = p.nPhy<CFG.maxPhytomers ? 0.16 : 0.08;
+    const store = Math.max(0, 1-fFruit-fLeaf-fStem);
+
+    // листья/стебель — «накладные» расходы роста
+    p.bio.leaf += pool*fLeaf; p.bio.stem += pool*fStem; p.pool += pool*store;
+
+    // 3) развитие: новый фитомер по тепловому времени
+    while (p.tt >= (p.nPhy)*CFG.phyllochron && p.nPhy < CFG.maxPhytomers){
+      emitPhytomer(p, p.nPhy);
+    }
+
+    // 4) соцветия и плоды
+    developTrusses(p, dtDays, p.carbonStatus||5, p.stress);
+    const grow = p.fruits.filter(f=>!f.ripe);
+    const sinkSum = grow.reduce((s,f)=>s+Math.max(0.15,1-f.mass/CFG.fruitSink),0)||1;
+    const carbonFruit = pool*fFruit + p.pool*0.02;
+    p.pool -= p.pool*0.02;
+    for (const f of grow){
+      const d = carbonFruit*Math.max(0.15,1-f.mass/CFG.fruitSink)/sinkSum;
+      f.mass += d;
+      if (f.mass >= CFG.fruitSink){ f.ripe = true; f.ripeAt = f.ripeness||0; }
+    }
+    p.bio.fruit = p.fruits.filter(f=>!f.harvested).reduce((s,f)=>s+f.mass,0);
+
+    // 5) накопление стресса от болезней
+    if (p.disease>0.5 && rnd()<dtDays*0.02*(p.disease-0.5)*4){
+      // потеря листа от инфекции
+      const alive = p.leaves.filter(l=>!l.dead);
+      if (alive.length>3){ const v = alive[Math.floor(rnd()*alive.length)]; v.dead = true; v.area = 0; w.incidents++; }
+    }
+  }
+
+  w.assimRate = dayAssim;
+  w.assimDay += dayAssim*dtDays;
+  w.bio += dayAssim*dtDays;
+  return dayAssim;
+}
+
+/* ---------- Сбор урожая ------------------------------------------------- */
+function harvestAll(w){
+  let kg = 0, n = 0;
+  for (const p of w.plants) for (const f of p.fruits){
+    if (f.ripe && !f.harvested){ f.harvested = true; kg += CFG.fruitFresh; n++; }
+  }
+  if (n>0){
+    const grade = w.disease>0.35? 0.7 : 1;
+    const rev = kg*CFG.plantScale*CFG.pricePerKg*grade;
+    w.money += rev; w.revenue += rev;
+    w.harvested += n; w.harvestedKg += kg*CFG.plantScale;
+    w.money -= CFG.laborCost;
+    return {n, kg:kg*CFG.plantScale, rev};
+  }
+  return {n:0, kg:0, rev:0};
+}
+
+/* ---------- Обрезка нижних листьев (правило графа: удаление подграфа) -- */
+function pruneLower(w, count){
+  let removed = 0;
+  for (const p of w.plants){
+    const alive = p.leaves.filter(l=>!l.dead).sort((a,b)=>a.i-b.i);
+    for (let i=0;i<Math.max(0, Math.min(count, alive.length-4));i++){ alive[i].dead = true; alive[i].area = 0; removed++; }
+  }
+  if (removed>0){ w.money -= CFG.laborCost*2; w.pruned += removed; }
+  return removed;
+}
+
+/* ---------- Мир --------------------------------------------------------- */
+function makeWorld(seed){
+  const w = {
+    day:1, hour:6, doy:110, over:false, profitDay:0, cloudToday:0.25,
+    money:7000, temp:17, co2:520, rh:74,
+    disease:0, stress:0, incidents:0,
+    plants:[], log:[],
+    ctrl:{ heatSet:18, ventSet:24, co2Set:700, lampOn:true, screen:false },
+    upg:{ led:false, screen:false, co2Boost:false, worker:false },
+    lampW:1, assimDay:0, assimRate:0, bio:0, pruned:0,
+    harvested:0, harvestedKg:0, revenue:0, revenueYesterday:0,
+    costEnergy:0, costLamp:0, costCO2:0, costFixed:0, costPrev:0,
+    heatUse:0, co2Use:0,
+    out:{temp:12,ppfd:0,rh:78,el:0,az:90,sun:{x:0,y:0.2,z:1}},
+    light:{meanLeaf:0, LAI:0, canopyLAI:0, lampOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
+    history:[]
+  };
+  // 2 ряда по 4 растения (как на вегетационных желобах)
+  let id = 1;
+  for (let r=0;r<2;r++) for (let c=0;c<4;c++){
+    w.plants.push(makePlant(0.72+c*0.86, 1.0+r*1.05, id++));
+  }
+  return w;
+}
+
+/** Один шаг симуляции. dtH — игровые часы. */
+function stepWorld(w, dtH){
+  const dtDays = dtH/24;
+  w.hour += dtH;
+  while (w.hour >= 24){ w.hour -= 24; w.day++; w.doy++; newDay(w); }
+  // досветка по расписанию
+  w.ctrl.lampOn = w.lampOnSchedule!==false && (w.hour > 4.5 && w.hour < 21);
+  computeLight(w);
+  climateTick(w, dtH);
+  growthTick(w, dtDays, dtH);
+  return w;
+}
+
+function newDay(w){
+  // закрываем прошедшие сутки: выручка и затраты за день
+  const rev = w.revenue - w.revenueYesterday;
+  const cost = (w.costEnergy + w.costLamp + w.costCO2 + w.costFixed) - (w.costPrev||0);
+  w.costPrev = w.costEnergy + w.costLamp + w.costCO2 + w.costFixed;
+  const profit = rev - cost;
+  w.profitDay = profit;
+  w.history.push({
+    day: w.day-1, temp: w.temp, co2: w.co2, rh: w.rh, assim: w.assimDay,
+    rev, cost, profit, lai: w.light.canopyLAI, disease: w.disease
+  });
+  w.revenueYesterday = w.revenue;
+  w.assimDay = 0;
+  for (const p of w.plants){
+    p.carbonStatus = 0.65*p.carbonStatus + 0.35*(p.assimToday||0);
+    p.assimToday = 0;
+  }
+  w.cloudToday = clamp(w.cloudToday + (rnd()-0.5)*0.35, 0, 0.95);
+  // фиксированные расходы: труд, вода, питание, амортизация
+  w.costFixed += CFG.fixedCost;
+  w.money -= CFG.fixedCost;
+  if (w.disease > 0.8) w.money -= 60;
+  if (w.upg.worker){
+    const h = harvestAll(w);
+    if (h.n>0) w.log.unshift({t:`Д${w.day}`, m:`Работник собрал ${h.n} плодов (+${h.rev.toFixed(0)} €)`, k:'hl'});
+    pruneLower(w, 1);
+  }
+  if (w.day % 5 === 0){
+    w.money -= 40;
+    w.log.unshift({t:`Д${w.day}`, m:`Плановое обслуживание −40 €`, k:''});
+  }
+  if (w.day > CFG.seasonDays) w.over = true;
+}
+
+// === SIM CORE END ===
+
+/* =========================================================================
+   ЧАСТЬ 2. РЕНДЕР 3D-СЦЕНЫ (свой мини-движок: перспектива + painter's algorithm)
+   ========================================================================= */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width = Math.round(W*DPR); canvas.height = Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+const cam = { yaw:-0.62, pitch:0.26, dist:7.4, target:{x:2.0,y:1.10,z:1.5}, zoom:1.05 };
+
+function toView(p){
+  const dx = p.x-cam.target.x, dy = p.y-cam.target.y, dz = p.z-cam.target.z;
+  const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+  const x1 = dx*cy - dz*sy, z1 = dx*sy + dz*cy;
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  const y2 = dy*cp - z1*sp, z2 = dy*sp + z1*cp;
+  return {x:x1, y:y2, z:z2 + cam.dist};
+}
+function project(p){
+  const v = toView(p);
+  const f = 780*cam.zoom*Math.min(1.25, Math.min(W,H)/700);
+  const s = f/Math.max(0.25, v.z);
+  return {x: W/2 + v.x*s, y: H/2 - v.y*s, s, z:v.z};
+}
+
+/* --- фон: небо и почва, зависят от времени суток --- */
+function skyColor(){
+  const h = world.hour;
+  const day = clamp(Math.sin((h-5.2)/13.5*Math.PI), 0, 1);
+  const dawn = clamp(1-Math.abs(h-6.4)/2.2,0,1);
+  const r = lerp(8, 26, day) + 34*dawn;
+  const g = lerp(16, 44, day) + 18*dawn;
+  const b = lerp(24, 52, day) + 6*dawn;
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+function drawBackground(){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  const top = skyColor();
+  g.addColorStop(0, top);
+  g.addColorStop(0.55, '#0a1511');
+  g.addColorStop(1, '#060d0a');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+}
+
+/* --- примитивы сцены --- */
+function poly(pts3, fill, stroke, lw){
+  if (pts3.length<3) return;
+  const pr = pts3.map(project);
+  ctx.beginPath();
+  ctx.moveTo(pr[0].x, pr[0].y);
+  for (let i=1;i<pr.length;i++) ctx.lineTo(pr[i].x, pr[i].y);
+  ctx.closePath();
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw||1; ctx.stroke(); }
+}
+function line3(a,b,color,lw){
+  const pa = project(a), pb = project(b);
+  ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y);
+  ctx.strokeStyle = color; ctx.lineWidth = lw||1; ctx.stroke();
+}
+function disc3(p, r, fill, stroke){
+  const pr = project(p);
+  const rr = Math.max(1.0, r*pr.s);
+  ctx.beginPath(); ctx.arc(pr.x, pr.y, rr, 0, 6.2832);
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+  return {x:pr.x, y:pr.y, r:rr};
+}
+
+/* --- отрисовка листа: используем ту же геометрию, что и трассировщик --- */
+function leafQuad(lf, p){
+  return leafGeom(lf, p.x, lf.y(), p.z).corners;
+}
+
+/* цвет листа: смесь «тёмный → светлый» по поглощённому свету + старение */
+function leafColor(lf){
+  const L = clamp(lf.Iabs/520, 0, 1);
+  const ageYellow = clamp((lf.age-30)/28, 0, 1);
+  let r = lerp(30, 132, L), g = lerp(66, 214, L), b = lerp(40, 118, L);
+  r = lerp(r, 178, ageYellow*0.55); g = lerp(g, 168, ageYellow*0.35); b = lerp(b, 60, ageYellow*0.5);
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+
+function drawScene(){
+  drawBackground();
+  const items = [];
+
+  // пол
+  const floorY = 0;
+  const fq = [
+    {x:0,y:floorY,z:0},{x:CFG.floorW,y:floorY,z:0},
+    {x:CFG.floorW,y:floorY,z:CFG.floorD},{x:0,y:floorY,z:CFG.floorD}
+  ];
+  poly(fq, '#111c17', 'rgba(122,216,160,.14)', 1);
+
+  // сетка контейнеров / желобов
+  for (let r=0;r<2;r++){
+    const z0 = 0.78+r*1.05, z1 = z0+0.28;
+    items.push({z: toView({x:2,y:0.16,z:(z0+z1)/2}).z, draw(){
+      poly([{x:0.25,y:0.16,z:z0},{x:3.75,y:0.16,z:z0},{x:3.75,y:0.16,z:z1},{x:0.25,y:0.16,z:z1}], '#243328', 'rgba(122,216,160,.18)', 1);
+      poly([{x:0.25,y:0,z:z0},{x:3.75,y:0,z:z0},{x:3.75,y:0.16,z:z0},{x:0.25,y:0.16,z:z0}], '#1b2620');
+    }});
+  }
+
+  // каркас теплицы
+  for (let i=0;i<=4;i++){
+    const x = i*(CFG.floorW/4);
+    const a0={x,y:0,z:0}, a1={x,y:CFG.eaveY,z:0};
+    const b0={x,y:0,z:CFG.floorD}, b1={x,y:CFG.eaveY,z:CFG.floorD};
+    items.push({z:toView({x,y:1.2,z:0}).z, draw(){ line3(a0,a1,'rgba(190,220,205,.34)',1.6); }});
+    items.push({z:toView({x,y:1.2,z:CFG.floorD}).z, draw(){ line3(b0,b1,'rgba(190,220,205,.26)',1.4); }});
+  }
+  // конёк, карнизы, стропила
+  items.push({z: toView({x:2,y:2.5,z:1.5}).z*0.98, draw(){
+    line3({x:0,y:CFG.eaveY,z:0},{x:CFG.floorW,y:CFG.eaveY,z:0},'rgba(190,220,205,.22)',1.2);
+    line3({x:0,y:CFG.eaveY,z:CFG.floorD},{x:CFG.floorW,y:CFG.eaveY,z:CFG.floorD},'rgba(190,220,205,.22)',1.2);
+    line3({x:0,y:CFG.ridgeY,z:CFG.floorD/2},{x:CFG.floorW,y:CFG.ridgeY,z:CFG.floorD/2},'rgba(190,220,205,.55)',2);
+    for (let i=0;i<=4;i++){
+      const x = i*(CFG.floorW/4);
+      line3({x,y:CFG.eaveY,z:0},{x,y:CFG.ridgeY,z:CFG.floorD/2},'rgba(190,220,205,.16)',1);
+      line3({x,y:CFG.eaveY,z:CFG.floorD},{x,y:CFG.ridgeY,z:CFG.floorD/2},'rgba(190,220,205,.16)',1);
+    }
+  }});
+
+  // досветка
+  if (world.light.lampOn){
+    for (let i=0;i<4;i++){
+      const x = 0.6+i*0.94;
+      items.push({z: 3.6, draw(){
+        const a = 0.10 + 0.03*Math.sin(performance.now()/700+i);
+        poly([{x:x-0.1,y:CFG.ridgeY-0.42,z:1.28},{x:x+0.1,y:CFG.ridgeY-0.42,z:1.28},
+              {x:x+0.1,y:CFG.ridgeY-0.42,z:1.72},{x:x-0.1,y:CFG.ridgeY-0.42,z:1.72}],
+              `rgba(255,235,170,${0.5+a})`);
+        const pc = project({x, y:CFG.ridgeY-0.42, z:1.5});
+        const g = ctx.createRadialGradient(pc.x,pc.y,2,pc.x,pc.y,150);
+        g.addColorStop(0, 'rgba(255,230,150,.12)'); g.addColorStop(1,'rgba(255,230,150,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(pc.x,pc.y,150,0,6.2832); ctx.fill();
+      }});
+    }
+  }
+
+  // растения
+  for (const p of world.plants){
+    // стебель
+    let top = {x:p.x, y:0.05, z:p.z};
+    const stemPts = [{x:p.x,y:0.04,z:p.z}];
+    for (let i=0;i<=p.nPhy;i++) stemPts.push({x:p.x + Math.sin(i*0.4)*0.006, y:0.06+i*CFG.internode*0.8, z:p.z + Math.cos(i*0.4)*0.006});
+    items.push({z: toView({x:p.x,y:1,z:p.z}).z, draw(){
+      const pr = stemPts.map(project);
+      ctx.beginPath(); ctx.moveTo(pr[0].x,pr[0].y);
+      for (let i=1;i<pr.length;i++) ctx.lineTo(pr[i].x,pr[i].y);
+      ctx.strokeStyle = '#6e7a45'; ctx.lineWidth = Math.max(1.4, 2.4*pr[Math.floor(pr.length/2)].s/500*1.0+1.2);
+      ctx.lineCap='round'; ctx.stroke();
+      // метёлка верхушки
+      if (p.nPhy<CFG.maxPhytomers){
+        disc3({x:p.x,y:p.apexY+0.02,z:p.z}, 0.012, '#a8d06a');
+      }
+    }});
+
+    // листья
+    for (const lf of p.leaves){
+      if (lf.dead || lf.area<2e-4) continue;
+      const g = leafGeom(lf, p.x, lf.y(), p.z);
+      const quad = g.corners, cen = g.cen;
+      items.push({z: toView(cen).z, draw(){
+        // небольшой 3D-эффект: подкрашиваем «тень» по нормали
+        poly(quad, leafColor(lf), 'rgba(0,0,0,.18)', 0.7);
+      }});
+    }
+
+    // соцветия и плоды
+    for (const tr of p.trusses){
+      for (const f of tr.fruits){
+        if (f.harvested) continue;
+        const fr = clamp(f.mass/CFG.fruitSink, 0, 1);
+        const r = 0.011 + 0.021*Math.cbrt(fr);
+        const idx = tr.fruits.indexOf(f);
+        const ang = 0.6+idx*1.05;
+        const pos = {x:p.x+Math.cos(ang)*0.06*(1+idx*0.1), y:0.06+(tr.i+0.6)*CFG.internode*0.8 - idx*0.03, z:p.z+Math.sin(ang)*0.06*(1+idx*0.1)};
+        items.push({z: toView(pos).z, draw(){
+          const spr = project(pos);
+          const rr = Math.max(1.6, r*spr.s);
+          if (rr < 3.2){                        // мелкие плоды — плоская заливка (быстрее)
+            ctx.fillStyle = f.ripe ? '#e0432c' : '#7fa84a';
+            ctx.beginPath(); ctx.arc(spr.x,spr.y,rr,0,6.2832); ctx.fill();
+          } else {
+            const gg = ctx.createRadialGradient(spr.x-rr*0.3, spr.y-rr*0.35, rr*0.1, spr.x, spr.y, rr);
+            if (f.ripe){ gg.addColorStop(0,'#ff9b7a'); gg.addColorStop(.6,'#e0432c'); gg.addColorStop(1,'#8e1d12'); }
+            else { gg.addColorStop(0,'#cfe98c'); gg.addColorStop(.7,'#8fbb52'); gg.addColorStop(1,'#4e7a2c'); }
+            ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(spr.x,spr.y,rr,0,6.2832); ctx.fill();
+            if (f.ripe){ ctx.strokeStyle='rgba(255,225,200,.7)'; ctx.lineWidth=1; ctx.stroke(); }
+          }
+        }});
+      }
+    }
+  }
+
+  // сортируем по глубине (дальние — первыми)
+  items.sort((a,b)=>b.z-a.z);
+  for (const it of items) it.draw();
+
+  // стекло: передняя стенка и крыша (полупрозрачно, поверх всего)
+  const glassFront = [
+    {x:0,y:CFG.eaveY,z:CFG.floorD},{x:CFG.floorW,y:CFG.eaveY,z:CFG.floorD},
+    {x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}
+  ];
+  poly(glassFront, 'rgba(150,210,235,.045)', 'rgba(160,220,240,.22)', 1);
+  const roofA = [{x:0,y:CFG.eaveY,z:CFG.floorD},{x:0,y:CFG.ridgeY,z:CFG.floorD/2},{x:CFG.floorW,y:CFG.ridgeY,z:CFG.floorD/2},{x:CFG.floorW,y:CFG.eaveY,z:CFG.floorD}];
+  poly(roofA, 'rgba(160,215,240,.05)', 'rgba(160,220,240,.2)', 1);
+  const roofB = [{x:0,y:CFG.eaveY,z:0},{x:0,y:CFG.ridgeY,z:CFG.floorD/2},{x:CFG.floorW,y:CFG.ridgeY,z:CFG.floorD/2},{x:CFG.floorW,y:CFG.eaveY,z:0}];
+  poly(roofB, 'rgba(160,215,240,.03)', 'rgba(160,220,240,.14)', 1);
+
+  // индикатор солнца
+  const sun = world.light.sun||{x:0,y:1,z:0};
+  const el = Math.asin(clamp(sun.y,-1,1));
+  if (el>0){
+    const sx = W-92, sy = 92 - el*70;
+    const gg = ctx.createRadialGradient(sx,sy,1,sx,sy,34);
+    gg.addColorStop(0,'rgba(255,236,170,.95)'); gg.addColorStop(1,'rgba(255,210,120,0)');
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(sx,sy,34,0,6.2832); ctx.fill();
+    ctx.fillStyle='rgba(30,40,30,.75)'; ctx.font='10px ui-monospace,monospace';
+    ctx.fillText('☀ '+ (el*180/Math.PI).toFixed(0)+'°', sx-16, sy+48);
+  }
+}
+
+/* =========================================================================
+   ЧАСТЬ 3. UI
+   ========================================================================= */
+const world = makeWorld();
+resize();
+
+const $ = id => document.getElementById(id);
+let paused = false, speed = 8;
+let acc = 0, lastT = performance.now(), uiT = 0, endShown = false;
+
+/* ---- панель датчиков ---- */
+function gauge(label, val, min, max, unit, cls){
+  const pct = clamp((val-min)/(max-min),0,1)*100;
+  return `<div class="g"><span>${label}</span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div><b>${val.toFixed(1)}${unit}</b></div>`;
+}
+function renderGauges(){
+  const w = world;
+  const th = clamp((w.temp-8)/(34-8),0,1);
+  const cls = w.temp>29?'hot':(w.temp<14?'cold':'');
+  $('gauges').innerHTML =
+    gauge('T', w.temp, 8, 34, '°C', cls) +
+    gauge('RH', w.rh, 30, 99, '%', w.rh>92?'hot':'') +
+    gauge('CO₂', w.co2, 330, 1200, '', '') +
+    gauge('PAR', w.light.meanLeaf, 0, 500, '', '') +
+    gauge('ботр.', w.disease*100, 0, 100, '%', w.disease>0.5?'hot':'');
+}
+
+function renderTop(){
+  const w = world;
+  $('mDay').textContent = 'Д ' + w.day;
+  const hh = Math.floor(w.hour), mm = Math.floor((w.hour-hh)*60);
+  $('mClock').textContent = String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+  $('mMoney').textContent = Math.round(w.money) + ' €';
+  $('mFruit').textContent = w.plants.reduce((s,p)=>s+p.fruits.filter(f=>f.ripe&&!f.harvested).length,0);
+  $('mPPFD').textContent = Math.round(w.light.meanLeaf);
+  $('mAssim').textContent = w.assimDay.toFixed(1);
+}
+
+function renderInspector(){
+  const w = world;
+  const leaves = w.plants.reduce((s,p)=>s+p.leaves.filter(l=>!l.dead).length,0);
+  $('iPlants').textContent = w.plants.length;
+  $('iLeaves').textContent = leaves;
+  $('iLAI').textContent = w.light.canopyLAI.toFixed(2);
+  $('iLight').textContent = w.light.meanLeaf.toFixed(0) + ' µмоль';
+  $('iBio').textContent = w.bio.toFixed(0);
+  $('iGrowth').textContent = w.assimDay.toFixed(1) + ' г';
+}
+
+function renderFinance(){
+  const h = world.history;
+  const last = h[h.length-1] || {rev:0, cost:0, profit:0};
+  $('fRev').textContent = Math.round(last.rev) + ' €';
+  $('fCost').textContent = Math.round(last.cost) + ' €';
+  const pf = $('fProfit');
+  pf.textContent = Math.round(last.profit||0) + ' €';
+  pf.style.color = (last.profit||0) >= 0 ? 'var(--acc)' : 'var(--bad)';
+  $('fTotal').textContent = Math.round(world.money) + ' €';
+  $('fTotal').style.color = world.money >= 7000 ? 'var(--acc2)' : 'var(--bad)';
+  $('mSeason').textContent = 'из ' + CFG.seasonDays;
+  const maxAbs = Math.max(60, ...h.map(x=>Math.abs(x.profit||0)));
+  $('spark').innerHTML = h.slice(-CFG.seasonDays).map(x=>{
+    const hp = Math.max(2, Math.abs(x.profit||0)/maxAbs*28);
+    return `<i style="height:${hp}px;background:${(x.profit||0)>=0?'#7ad8a0':'#ff7b72'}"></i>`;
+  }).join('');
+}
+
+function showEnd(){
+  endShown = true;
+  const w = world;
+  const kgM2 = w.harvestedKg/CFG.area;
+  const profitTotal = w.money - 7000;
+  const verdict = profitTotal > 6000
+    ? 'Отличный сезон: вы держали климат в оптимуме и не тратили энергию впустую.'
+    : profitTotal > 0
+      ? 'Сезон в плюсе, но маржа тонкая. Попробуйте термоэкран и точнее дозировать CO₂.'
+      : 'Убыток. Проверьте уставки: слишком холодно (растения не растут) или слишком жарко (стресс и потеря завязей).';
+  $('endBody').innerHTML = `
+    <div class="kv"><span>Урожай</span><b>${w.harvestedKg.toFixed(0)} кг (${kgM2.toFixed(1)} кг/м²)</b></div>
+    <div class="kv"><span>Выручка</span><b>${w.revenue.toFixed(0)} €</b></div>
+    <div class="kv"><span>Энергия + досветка</span><b>${(w.costEnergy+w.costLamp).toFixed(0)} €</b></div>
+    <div class="kv"><span>CO₂</span><b>${w.costCO2.toFixed(0)} €</b></div>
+    <div class="kv"><span>Прочие затраты</span><b>${w.costFixed.toFixed(0)} €</b></div>
+    <div class="kv"><span>Итог</span><b style="color:${profitTotal>=0?'var(--acc)':'var(--bad)'}">${profitTotal.toFixed(0)} €</b></div>
+    <div class="verdict">${verdict}</div>`;
+  $('end').classList.add('show');
+}
+
+function log(msg, kind){
+  world.log.unshift({t:'Д'+world.day, m:msg, k:kind||''});
+  if (world.log.length>40) world.log.pop();
+  renderLog();
+}
+function renderLog(){
+  $('log').innerHTML = world.log.slice(0,14).map(l=>`<div class="${l.k}">${l.t} · ${l.m}</div>`).join('');
+}
+
+/* ---- инспектор графа ---- */
+function showPlantGraph(p){
+  const counts = {};
+  for (const o of p.organs){ if (o.dead) continue; counts[o.type]=(counts[o.type]||0)+1; }
+  const meanI = p.leaves.filter(l=>!l.dead).reduce((s,l)=>s+l.Iabs,0)/Math.max(1,p.leaves.filter(l=>!l.dead).length);
+  const bio = p.bio.leaf + p.bio.stem + p.bio.fruit;
+  let tree = `plant#${p.id}  ♻ tt=${p.tt.toFixed(0)}°C·d\n`;
+  tree += `├ internode ×${counts.stem||0}\n`;
+  tree += `├ leaf ×${counts.leaf||0}   I=${meanI.toFixed(0)} µмоль\n`;
+  tree += `├ truss ×${counts.truss||0}\n`;
+  tree += `└ fruit ×${p.fruits.filter(f=>!f.harvested).length}  (спелых ${p.fruits.filter(f=>f.ripe&&!f.harvested).length})\n`;
+  tree += `\nбиомасса: ${bio.toFixed(1)} г CH₂O\n`;
+  tree += `лист ${p.bio.leaf.toFixed(1)} / стебель ${p.bio.stem.toFixed(1)} / плоды ${p.bio.fruit.toFixed(1)}`;
+  $('iTree').textContent = tree;
+}
+
+/* ---- клики ---- */
+let dragging = false, dragMoved = 0, lastX = 0, lastY = 0;
+canvas.addEventListener('mousedown', e=>{ dragging=true; dragMoved=0; lastX=e.clientX; lastY=e.clientY; canvas.classList.add('drag'); });
+window.addEventListener('mouseup', e=>{
+  canvas.classList.remove('drag');
+  if (dragging && dragMoved < 6) handleClick(e.clientX, e.clientY);
+  dragging = false;
+});
+window.addEventListener('mousemove', e=>{
+  if (!dragging) return;
+  const dx = e.clientX-lastX, dy = e.clientY-lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  dragMoved += Math.abs(dx)+Math.abs(dy);
+  cam.yaw += dx*0.006;
+  cam.pitch = clamp(cam.pitch + dy*0.004, -0.05, 1.1);
+});
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  cam.zoom = clamp(cam.zoom*(e.deltaY>0?0.92:1.08), 0.45, 2.6);
+}, {passive:false});
+
+function handleClick(cx, cy){
+  const rect = canvas.getBoundingClientRect();
+  const x = cx-rect.left, y = cy-rect.top;
+  // 1) плоды
+  for (const p of world.plants) for (const tr of p.trusses) for (const f of tr.fruits){
+    if (f.harvested || !f.ripe) continue;
+    const idx = tr.fruits.indexOf(f);
+    const ang = 0.6+idx*1.05;
+    const pos = {x:p.x+Math.cos(ang)*0.06*(1+idx*0.1), y:0.06+(tr.i+0.6)*CFG.internode*0.8 - idx*0.03, z:p.z+Math.sin(ang)*0.06*(1+idx*0.1)};
+    const pr = project(pos);
+    const r = Math.max(6, (0.011+0.021)*pr.s);
+    if (Math.hypot(pr.x-x, pr.y-y) < r+5){
+      f.harvested = true;
+      const rev = CFG.fruitFresh*CFG.pricePerKg*(world.disease>0.35?0.7:1);
+      world.money += rev; world.revenue += rev;
+      world.harvested++; world.harvestedKg += CFG.fruitFresh;
+      toast('+'+rev.toFixed(2)+' € за плод');
+      return;
+    }
+  }
+  // 2) листья
+  for (const p of world.plants) for (const lf of p.leaves){
+    if (lf.dead) continue;
+    const quad = leafQuad(lf, p).map(project);
+    if (pointInPoly(x,y,quad)){
+      lf.dead = true; lf.area = 0;
+      world.money -= CFG.laborCost*0.5; world.pruned++;
+      toast('Лист удалён (санитарная обрезка)');
+      return;
+    }
+  }
+  // 3) растение (стебель) → граф
+  let best = null, bd = 1e9;
+  for (const p of world.plants){
+    const pr = project({x:p.x, y:p.apexY*0.6, z:p.z});
+    const d = Math.hypot(pr.x-x, pr.y-y);
+    if (d<bd){ bd = d; best = p; }
+  }
+  if (best && bd < 70){ showPlantGraph(best); toast('Граф растения #'+best.id); }
+}
+function pointInPoly(x,y,pts){
+  let inside = false;
+  for (let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
+    if (((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+let toastT = 0;
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(()=>el.classList.remove('show'), 1600);
+}
+
+/* ---- контролы ---- */
+function bindRange(id, key, fmt, transform){
+  const el = $(id);
+  const apply = ()=>{
+    const v = parseFloat(el.value);
+    world.ctrl[key] = transform? transform(v) : v;
+    $('v'+id[0].toUpperCase()+id.slice(1)).textContent = fmt(v);
+  };
+  el.addEventListener('input', apply);
+  apply();
+}
+$('heat').value = world.ctrl.heatSet; 
+$('heat').addEventListener('input', e=>{ world.ctrl.heatSet = parseFloat(e.target.value); $('vHeat').textContent = world.ctrl.heatSet.toFixed(1)+' °C'; });
+$('vent').addEventListener('input', e=>{ world.ctrl.ventSet = parseFloat(e.target.value); $('vVent').textContent = world.ctrl.ventSet.toFixed(1)+' °C'; });
+$('co2').addEventListener('input', e=>{ world.ctrl.co2Set = parseFloat(e.target.value); $('vCo2').textContent = world.ctrl.co2Set.toFixed(0)+' ppm'; });
+$('vHeat').textContent = world.ctrl.heatSet.toFixed(1)+' °C';
+$('vVent').textContent = world.ctrl.ventSet.toFixed(1)+' °C';
+$('vCo2').textContent = world.ctrl.co2Set.toFixed(0)+' ppm';
+
+$('btnLamp').addEventListener('click', e=>{
+  world.lampOnSchedule = world.lampOnSchedule === false ? true : false;
+  e.target.classList.toggle('on', world.lampOnSchedule !== false);
+});
+$('btnScreen').addEventListener('click', e=>{
+  if (!world.upg.screen){ toast('Сначала купите термоэкран'); return; }
+  world.ctrl.screen = !world.ctrl.screen;
+  e.target.classList.toggle('on', world.ctrl.screen);
+});
+$('btnPrune').addEventListener('click', ()=>{
+  const n = pruneLower(world, 2);
+  if (n) { log(`Обрезано ${n} нижних листьев (−${(CFG.laborCost*2).toFixed(2)} €)`,'hl'); toast(`Обрезано: ${n}`); }
+  else toast('Нечего обрезать');
+});
+$('btnHarvest').addEventListener('click', ()=>{
+  const h = harvestAll(world);
+  if (h.n) { log(`Собрано ${h.n} плодов, +${h.rev.toFixed(1)} €`,'hl'); toast(`+${h.rev.toFixed(1)} €`); }
+  else toast('Нет спелых плодов');
+});
+$('btnRestart').addEventListener('click', ()=>location.reload());
+$('btnHelp').addEventListener('click', ()=>$('help').classList.add('show'));
+$('btnClose').addEventListener('click', ()=>$('help').classList.remove('show'));
+$('help').addEventListener('click', e=>{ if (e.target.id==='help') $('help').classList.remove('show'); });
+$('btnPause').addEventListener('click', e=>{
+  paused = !paused;
+  e.target.textContent = paused?'▶':'⏸';
+  e.target.classList.toggle('on', paused);
+});
+document.querySelectorAll('.speed').forEach(b=>b.addEventListener('click', ()=>{
+  speed = parseFloat(b.dataset.s);
+  document.querySelectorAll('.speed').forEach(x=>x.classList.toggle('on', x===b));
+}));
+
+/* ---- инвестиции ---- */
+const UPGRADES = [
+  {id:'led', name:'LED-досветка 190 µмоль', cost:4200, desc:'+свет в пасмурные дни, +энергия'},
+  {id:'co2Boost', name:'Форсунки CO₂', cost:2600, desc:'удвоенная подача CO₂'},
+  {id:'screen', name:'Термоэкран', cost:3800, desc:'−55% теплопотерь ночью'},
+  {id:'worker', name:'Работник', cost:4800, desc:'автосбор и автообрезка'},
+  {id:'extra', name:'Расширение посадки', cost:5200, desc:'+50% плотности (12 растений в сцене)'}
+];
+function renderUpgrades(){
+  $('upgrades').innerHTML = UPGRADES.map(u=>{
+    const owned = world.upg[u.id] || (u.id==='extra' && world.plants.length>8);
+    const label = owned ? '✓' : Math.round(u.cost)+' €';
+    return `<div class="row" style="margin-bottom:5px">
+      <label style="flex:1">${u.name}<br><span style="font-size:9.5px;opacity:.7">${u.desc}</span></label>
+      <button data-up="${u.id}" ${owned?'disabled':''}>${label}</button>
+    </div>`;
+  }).join('');
+  $('upgrades').querySelectorAll('button[data-up]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const u = UPGRADES.find(x=>x.id===b.dataset.up);
+      if (world.money < u.cost){ toast('Недостаточно средств'); return; }
+      world.money -= u.cost;
+      if (u.id==='extra'){
+        let id = world.plants.length+1;
+        for (let c=0;c<4;c++) world.plants.push(makePlant(0.72+c*0.86, 2.25, id++));
+        CFG.plantScale = 187;   // плотность посадки на товарной площади +50%
+      } else {
+        world.upg[u.id] = true;
+        if (u.id==='led') CFG.lampPPFD = 260;
+        if (u.id==='co2Boost') CFG.co2Rate = 4000;
+      }
+      log('Инвестиция: '+u.name, 'hl');
+      renderUpgrades();
+    });
+  });
+}
+
+/* ---- игровой цикл ---- */
+function frame(now){
+  const dtReal = Math.min(0.1, (now-lastT)/1000);
+  lastT = now;
+  if (!paused && !world.over){
+    // базовая скорость: 0.5 игрового часа за реальную секунду (сутки ≈ 48 с)
+    acc += dtReal*speed*0.5;
+    let guard = 0;
+    while (acc >= 1/12 && guard++ < 80){   // фиксированный шаг 5 игровых минут
+      stepWorld(world, 1/12);
+      acc -= 1/12;
+      if (world.over) break;
+    }
+    if (guard>=80) acc = 0;
+  }
+  // UI обновляем 8 раз в секунду, сцену — каждый кадр
+  if (now - uiT > 125){
+    uiT = now;
+    renderGauges(); renderTop(); renderInspector(); renderFinance();
+    if (world.over && !endShown) showEnd();
+  }
+  drawScene();
+  requestAnimationFrame(frame);
+}
+
+// стартовые записи
+log('Посадка завершена: 8 растений томата', 'hl');
+renderUpgrades(); renderLog();
+requestAnimationFrame(frame);
+setInterval(()=>{ renderUpgrades(); }, 2000);
+
+// автосбор раз в сутки при найме работника уже в newDay
+window.__world = world;
+</script>
+</body>
+</html>
