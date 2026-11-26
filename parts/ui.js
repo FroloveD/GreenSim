@@ -20,11 +20,11 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 let world = null;
 let page = 'greenhouse';
 let settingsSection = 'grow';
-let trainingMode = false, trainingHold = false;
+
 let speed = 64, paused = false;   // скорость = игровых часов за реальную МИНУТУ
 let acc = 0, lastT = performance.now(), uiT = 0;
 let fc = null, endShown = false;
-const pending = { profile:'farm', crop:'tomato', weather:'normal', difficulty:'normal', campaign:false, training:false, sys:'soil',
+const pending = { profile:'farm', crop:'tomato', weather:'normal', difficulty:'normal', campaign:false, tutorialEnabled:true, sys:'soil',
                   // где и когда начинаем: средняя полоса по умолчанию, дата — сегодняшняя
                   site:'ekb', orient:'S', startDoy:(typeof todayDoy==='function'?todayDoy():91) };
 
@@ -219,11 +219,7 @@ function peekSaveMeta(){
   try { const m = store.getM(); return m ? JSON.parse(m) : null; } catch(e){ return null; }
 }
 function saveNow(silent){
-  // Учебная сессия изолирована: она не должна перезаписывать последнее сохранение.
-  if (!world || trainingMode) {
-    if (!silent && trainingMode) toast('Учебная сессия не сохраняется');
-    return false;
-  }
+  if (!world) return false;
   try {
     store.set(serializeWorld(world));
     store.setM(JSON.stringify({ day:world.day, doy:world.doy, money:Math.round(world.money),
@@ -243,6 +239,10 @@ function clearSave(){
 }
 function applyLoadedWorld(pack, silent){
   world = pack.world;
+  if (world.camp && world.tutorialEnabled === undefined) world.tutorialEnabled = true;
+  world.tutorialEnabled = !!(world.camp && world.tutorialEnabled);
+  tutorStep = 0; resetTutorFlags();
+  tutorDone = !world.tutorialEnabled || !!world.tutorialCompleted;
   // пока вкладка была закрыта, время шло: догоняем по реальным часам (максимум 3 суток)
   let away = null;
   try {
@@ -255,7 +255,6 @@ function applyLoadedWorld(pack, silent){
     setTimeout(()=>toast(`Пока вас не было ${hh}: ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`), 700);
   }
   cam.plant = 0; cam.mode = 'free'; acc = 0; paused = false; endShown = false; fc = null;
-  tutorDone = true;                       // опытный игрок продолжает сезон, обучение не нужно
   $('tutor').classList.remove('on');
   $('start').classList.remove('on');
   $('mainMenu').classList.remove('on');
@@ -314,8 +313,11 @@ function press(el, fn){
 /* ---------------- стартовый экран ---------------- */
 function buildStart(){
   const title=$('startTitle'), hint=$('startModeHint');
-  if(title) title.textContent=pending.training?'Ознакомительная сессия':(pending.campaign?'Новая кампания':'Свободная игра');
-  if(hint) hint.textContent=pending.training?'Учебный запуск с базовым профилем. Время остановится, пока открыто вводное обучение.':(pending.campaign?'Кампания: фиксированный старт и последовательные главы.':'Настройте капитал, культуру, оборудование и сложность свободного сезона.');
+  if(title) title.textContent=pending.campaign?'Новая кампания':'Новая игра';
+  if(hint) hint.textContent=pending.campaign?'Кампания: фиксированный старт и последовательные главы. Обучение можно отключить или включить отдельно.':'Настройте капитал, культуру, оборудование и сложность свободного сезона.';
+  const tutorOption=$('campaignTutorOption'), tutorCheck=$('campaignTutorEnabled');
+  if(tutorOption) tutorOption.hidden=!pending.campaign;
+  if(tutorCheck){ tutorCheck.checked=!!pending.tutorialEnabled; tutorCheck.onchange=()=>{ pending.tutorialEnabled=!!tutorCheck.checked; }; }
   const camp = $('campPick');
   if (camp){
     camp.innerHTML = `<div class="card" data-camp="1" style="cursor:pointer;${pending.campaign?'border-color:var(--acc)':''}">
@@ -502,8 +504,9 @@ function startGame(){
                       sys:(pending.campaign && pending.sys && GROW_SYS[pending.sys] && GROW_SYS[pending.sys].ch>0)
                           ? 'soil' : pending.sys });
   if (pending.weather === 'real') refreshRealWeather(false);
-  tutorStep = 0; tutorDone = false; resetTutorFlags();
-  trainingMode = !!pending.training; trainingHold = trainingMode;
+  world.tutorialEnabled = !!(pending.campaign && pending.tutorialEnabled);
+  world.tutorialCompleted = false;
+  tutorStep = 0; tutorDone = !world.tutorialEnabled; resetTutorFlags();
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
   $('start').classList.remove('on');
@@ -521,13 +524,16 @@ function startGame(){
     : 'Сезон начат: '+CROPS[world.crop].name+', '+PROFILES[world.profile].area+' м², '
       +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность');
   if (world.mail.length) setTimeout(()=>toast('В почте письмо от тёти Розы'), 2400);
-  if (trainingMode) showOnboarding(0);
+  if (world.tutorialEnabled) renderTutor();
 }
 
 /* ---------------- роутер ---------------- */
 function setPage(p){
   page = p;
   bodyCls('toggle','on-gh', p==='greenhouse');
+  if (p==='settings') tutorFlags.settings=true;
+  if (p==='shop') tutorFlags.shop=true;
+  if (p==='greenhouse') tutorFlags.greenhouse=true;
   if (p!=='greenhouse' && typeof closeSheet==='function') closeSheet();
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===p));
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
@@ -720,6 +726,7 @@ function renderClimateControls(){
       input.oninput=()=>{
         world.ctrl[key]=parseFloat(input.value);
         value.textContent=fmt(world.ctrl[key]);
+        if (world.camp && world.tutorialEnabled && key==='heatSet') tutorFlags.climate=true;
       };
       input.onchange=()=>saveNow(true);
       input.dataset.bound='1';
@@ -1192,7 +1199,7 @@ function renderLog(){
 
 /* ---------------- магазин ---------------- */
 const OWNED = {
-  thermo:w=>w.has.alarm, sticky:w=>w.has.sticky, circFan:w=>w.has.circFan,
+  thermo:w=>w.has.alarm, sticky:w=>w.has.sticky, circFan:w=>w.has.circFan, autoTimer:w=>w.has.autoTimer,
   handDose:w=>w.has.handDose, ledStrip:w=>w.has.ledStrip, humid:w=>w.has.humid,
   ups:w=>w.has.ups, film:w=>w.has.film, climatePC:w=>w.has.climatePC,
   led:w=>w.has.led, ledBoost:w=>w.upg.ledBoost, screen:w=>w.has.screen, shade:w=>w.has.shade,
@@ -1391,7 +1398,7 @@ function renderSettings(){
             ${k.id==='water' ? `<span class="hint">цель влаги</span><input type="number" min="20" max="90" step="1" value="${a.target||55}" data-autonum="${k.id}.target" style="width:62px"><span class="hint">%</span>` : ''}
           </div>` : ''}`;
       }).join('')}
-      <div class="hint">Свободный сезон открывает всё сразу. В кампании таймеры приходят по шагам: свет → полив → CO₂ → полная автоматизация (нужен климат-контроллер). Кнопка «Досветка» под сценой сильнее расписания: нажали — таймер света выключается, и лампа снова в руках.</div>
+      <div class="hint">В кампании автоматизация открывается по главам и требует покупки контроллера таймеров. Полная автоматизация дополнительно требует климат-контроллер. Без нужного оборудования переключатели заблокированы; ручное управление остаётся доступным.</div>
     </div>
     <div class="card">
       <div class="h"><b>Питание (fertigation)</b></div>
@@ -1455,15 +1462,18 @@ function renderSettings(){
         ['Лежкость','Сколько дней урожай может лежать на складе, прежде чем начнёт портиться и дешеветь.']
       ].map(([t,d])=>`<details style="border-top:1px solid var(--line2);padding:6px 0"><summary style="cursor:pointer"><b>${t}</b></summary><div class="hint" style="margin-top:4px">${d}</div></details>`).join('')}
     </div>
-    <div class="card">
-      <div class="h"><b>Обучение</b></div>
-      <div class="hint" style="margin-bottom:8px">Всё это можно пройти заново в любой момент — прогресс сезона не пострадает.</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn good" id="btnObAgain">Обучение по шагам</button>
-        <button class="btn" id="btnTutorAgain">Подсказки на сцене</button>
+    <div class="card" id="campaignTutorCard">
+      <div class="h"><b>Обучение кампании</b></div>
+      <div class="hint" style="margin-bottom:8px">Обучение встроено в кампанию. Его можно отключить здесь и включить снова в любой момент.</div>
+      ${world.camp ? `<div class="row"><label>Подсказки кампании<div class="hint">${world.tutorialEnabled ? (world.tutorialCompleted ? 'Обучение пройдено' : 'Обучение включено') : 'Обучение отключено'}</div></label>
+        <button class="btn ${world.tutorialEnabled?'good':''}" id="btnTutorToggle">${world.tutorialEnabled?'Отключить':'Включить'}</button></div>
+        ${world.tutorialEnabled ? '<button class="btn" id="btnTutorAgain">Начать обучение заново</button>' : ''}`
+        : '<div class="hint">Доступно в кампании. В свободной игре можно пользоваться справочником и обзором интерфейса.</div>'}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+        <button class="btn" id="btnObAgain">Обзор интерфейса</button>
         <button class="btn" id="btnManual2">Справочник</button>
       </div>
-      <div class="hint" style="margin-top:6px">Словарь терминов — ниже в карточке «Словарь»: EC, pH, ppm, LAI, Фаркуар и остальное простыми словами.</div>
+      <div class="hint" style="margin-top:6px">Словарь терминов — ниже в карточке «Словарь».</div>
     </div>
     <div class="card">
       <div class="h"><b>Сезон</b></div>
@@ -1610,6 +1620,7 @@ function renderSettings(){
   if ($('btnManual')) $('btnManual').onclick = ()=>$('manual').classList.add('on');
   if ($('btnManual2')) $('btnManual2').onclick = ()=>$('manual').classList.add('on');
   if ($('btnObAgain')) $('btnObAgain').onclick = ()=>showOnboarding(0);
+  if ($('btnTutorToggle')) $('btnTutorToggle').onclick = ()=>setCampaignTutorEnabled(!world.tutorialEnabled, true);
   if ($('btnTutorAgain')) $('btnTutorAgain').onclick = ()=>showTutorAgain();
   moneyLabels();
   $('btnRestart').onclick = ()=>{ renderResumeBox(); $('start').classList.add('on'); setPage('greenhouse'); };
@@ -1679,27 +1690,17 @@ function renderPred(){
     <div class="hint" style="margin-top:6px">Оценка: копия вашего мира с текущими настройками, независимой погодой и ежедневным сбором. Это оценка, а не гарантия.</div>`;
 }
 
-/* ---------------- обучение: 7 практических шагов ---------------- */
+/* ---------------- обучение кампании: сначала интерфейс, затем управление ---------------- */
 let tutorStep = 0, tutorDone = false;
-const tutorFlags = { cam:false, pred:false };
+const tutorFlags = { cam:false, settings:false, shop:false, greenhouse:false, climate:false };
 function resetTutorFlags(){ for (const k in tutorFlags) tutorFlags[k] = false; }
 
 const TUTOR = [
-  { text:'Покрутите сцену: зажмите мышь и ведите по ней. Клавиши 1–5 — пять камер: сверху, фронт, грядка, растение, свободная.',
-    done:()=>tutorFlags.cam },
-  { text:'Соберите спелый урожай: кнопка «Собрать урожай» внизу или клик по красному плоду на кусте.',
-    done:()=>world.harvested >= 1 },
-  { text:'Урожай лёг на склад — деньги за него ещё не пришли. В панели «Склад» нажмите «Продать всё»: цена дня меняется, а лёжкость ограничена.',
-    done:()=>(world.soldKg||0) > 0.5 },
-  { text:'Откройте «Параметры» и поднимите целевой CO₂ до 800 ppm — при хорошем свете это даёт до +15% фотосинтеза.',
-    done:()=>!world.has.co2 || world.ctrl.co2Set >= 800 },
-  { text:'Влага в горшке падает от испарения. Когда датчик покажет меньше 40 %, нажмите «Полить» под сценой или щёлкните по горшку: одна доза — 15 %. Держите 45–60 %.',
-    done:()=>(world.wateredTotalL||0) > 0 },
-  { text:`В «Магазине» есть недорогие улучшения: термометр-гигрометр ${money(28)}, клейкие ловушки ${money(45)}, бочка воды ${money(90)} — купите одну вещь.`,
-    done:()=>world.has.alarm||world.has.sticky||world.has.circFan||world.has.handDose||
-            world.has.humid||world.has.ups||world.has.film||world.has.climatePC||world.has.ledStrip },
-  { text:'Нажмите «Прогноз» сверху и постройте прогноз на 7 дней — так проверяют решение до трат.',
-    done:()=>tutorFlags.pred }
+  { text:'Начнём со сцены. Перетащите её мышью, чтобы осмотреть теплицу. Кнопки сверху переключают ракурсы, а клавиши 1–5 выбирают камеры.', done:()=>tutorFlags.cam },
+  { text:'Откройте «Параметры». Здесь находятся настройки выращивания, света, питания и автоматизации. Пока ничего покупать или включать не нужно.', done:()=>tutorFlags.settings },
+  { text:'Перейдите в «Магазин». Здесь оборудование открывается по мере развития кампании; часть устройств сначала нужно разблокировать главой.', done:()=>tutorFlags.shop },
+  { text:'Вернитесь в «Теплицу». Основной экран — рабочее место: здесь датчики, климатические регуляторы, состояние растений и быстрые действия.', done:()=>tutorFlags.greenhouse && tutorFlags.settings && tutorFlags.shop },
+  { text:'Попробуйте изменить порог отопления в панели «Климат». Это ручное управление: автоматика появится позже, после открытия нужной главы и покупки контроллера.', done:()=>tutorFlags.climate }
 ];
 
 /* свернуть подсказку: она больше не висит над сценой, если игрок уже прочитал */
@@ -1713,29 +1714,17 @@ function clearTutorTarget(){
   document.querySelectorAll('.tutor-target').forEach(el=>el.classList.remove('tutor-target'));
 }
 function tutorTarget(){
-  const selectors = [
-    '.camBar',
-    '#btnHarvest',
-    '[data-p="stock"]',
-    page==='settings' ? (world.has.co2 ? '#s_co2' : '#settingsBody .card') : '[data-tab="settings"]',
-    '#btnWaterQuick',
-    page==='shop' ? '#shopBody' : '[data-tab="shop"]',
-    '#btnPred'
-  ];
+  const selectors = ['.camBar','[data-tab="settings"]','[data-tab="shop"]','[data-tab="greenhouse"]','#ghHeat'];
   return document.querySelector(selectors[tutorStep] || '');
 }
 function renderTutor(){
   const box = $('tutor');
   if (!box) return;
   clearTutorTarget();
-  if (tutorDone || !world || tutorStep >= TUTOR.length){ box.classList.remove('on'); return; }
+  if (tutorDone || !world || !world.camp || !world.tutorialEnabled || tutorStep >= TUTOR.length){ box.classList.remove('on'); return; }
   $('tutorStep').textContent = `Шаг ${tutorStep+1} из ${TUTOR.length}`;
-  // Новый шаг: разворачиваем подсказку и даём игроку время прочитать её.
-  if (tutorFoldStep !== tutorStep){
-    tutorFoldStep = tutorStep; tutorFold(false);
-    clearTimeout(tutorFoldT);
-    tutorFoldT = setTimeout(()=>{ if ($('tutor') && $('tutor').classList.contains('on')) tutorFold(true); }, 9000);
-  }
+  // Не сворачиваем инструкцию автоматически: игрок сам управляет её отображением.
+  if (tutorFoldStep !== tutorStep){ tutorFoldStep = tutorStep; tutorFold(false); }
   $('tutorText').textContent = TUTOR[tutorStep].text;
   $('tutorDots').innerHTML = TUTOR.map((_,i)=>
     `<i class="${i<tutorStep?'done':i===tutorStep?'on':''}"></i>`).join('');
@@ -1747,18 +1736,19 @@ function renderTutor(){
   }
 }
 function tutorTick(){
-  if (!world || tutorDone) return;
-  // Не закрываем обучение по календарю: игрок может проходить шаги в своём темпе.
+  if (!world || !world.camp || !world.tutorialEnabled || tutorDone) { $('tutor').classList.remove('on'); return; }
+  // Обучение идёт по действиям игрока, а не по календарю.
   while (tutorStep < TUTOR.length && TUTOR[tutorStep].done()) tutorStep++;
   if (tutorStep >= TUTOR.length){
-    tutorDone = true;
+    tutorDone = true; world.tutorialCompleted = true;
     $('tutor').classList.remove('on');
-    toast('Обучение пройдено — дальше только ваши решения');
+    saveNow(true);
+    toast('Обучение кампании пройдено');
     return;
   }
   renderTutor();
 }
-$('tutorSkip').onclick = ()=>{ tutorDone = true; clearTutorTarget(); $('tutor').classList.remove('on'); toast('Обучение пропущено'); };
+$('tutorSkip').onclick = ()=>{ tutorDone = true; if(world){ world.tutorialEnabled=false; world.tutorialCompleted=true; saveNow(true); } clearTutorTarget(); $('tutor').classList.remove('on'); toast('Обучение кампании отключено'); };
 $('tutorFold').onclick = ()=>{
   const box = $('tutor');
   tutorFold(!box.classList.contains('min'));
@@ -2021,7 +2011,7 @@ $('predClose').onclick = ()=>$('pred').classList.remove('on');
 document.querySelectorAll('[data-pred]').forEach(b=>b.onclick=()=>startPred(+b.dataset.pred));
 $('btnSave').onclick = ()=>saveNow(false);
 $('btnHelp').onclick = ()=>showOnboarding(0);
-$('helpClose').onclick = ()=>{ clearInterval(window._obT); $('help').classList.remove('on'); trainingHold=false; };
+$('helpClose').onclick = ()=>{ clearInterval(window._obT); $('help').classList.remove('on'); };
 // ---- онбординг: пошаговый мастер ----
 let obI = 0;
 function obPaint(){
@@ -2034,28 +2024,33 @@ function obPaint(){
   $('helpClose').style.display = obI===slides.length-1 ? '' : 'none';
 }
 function showOnboarding(step){
-  obI = step||0; obPaint(); if(trainingMode) trainingHold=true; $('help').classList.add('on');
+  obI = step||0; obPaint(); $('help').classList.add('on');
 }
-function showTutorAgain(){
-  tutorDone = false; tutorStep = 0; resetTutorFlags();
-  if (typeof renderTutor === 'function') renderTutor(); tutorTick();
-  setPage('greenhouse');
-  toast('Подсказки снова включены — они пройдут заново');
+function setCampaignTutorEnabled(enabled, restart){
+  if (!world || !world.camp){ toast('Обучение доступно в кампании'); return; }
+  world.tutorialEnabled=!!enabled;
+  if (enabled && restart){ tutorStep=0; tutorDone=false; world.tutorialCompleted=false; resetTutorFlags(); }
+  if (!enabled){ tutorDone=true; clearTutorTarget(); $('tutor').classList.remove('on'); }
+  else { tutorDone=false; renderTutor(); }
+  saveNow(true);
+  if (page==='settings') renderSettings();
+  toast(enabled ? 'Обучение кампании включено' : 'Обучение кампании отключено');
 }
+function showTutorAgain(){ setCampaignTutorEnabled(true, true); setPage('greenhouse'); }
 $('obNext').onclick = ()=>{ if(obI < document.querySelectorAll('#help .obSlide').length-1){ obI++; obPaint(); } };
 $('obPrev').onclick = ()=>{ if(obI>0){ obI--; obPaint(); } };
 $('obDots').onclick = e=>{ const k=e.target.dataset && e.target.dataset.ob; if(k!=null){ obI=+k; obPaint(); } };
-$('obGloss').onclick = ()=>{ $('help').classList.remove('on'); trainingHold=false; setPage('settings'); setTimeout(()=>{ const g=$('glossCard'); if(g) g.scrollIntoView({behavior:'smooth',block:'center'}); },60); };
+$('obGloss').onclick = ()=>{ $('help').classList.remove('on');  setPage('settings'); setTimeout(()=>{ const g=$('glossCard'); if(g) g.scrollIntoView({behavior:'smooth',block:'center'}); },60); };
 obPaint();
 $('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
 // Main menu routes the player into a mode before opening the existing setup wizard.
 function openNewGame(mode){
-  pending.training=mode==='training'; pending.campaign=mode==='campaign';
-  pending.profile=mode==='campaign'?'balcony':(mode==='training'?'hobby':'farm');
+  pending.campaign=mode==='campaign';
+  pending.tutorialEnabled=!!pending.campaign;
+  pending.profile=pending.campaign?'balcony':'farm';
   $('mainMenu').classList.remove('on'); $('start').classList.add('on'); buildStart();
 }
-$('menuTraining').onclick=()=>openNewGame('training');
 $('menuCampaign').onclick=()=>openNewGame('campaign');
 $('menuFree').onclick=()=>openNewGame('free');
 $('menuContinue').onclick=()=>loadFromStorage();
@@ -2146,7 +2141,7 @@ function frame(now){
   const dtReal = Math.min(0.25, Math.max(0, (now-lastT)/1000));   // на слабом железе кадры редкие — не теряем время
   lastT = now;
   if (world){
-    if (!world.over && !trainingHold){
+    if (!world.over){
       // пауза не останавливает время: 1 реальная секунда = 1 игровая секунда
       // скорость задана как «игровых часов за реальную минуту»: 1× — час за минуту
       const rateH = paused ? 1/3600 : speed/60;
