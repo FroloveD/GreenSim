@@ -23,8 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Проверка сборки (index.html соответствует parts/*)
+      - name: Сборка index.html из parts/*
         run: |
+          bash build.sh
           test -s index.html
           echo "index.html: $(wc -c < index.html) байт"
           bash build.sh
