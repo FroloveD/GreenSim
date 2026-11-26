@@ -511,13 +511,13 @@ function startGame(){
   world.tutorialEnabled = !!(pending.campaign && pending.tutorialEnabled);
   world.tutorialCompleted = false;
   tutorStep = 0; tutorDone = !world.tutorialEnabled; resetTutorFlags();
-  cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
+  cam.plant = 0; cam.mode = 'free'; paused = false; speed = 4;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
   $('start').classList.remove('on');
   $('mainMenu').classList.remove('on'); $('mainSettings').classList.remove('on');
   document.body.classList.remove('menu-open');
   $('pred').classList.remove('on');
-  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='4'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent='⏸';
   setPage('greenhouse');
   renderAll();
@@ -1696,11 +1696,12 @@ function renderPred(){
 
 /* ---------------- обучение кампании: сначала интерфейс, затем управление ---------------- */
 let tutorStep = 0, tutorDone = false;
-const tutorFlags = { cam:false, settings:false, shop:false, greenhouse:false, climate:false };
+const tutorFlags = { cam:false, speed:false, settings:false, shop:false, greenhouse:false, climate:false };
 function resetTutorFlags(){ for (const k in tutorFlags) tutorFlags[k] = false; }
 
 const TUTOR = [
   { text:'Начнём со сцены. Перетащите её мышью, чтобы осмотреть теплицу. Кнопки сверху переключают ракурсы, а клавиши 1–5 выбирают камеры.', done:()=>tutorFlags.cam },
+  { text:'Настройте темп игры. Новая кампания начинается на скорости 4×. Кнопки 1×, 4×, 16× и выше меняют скорость хода времени. Для внимательного управления выбирайте 1×, для ожидания — ускорение. Попробуйте нажать любую кнопку скорости.', done:()=>tutorFlags.speed },
   { text:'Откройте «Параметры». Здесь находятся настройки выращивания, света, питания и автоматизации. Пока ничего покупать или включать не нужно.', done:()=>tutorFlags.settings },
   { text:'Перейдите в «Магазин». Здесь оборудование открывается по мере развития кампании; часть устройств сначала нужно разблокировать главой.', done:()=>tutorFlags.shop },
   { text:'Вернитесь в «Теплицу». Основной экран — рабочее место: здесь датчики, климатические регуляторы, состояние растений и быстрые действия.', done:()=>page==='greenhouse' && tutorFlags.settings && tutorFlags.shop },
@@ -1718,7 +1719,7 @@ function clearTutorTarget(){
   document.querySelectorAll('.tutor-target').forEach(el=>el.classList.remove('tutor-target'));
 }
 function tutorTarget(){
-  const selectors = ['.camBar','[data-tab="settings"]','[data-tab="shop"]','[data-tab="greenhouse"]','#ghHeat'];
+  const selectors = ['.camBar','.speeds','[data-tab="settings"]','[data-tab="shop"]','[data-tab="greenhouse"]','#ghHeat'];
   return document.querySelector(selectors[tutorStep] || '');
 }
 function renderTutor(){
@@ -2008,6 +2009,7 @@ document.querySelectorAll('.spd').forEach(b=>b.onclick=()=>{
   }
   speed = requested;
   document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x===b));
+  if (world && world.camp && world.tutorialEnabled) { tutorFlags.speed=true; tutorTick(); }
   if (paused) togglePause();
 });
 $('btnPred').onclick = ()=>{ $('pred').classList.toggle('on'); };
@@ -2195,8 +2197,8 @@ function startNextSeason(){
   if (prev.realWeather && prev.realWeather.t) world.realWeather = prev.realWeather;
   if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
   document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
-  endShown = false; paused = false; speed = 64; acc = 0; lastT = performance.now(); fc = null;
-  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
+  endShown = false; paused = false; speed = 4; acc = 0; lastT = performance.now(); fc = null;
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='4'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
   setPage('greenhouse'); renderAll(); saveNow(true);
   toast(`Сезон ${world.seasons}: хозяйство перенесено · репутация ${world.rep} · баланс ${money(world.money)}`);
