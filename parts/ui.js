@@ -499,6 +499,9 @@ function renderGauges(){
     gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0) +
     gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0) +
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0) +
+    (()=>{ const D = dliInfo(world); const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
+      return `<div class="g" title="DLI за сутки: сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Фотопериод ${D.photo.toFixed(1)} ч.">
+        <span>DLI</span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
     gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0) +
     gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0);
   // подсказка о дрейфе датчиков
@@ -755,7 +758,10 @@ function renderDiagnosis(){
   const body = d.items.length
     ? d.items.map(it=>{
         const cls = it.sev==='bad'?'bad':it.sev==='warn'?'warn':'ok';
-        return `<div class="alert ${cls}" style="margin-bottom:4px">${it.text}</div>`;
+        const details = [it.why ? `<div class="hint"><b>Почему:</b> ${it.why}</div>` : '',
+                         it.risk ? `<div class="hint"><b>Риск:</b> ${it.risk}</div>` : '',
+                         it.action ? `<div class="hint"><b>Что сделать:</b> ${it.action}</div>` : ''].filter(Boolean).join('');
+        return `<div class="alert ${cls}" style="margin-bottom:4px">${it.text}${details ? `<div style="margin-top:5px;padding-left:8px">${details}</div>` : ''}</div>`;
       }).join('')
     : `<div class="alert ok">Растение у своего предела: свет, питание и климат в норме</div>`;
   $('diagnosis').innerHTML = head + body +
@@ -1070,6 +1076,24 @@ function renderSettings(){
       <div class="row"><label>Затеняющая сетка ${world.has.shade?'':'<span style="color:var(--dim)">(не куплена)</span>'}</label>
         <button class="btn ${c.shadeOn?'good':''}" id="btnShadeSet">${c.shadeOn?'вкл':'выкл'}</button></div>
       <div class="hint">Экран экономит тепло ночью, сетка спасает от перегрева днём — но обе забирают свет.</div>
+    </div>
+    <div class="card" id="dliCard">
+      <div class="h"><b>Свет за сутки (DLI)</b></div>
+      ${(()=>{ const D = dliInfo(world);
+        const cls = D.val < D.min ? 'var(--warn)' : (D.val > D.max ? 'var(--bad)' : 'var(--acc)');
+        return `<div class="kv"><span>набрано сегодня</span><b style="color:${cls}">${D.val.toFixed(1)} из ${D.tgt} моль/м²</b></div>
+        <div class="kv"><span>вчера за день</span><b>${D.yest.toFixed(1)} моль/м² · ${D.verdict}</b></div>
+        <div class="g" style="grid-template-columns:1fr 96px"><span>${D.verdict}</span>
+          <div class="bar"><i class="${D.ref<D.min?'cold':''}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div></div>
+        <div class="kv"><span>световой день</span><b>${D.day.toFixed(1)} ч</b></div>
+        <div class="kv"><span>лампа сегодня</span><b>${D.lampHours.toFixed(1)} ч · ${D.lampDLI.toFixed(1)} моль</b></div>
+        <div class="kv"><span>фотопериод</span><b>${D.photo.toFixed(1)} ч <span style="color:var(--dim)">из ${D.photoMin}–${D.photoMax}</span>
+          <span style="color:${D.photoVerdict==='в норме'?'var(--acc)':'var(--warn)'}">${D.photoVerdict}</span></b></div>
+        <div class="hint" style="margin-top:6px">DLI — это весь свет за сутки, а не мгновенный PAR: у ${C.name.toLowerCase()}
+        норма ${D.min}–${D.max} моль/м², цель ${D.tgt}. Один час досветки даёт около ${D.perHour.toFixed(2)} моль/м²: ${
+          D.need <= 0.2 ? 'цель взята, лампа не нужна.'
+          : D.reachable ? 'до цели ещё '+Math.round(D.hours)+' ч лампы.'
+          : 'за 14 ч лампа даст только +'+D.gain14.toFixed(1)+' моль — зимой этого мало: спасают светлая сторона, плёнка на рамы и скороспелые сорта.'}</div>`; })()}
     </div>
     <div class="card" id="autoCard">
       <div class="h"><b>Таймеры и автоматизация</b></div>
