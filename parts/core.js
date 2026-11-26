@@ -87,6 +87,17 @@ const CROPS = {
   }
 };
 
+/* Световые ориентиры по культуре: DLI (моль/м²·сут) и фотопериод, ч.
+   [минимум, цель, максимум] — из практики светокультуры: томату и огурцу
+   20–30 моль, салату 12–16; длиннее фотопериод — больше света, но и расход.  */
+const CROP_LIGHT = {
+  tomato:   {dliMin:14, dliTgt:20, dliMax:30, photoMin:14, photoMax:18},
+  cherry:   {dliMin:13, dliTgt:19, dliMax:28, photoMin:14, photoMax:18},
+  cucumber: {dliMin:13, dliTgt:19, dliMax:28, photoMin:14, photoMax:18},
+  lettuce:  {dliMin:9,  dliTgt:13, dliMax:18, photoMin:12, photoMax:16}
+};
+for (const k in CROP_LIGHT) Object.assign(CROPS[k], CROP_LIGHT[k]);
+
 /* ---------------- Профили капитала ---------------- */
 /* Уровни сложности — отдельно от профиля капитала.
    fixedF — множитель постоянных расходов, failF — отказы и инциденты,
@@ -549,12 +560,90 @@ function sunVector(el, az){
   const e = Math.max(el, -0.1)*D2R, a = az*D2R;
   return {x: Math.cos(e)*Math.sin(a), y: Math.sin(e), z: Math.cos(e)*Math.cos(a)};
 }
+/* ---------------- Свет за сутки (DLI) и фотопериод ----------------
+   DLI — сколько молей фотонов упало на квадратный метр за сутки. Это тот же
+   свет, что модель уже считает по листьям, только собранный в понятное число:
+   «12 моль из 20» игроку говорит больше, чем «PAR 180».                     */
+const _dayLenCache = {};
+function dayLength(w, doy){
+  const lat = ((w && w.site && w.site.lat) || CFG.lat);
+  const d = clamp(Math.round(doy==null ? ((w && w.doy) || 172) : doy), 1, 365);
+  const key = lat.toFixed(1)+'|'+d;
+  if (_dayLenCache[key] !== undefined) return _dayLenCache[key];
+  let n = 0;
+  for (let h=0; h<24; h+=0.25) if (sunPosition(d, h+0.125, lat).el > 0) n += 0.25;
+  _dayLenCache[key] = n;
+  return n;
+}
+function dliInfo(w){
+  const C = CROPS[w.crop];
+  const val = w.dliAcc || 0;
+  const yest = w.dliYest || 0;
+  const min = C.dliMin, tgt = C.dliTgt, max = C.dliMax;
+  // вердикт — по целым суткам: сегодняшний день ещё копится, судить по нему рано
+  const ref = (w.hour >= 21 || yest < 0.5) ? val : yest;
+  const pct = clamp(val/Math.max(0.01,tgt), 0, 1.4);
+  const verdict = ref > max ? 'больше нормы'
+                : ref >= min ? 'в норме'
+                : ref >= min*0.75 ? 'чуть меньше нормы'
+                : ref >= min*0.5 ? 'меньше нормы' : 'критически мало света';
+  const need = Math.max(0, tgt - ref);
+  const lampPPFD = w.has.led ? (w.upg.ledBoost?280:190) : (w.has.lampBase?90:0);
+  const stripPPFD = w.has.ledStrip ? (w.has.strip2?90:60) : 0;
+  // один час досветки даёт PPFD×3600/1e6 молей, но до листа доходит ~половина
+  const perHour = Math.max(0.02, (lampPPFD+stripPPFD)*0.85*3600/1e6);
+  const photo = (w.hour >= 21 || !(w.photoHoursYest > 0)) ? (w.photoHoursDay||0) : w.photoHoursYest;
+  const photoVerdict = photo > C.photoMax + 0.5 ? 'длинный день'
+                     : photo < C.photoMin - 0.5 ? 'короткий день' : 'в норме';
+  return {val, yest, ref, min, tgt, max, pct, verdict, need, perHour,
+          hours: need>0 ? need/perHour : 0,
+          gain14: perHour*14, reachable: need <= perHour*14,
+          day: dayLength(w, w.doy), lampHours: w.lampHoursDay || 0,
+          photo, photoVerdict, photoMin: C.photoMin, photoMax: C.photoMax,
+          lampDLI: w.dliLampAcc || 0};
+}
+
+/* ---------------- Реальная погода вместо норм ----------------
+   Таблица «день года → средняя температура и облачность» из открытого
+   архива open-meteo. Её нет — считаем по многолетним нормам, поэтому
+   игра работает и без сети: погода — улучшение, а не зависимость.        */
+function applyWeatherTable(w, rows, meta){
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const T = new Array(366).fill(null), Cc = new Array(366).fill(null);
+  let n = 0;
+  for (const r of rows){
+    const d = clamp(Math.round(r.doy), 1, 365);
+    if (r.t === null || r.t === undefined || !isFinite(r.t)) continue;
+    T[d] = +r.t; Cc[d] = (r.cloud===null||r.cloud===undefined) ? null : clamp(+r.cloud,0,1);
+    n++;
+  }
+  if (!n) return false;
+  w.realWeather = { t:T, c:Cc, source:(meta&&meta.source)||'open-meteo',
+                    at:(meta&&meta.at)||Date.now(), site:(w.site&&w.site.id)||'ekb', n };
+  return true;
+}
+function realWeatherAt(w, doy){
+  const rw = w.realWeather;
+  if (!rw || !rw.t) return null;
+  const d = clamp(Math.round(doy), 1, 365);
+  let t = rw.t[d], c = rw.c ? rw.c[d] : null;
+  if (t === null || t === undefined){
+    for (let k=1;k<40;k++){
+      const a = ((d-1+k)%365)+1, b = ((d-1-k+365)%365)+1;
+      if (rw.t[a] != null){ t = rw.t[a]; c = rw.c ? rw.c[a] : null; break; }
+      if (rw.t[b] != null){ t = rw.t[b]; c = rw.c ? rw.c[b] : null; break; }
+    }
+  }
+  return (t === null || t === undefined) ? null : {t, cloud:(c==null?0.45:c)};
+}
+
 function outsideClimate(w, doy, hour){
   // климат берём из норм локации (открытые данные), а не из «средней Земли»
   const site = (w && w.site) || {id:'ekb', region:'uralsib', lat:CFG.lat, az:180};
   const N = siteNormals(site);
-  const sunFrac = clamp(normAt(N.sun, doy), 0.02, 0.85);      // доля солнца в месяце
-  let tMean = normAt(N.temp, doy);
+  const rw = realWeatherAt(w, doy);
+  const sunFrac = clamp(rw && rw.cloud!=null ? (1-rw.cloud) : normAt(N.sun, doy), 0.02, 0.85);
+  let tMean = (rw && rw.t!=null) ? rw.t : normAt(N.temp, doy);
   // суточная амплитуда: чем яснее месяц, тем больше размах день/ночь
   let tAmp = 4.0 + 5.0*(1 - sunFrac);
   // погодные события: холодный фронт / жара
@@ -575,7 +664,8 @@ function outsideClimate(w, doy, hour){
   const rh = clamp(80 - 12*Math.sin((hour-6)/24*2*Math.PI) + 12*cloud, 35, 98);
   // сцена: остекление смотрит на az дома, поэтому азимут пересчитываем в её систему
   const azScene = ((s.az - ((site.az||180) - 180)) % 360 + 360) % 360;
-  return {temp, ppfd, rh, el:s.el, az:s.az, azScene, sun:s, cloud, site:site.id, sunFrac};
+  return {temp, ppfd, rh, el:s.el, az:s.az, azScene, sun:s, cloud, site:site.id, sunFrac,
+          real: !!rw, dayLen: dayLength(w, doy)};
 }
 
 /* ---------------- Геометрия органов (порт turtle-подхода) ---------------- */
@@ -669,7 +759,7 @@ function computeLight(w, dtH){
   };
 
   const K = 5, k = 0.55, step = 0.16, jitter = 0.035;
-  let sum = 0, cnt = 0, laiAboveAll = 0;
+  let sum = 0, sumLamp = 0, cnt = 0, laiAboveAll = 0;
   const lampPPFD = w.has.led ? (w.upg.ledBoost?280:190) : (w.has.lampBase?90:0);
 
   for (const L of leaves){
@@ -698,17 +788,29 @@ function computeLight(w, dtH){
     const lampAbs = (lampOn ? lampPPFD*Math.exp(-0.6*laiAbove)*0.55 : 0)
                   + (stripOn ? (w.has.strip2?90:60)*Math.exp(-0.8*laiAbove)*0.5 : 0);
     const I = 0.86*(dirAbs + difAbs + lampAbs);
+    sumLamp += 0.86*lampAbs;
     L.lf.Iabs = I;
     L.lf.relLight = clamp(I/420, 0.05, 1.2);
     sum += I; cnt++;
   }
 
+  const meanLeaf = cnt? sum/cnt : 0;
+  const meanLamp = cnt? sumLamp/cnt : 0;
+  // DLI считаем по свету НАД кроной — так его и измеряют в теплице
+  const lampCanopy = (lampOn ? lampPPFD*0.85 : 0) + (stripOn ? (w.has.strip2?90:60)*0.85 : 0);
+  const canopyPPFD = out.ppfd*tauGH*shadeF + lampCanopy;
   w.light = {
     outside: out.ppfd, directIn, diffuseIn, sun,
-    meanLeaf: cnt? sum/cnt : 0,
+    meanLeaf, meanLamp,
     canopyLAI: totalLAI(w),
     lampOn, stripOn, cloud: out.cloud
   };
+  // DLI: накапливаем моли за сутки (это интеграл, а не мгновенный PAR)
+  w.dliAcc = (w.dliAcc||0) + canopyPPFD*3600/1e6*dtH;
+  // фотопериод: часы, когда над кроной вообще есть свет (>20 µmol)
+  if (canopyPPFD > 20) w.photoHoursDay = (w.photoHoursDay||0) + dtH;
+  w.dliLampAcc = (w.dliLampAcc||0) + lampCanopy*3600/1e6*dtH;
+  if (lampOn || stripOn) w.lampHoursDay = (w.lampHoursDay||0) + dtH;
   return w.light;
 }
 
@@ -791,6 +893,74 @@ function makePlant(w, x, z, id){
 }
 
 /* ---------------- Fertigation: EC/pH, вода, удобрения ---------------- */
+/* ---------------- Питание по стадии ----------------
+   Один EC на весь сезон — компромисс: рассаде нужен мягкий раствор, наливу —
+   крепкий. Рецепт под фазу даёт игроку конкретную цифру и объяснение «почему»,
+   а модель считает мягкий штраф, если EC/pH далеко от нормы фазы.            */
+const STAGE_RECIPES = {
+  tomato: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0],
+            why:'корням нужен мягкий раствор: крепкий EC на молодом кусте жжёт корни'},
+    veg:   {name:'Вегетативный рост',   ec:[2.2,2.8], ph:[5.6,6.0],
+            why:'растёт лист и стебель — азот и кальций, EC средний'},
+    fruit: {name:'Налив плодов',        ec:[2.6,3.2], ph:[5.8,6.2],
+            why:'плод набирает массу: больше калия, EC выше, кальций от вершинной гнили'}
+  },
+  cherry: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0], why:'мягкий раствор на старте'},
+    veg:   {name:'Вегетативный рост',   ec:[2.2,2.8], ph:[5.6,6.0], why:'наращиваем полог: азот и кальций'},
+    fruit: {name:'Кисти с плодами',     ec:[2.8,3.4], ph:[5.8,6.2],
+            why:'черри любят сахара: крепкий EC и калий, но следите за засолением'}
+  },
+  cucumber: {
+    start: {name:'Рассада и укоренение', ec:[1.6,2.2], ph:[5.6,6.0], why:'огурец нежен на старте: мягкий EC'},
+    veg:   {name:'Плеть и лист',        ec:[2.0,2.6], ph:[5.6,6.0], why:'быстрый рост: средний EC, много воды'},
+    fruit: {name:'Налив зеленца',       ec:[2.4,3.0], ph:[5.8,6.2], why:'налив каждые два дня: калий и стабильная влага'}
+  },
+  lettuce: {
+    start: {name:'Сеянцы',              ec:[1.2,1.8], ph:[5.6,6.0], why:'салат не терпит соли: мягкий раствор'},
+    veg:   {name:'Лист',                ec:[1.6,2.2], ph:[5.8,6.2], why:'лист растёт быстро, много азота'},
+    fruit: {name:'Головка',             ec:[1.6,2.2], ph:[5.8,6.2], why:'перед срезом EC не поднимают: иначе горечь и краевой ожог'}
+  }
+};
+function cropStage(w){
+  const C = CROPS[w.crop];
+  const ps = w.plants || [];
+  if (!ps.length) return {key:'start', name:'старт'};
+  const age = ps.reduce((s,p)=>s+(p.age||0),0)/ps.length;
+  if (C.leafy){
+    const head = ps.reduce((s,p)=>s+(p.head||0),0)/ps.length;
+    if (age < 16) return {key:'start', name:'сеянцы'};
+    if (head >= C.headTarget*0.6) return {key:'fruit', name:'головка'};
+    return {key:'veg', name:'лист'};
+  }
+  // стадия по массе плодов, а не по их количеству: завязи есть уже в вегетации,
+  // налив начинается, когда плоды реально растут
+  const alive = ps.reduce((a,p)=>a.concat(p.fruits.filter(f=>!f.harvested)), []);
+  const mass = alive.reduce((a,f)=>a+(f.mass||0),0);
+  const avg = alive.length ? mass/alive.length : 0;
+  if (age < 14) return {key:'start', name:'рассада'};
+  if (alive.length < 3 || avg < C.fruitSink*0.25) return {key:'veg', name:'вегетация'};
+  return {key:'fruit', name:'налив'};
+}
+function stageRecipe(w){
+  const st = cropStage(w);
+  const R = (STAGE_RECIPES[w.crop] || STAGE_RECIPES.tomato)[st.key] || STAGE_RECIPES.tomato.veg;
+  return Object.assign({stage:st}, R);
+}
+/* Мягкая подгонка питания под фазу. Штраф включается только когда EC ушёл
+   далеко от коридора фазы (запас 0,3 мСм/см): «средний» EC 2,4 на наливе —
+   не ошибка, ошибка — 1,6 или 3,5. Максимум −6%, чтобы совет помогал,
+   а не наказывал за каждый шаг ползунка.                                  */
+function stageFit(w, ec, ph){
+  const R = stageRecipe(w);
+  const ctr = (R.ec[0]+R.ec[1])/2, tol = (R.ec[1]-R.ec[0])/2 + 0.3;
+  let f = 1 - Math.min(0.06, Math.max(0, Math.abs(ec-ctr) - tol)*0.12);
+  const phC = (R.ph[0]+R.ph[1])/2, phTol = (R.ph[1]-R.ph[0])/2 + 0.25;
+  if (Math.abs(ph-phC) > phTol) f *= 0.97;
+  return clamp(f, 0.90, 1);
+}
+
 function fertFactors(w){
   const c = w.ctrl;
   const ec = c.ecSet, ph = c.phSet;
@@ -804,7 +974,9 @@ function fertFactors(w){
   if (ph < 5.2 || ph > 6.6) nutri *= lerp(1, 0.82, S.ecSens);
   // Ca-блок: кальций + высокая VPD → вершинная гниль плодов
   const caDef = clamp((c.recipe!=='fruit' ? 0.2 : 0) + (ec>3.2?0.3:0), 0, 1);
-  return {nutri: clamp(nutri,0.35,1.05), caDef};
+  const fit = stageFit(w, ec, ph);
+  nutri *= fit;
+  return {nutri: clamp(nutri,0.35,1.05), caDef, stageFit: fit};
 }
 
 /* ---------------- Климат теплицы ----------------
@@ -937,7 +1109,9 @@ function climateSub(w, dtH, C){
   w.useCo2Kg = (w.useCo2Kg||0) + co2Kg;
   w.cost.energy += eurHeat; w.cost.lamp += eurLamp; w.cost.co2 += eurCO2;
   w.money -= (eurHeat+eurLamp+eurCO2);
-  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? (w.has.strip2?0.15:0.1):0))*dtH;
+  const kwhNow = (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? (w.has.strip2?0.15:0.1):0))*dtH;
+  w.energyKWh += kwhNow;
+  w.energyTotal = (w.energyTotal||0) + kwhNow;   // счётчик за сезон: суточный обнуляется каждый день
   return w;
 }
 
@@ -1337,7 +1511,8 @@ function seasonAhead(w, crop, days){
 function priceToday(w, crop){
   const C = CROPS[crop||w.crop];
   const m = (w.market && w.market.mult && w.market.mult[C.id]) || 1;
-  return C.price * w.profilePriceF * seasonFactor(C.id, w.doy) * m;
+  // репутация (перенос из прошлых сезонов) даёт до +6% к цене: покупатели помнят
+  return C.price * w.profilePriceF * seasonFactor(C.id, w.doy) * m * (w.repF || 1);
 }
 function marketTrend(w, crop){
   const h = (w.market.hist[crop]||[]);
@@ -1383,6 +1558,28 @@ function whRot(w){
 }
 
 /* ---------------- Продажа со склада ---------------- */
+/* ---------------- Себестоимость килограмма ----------------
+   Сколько стоило вырастить то, что уже собрано: все расходы сезона на кг.
+   Сравниваем с ценой дня — это и есть ответ «я зарабатываю или доедаю склад». */
+function seasonCost(w){ return Object.values(w.cost||{}).reduce((s,x)=>s+(x||0),0); }
+function costPerKg(w){
+  const kg = w.harvestedKg || 0;
+  if (kg < 0.05) return null;
+  return seasonCost(w)/kg;
+}
+function marginInfo(w, crop){
+  const c = costPerKg(w);
+  const price = priceToday(w, crop || w.crop);
+  if (c === null) return {cost:null, price, margin:null, pct:null};
+  return {cost:c, price, margin:price-c, pct:(price-c)/Math.max(0.01,price)};
+}
+/* оценка себестоимости «наперёд»: вчерашние расходы на вчерашний урожай */
+function costPerKgDay(w){
+  const h = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
+  if (!h || !(h.harvestedKg>0.05)) return null;
+  return (h.cost||0)/(h.harvestedKg||1);
+}
+
 function lotQuality(lot){ return clamp(lot.q*(1 - 0.55*lot.age/Math.max(1,lot.shelf*1.4)), 0.35, 1); }
 function sellHarvest(w, crop, kgWant){
   crop = crop || w.crop;
@@ -1451,9 +1648,9 @@ function whRentDay(w){
 }
 
 /* ---------------- Кампания ---------------- */
-function moveChapter(w, idx){
+function moveChapter(w, idx, free){
   const ch = CHAPTERS[idx]; if (!ch) return false;
-  const cost = idx>0 ? (ch.moveCost||0) : 0;
+  const cost = (idx>0 && !free) ? (ch.moveCost||0) : 0;
   const P = PROFILES[ch.profile];
   w.money -= cost; if (cost) w.cost.upgrade += cost;
   w.profile = P.id; w.area = P.area;
@@ -1678,7 +1875,13 @@ function makeWorld(opts){
     out: {temp:12, ppfd:0, rh:78, el:0, az:90, sun:{x:0,y:0.2,z:1}},
     light: {meanLeaf:0, canopyLAI:0, lampOn:false, stripOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
     log: [], history: [], cloudToday: 0.25,
-    useWaterM3: 0, useFertKg: 0
+    useWaterM3: 0, useFertKg: 0,
+    // свет за сутки: DLI накапливается каждый шаг, вечером уходит в историю
+    dliAcc: 0, dliLampAcc: 0, lampHoursDay: 0, dliYest: 0, dliLampYest: 0, lampHoursYest: 0,
+    // реальная погода (таблица из open-meteo) и репутация хозяйства
+    realWeather: null, repF: 1, rep: 0, seasons: 1,
+    // что перенесено из прошлого сезона — для отчёта и подсказок
+    carry: null
   };
   // абсолютные характеристики теплицы (масштабируются по площади)
   w.env = {
@@ -1699,6 +1902,9 @@ function makeWorld(opts){
     w.money = 100; w.startMoney = 100;
     campaignTick(w);
   }
+  if (opts.realWeather) applyWeatherTable(w, opts.realWeather.rows || opts.realWeather,
+                                          {source:(opts.realWeather.source||'open-meteo')});
+  if (opts.carry) applyCarry(w, opts.carry);
   return w;
 }
 
@@ -1930,8 +2136,11 @@ function newDay(w){
   w._costAtDay = Object.assign({}, w.cost);
   const rewardDay = (w.rewardSum||0) - (w._rewardAtDay||0);
   w._rewardAtDay = w.rewardSum||0;
+  w.dliYest = w.dliAcc||0; w.dliLampYest = w.dliLampAcc||0; w.lampHoursYest = w.lampHoursDay||0;
+  w.photoHoursYest = w.photoHoursDay||0;
   w.history.push({
     day:w.day-1, doy:w.doy-1, temp:w.temp, co2:w.co2, rh:w.rh, assim:w.assimDay,
+    dli: w.dliYest, lampH: w.lampHoursYest,
     tempMin:w.tempMin, tempMax:w.tempMax, rhMax:w.rhMaxDay,
     rev, cost, profit, moneyDelta, lai:w.light.canopyLAI, disease:w.disease,
     harvestedKg: w.dayHarvestKg||0, energyKWh: w.energyKWh||0,
@@ -1939,6 +2148,7 @@ function newDay(w){
     co2Kg: w.useCo2Kg||0, costBreak: cb, rewardDay, lampOn: !!w.ctrl.lampEnabled
   });
   w.assimDay = 0; w.dayHarvestKg = 0; w.energyKWh = 0; w.useWaterM3 = 0; w.useFertKg = 0; w.useCo2Kg = 0;
+  w.dliAcc = 0; w.dliLampAcc = 0; w.lampHoursDay = 0; w.photoHoursDay = 0;
   w.tempMin = undefined; w.tempMax = undefined; w.rhMaxDay = undefined;
   for (const p of w.plants){
     p.carbonStatus = 0.65*p.carbonStatus + 0.35*(p.assimToday||0);
@@ -2251,6 +2461,16 @@ function deserializeWorld(text){
   if (!w.site.az) w.site.az = ORIENTS[w.site.orient || 'S'] ? ORIENTS[w.site.orient || 'S'].az : 180;
   if (w.startDoy === undefined) w.startDoy = ((w.doy - (w.day||1)) % 365 + 365) % 365 || 91;
   if (!w.warranty) w.warranty = [];
+  // миграция: DLI, репутация и реальная погода появились позже
+  if (w.dliAcc === undefined) w.dliAcc = 0;
+  if (w.energyTotal === undefined) w.energyTotal = w.energyKWh || 0;
+  if (w.dliLampAcc === undefined) w.dliLampAcc = 0;
+  if (w.lampHoursDay === undefined) w.lampHoursDay = 0;
+  if (w.photoHoursDay === undefined) w.photoHoursDay = 0;
+  if (w.repF === undefined) w.repF = 1;
+  if (w.rep === undefined) w.rep = 0;
+  if (w.seasons === undefined) w.seasons = 1;
+  if (w.realWeather === undefined) w.realWeather = null;
   // миграция: зимнее снаряжение появилось позже
   for (const k of ['windowFilm','heatBoost','strip2']) if (w.has && w.has[k] === undefined) w.has[k] = false;
   for (const k in (w.equip||{})){
@@ -2273,6 +2493,58 @@ function deserializeWorld(text){
   pack.v = SAVE_VERSION;
   rebuildGraph(w);
   return pack;
+}
+
+/* ---------------- Следующий сезон с переносом ----------------
+   Оборудование, деньги, склад, глава кампании и репутация переезжают в новый
+   сезон; куст, история и рынок начинаются заново. Это превращает сезон из
+   отдельной игры в хозяйство, которое строится годами.                       */
+function carrySnapshot(w){
+  const has = {}, upg = {};
+  for (const k in w.has) if (w.has[k]) has[k] = true;
+  for (const k in w.upg) if (w.upg[k] && typeof w.upg[k] !== 'number') upg[k] = true;
+  const rep = Math.round((w.rep||0) + (w.missionsDone||0)*2 + (w.harvestedKg||0)/40
+                          + (w.contracts||[]).filter(c=>c.done).length*3);
+  return {
+    at: Date.now(), day: w.day, seasons: (w.seasons||1)+1,
+    profile: w.profile, crop: w.crop, sys: w.sys,
+    site: (w.site&&w.site.id)||'ekb', orient: (w.site&&w.site.orient)||'S',
+    money: Math.round(w.money),
+    startMoney: Math.max(1, Math.round(w.money)),
+    has, upg, sections: (w.wh&&w.wh.sections)||2,
+    stock: {fertKg: Math.max(0, Math.round((w.stock.fertKg||0))),
+            co2Kg: Math.max(0, Math.round((w.stock.co2Kg||0))),
+            waterM3: Math.max(0, Math.round((w.stock.waterM3||0))),
+            seeds: Math.max(0, Math.round((w.stock.seeds||0)))},
+    camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice()} : null,
+    houses: ((w.net&&w.net.houses)||[]).map(h=>({crop:h.crop, price:h.price})),
+    rep,
+    prev: {harvestedKg: Math.round(w.harvestedKg||0), revenue: Math.round(w.revenue||0),
+           cost: Math.round(seasonCost(w)), profit: Math.round((w.money||0)-(w.startMoney||0)),
+           days: w.day, priceF: w.profilePriceF, diffId: w.diffId}
+  };
+}
+function applyCarry(w, c){
+  if (!c) return w;
+  // деньги переезжают как есть: минус — это долг хозяйства, а не «сброс»
+  if (c.money !== undefined){
+    w.money = Math.round(c.money);
+    w.startMoney = Math.max(1, Math.round(c.startMoney || c.money || 1));
+  }
+  for (const k in (c.has||{})) if (c.has[k]) w.has[k] = true;
+  for (const k in (c.upg||{})) if (c.upg[k]) w.upg[k] = true;
+  if (c.sections) w.wh.sections = Math.max(w.wh.sections, c.sections|0);
+  if (c.stock) for (const k in c.stock) if (w.stock[k] !== undefined) w.stock[k] = Math.max(w.stock[k], c.stock[k]);
+  if (c.camp && w.camp){ w.camp.ch = Math.min(3, c.camp.ch|0); w.camp.seen = (c.camp.seen||[]).slice(); }
+  if (c.houses && c.houses.length && w.net)
+    w.net.houses = c.houses.map(h=>({crop:h.crop, price:h.price, day:1}));
+  w.rep = c.rep|0;
+  w.repF = 1 + Math.min(0.06, (w.rep||0)*0.0015);
+  w.seasons = c.seasons|0 || 2;
+  w.carry = {rep:w.rep, seasons:w.seasons, money:w.money, prev:c.prev||null, at:c.at||Date.now()};
+  // перенос в кампании: глава не откатывается назад
+  if (w.camp && c.camp) campaignTick(w);
+  return w;
 }
 
 /* ---------------- Диагностика: что ограничивает урожай ---------------- */
@@ -2305,6 +2577,20 @@ function diagnose(w){
   if (nut < 0.9)             push('warn', `Питание ${Math.round(nut*100)}% от нормы: проверьте EC/pH и запас удобрений`);
   if (w.hour > 8 && w.hour < 18 && (w.light.meanLeaf||0) < 120 && (w.out.ppfd||0) > 250)
                              push('warn', 'Мало света в кроне: пасмурно, затенение или слишком плотный полог');
+  // свет за сутки: понятнее мгновенного PAR — «12 моль из 20»
+  const D = dliInfo(w);
+  if (w.hour > 16 && D.ref < D.min)
+    push('warn', `Свет за сутки ${D.ref.toFixed(1)} моль/м² из ${D.tgt} — ` +
+      (D.reachable ? `досветка ещё ${Math.round(D.hours)} ч поднимет до нормы`
+                   : `лампой столько не добрать: 14 ч дадут +${D.gain14.toFixed(1)} моль, остальное — только солнце`));
+  if (w.photoHoursYest > C.photoMax + 1)
+    push('warn', `Свет горел ${w.photoHoursYest.toFixed(0)} ч в сутки: для этой культуры предел ${C.photoMax} ч — ночью лампа жжёт электричество и сбивает ритм`);
+  if (w.hour > 16 && D.ref > D.max)
+    push('info', `Свет за сутки ${D.ref.toFixed(1)} моль/м²: больше нормы — лампа ест электричество впустую`);
+  // питание не под фазу
+  const R = stageRecipe(w);
+  if (Math.abs(w.ctrl.ecSet - (R.ec[0]+R.ec[1])/2) > (R.ec[1]-R.ec[0])/2 + 0.15)
+    push('warn', `EC ${w.ctrl.ecSet.toFixed(1)} не под стадию «${R.name}»: нужен ${R.ec[0]}–${R.ec[1]} — ${R.why}`);
   if (!C.leafy && fruits === 0 && w.day > 12) push('info', 'Плодов нет: ждём завязывания — нужны свет, углерод и умеренная температура');
 
   const rank = {bad:0, warn:1, info:2};

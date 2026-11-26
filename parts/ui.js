@@ -223,12 +223,18 @@ function buildStart(){
   const ws = [
     {id:'normal', n:'Обычный', d:'переменная облачность, риск похолоданий'},
     {id:'cloudy', n:'Пасмурный', d:'+облачность: мало света, мало перегрева'},
-    {id:'hot', n:'Жаркий', d:'+2.5 °C: перегрев, нужна вентиляция и затенение'}
+    {id:'hot', n:'Жаркий', d:'+2.5 °C: перегрев, нужна вентиляция и затенение'},
+    {id:'real', n:'Как за окном', d:'архив open-meteo по выбранной точке: фактическая температура и облачность по дням вместо средних норм. Нет сети — считаем по нормам'}
   ];
   $('seedPick').innerHTML = ws.map(x=>`
     <div class="card" data-weather="${x.id}" style="cursor:pointer;${x.id===pending.weather?'border-color:var(--acc)':''}">
-      <div class="h"><b>${x.n}</b></div><div class="d">${x.d}</div>
+      <div class="h"><b>${x.n}</b>${x.id==='real'?'<span class="price" style="font-size:11px">сеть</span>':''}</div><div class="d">${x.d}</div>
     </div>`).join('');
+  document.querySelectorAll('[data-weather]').forEach(e=>e.onclick=()=>{
+    pending.weather = e.dataset.weather; buildStart();
+    if (pending.weather==='real') toast('Погода из архива подтянется при старте: без сети останутся нормы');
+  });
+  // обработчик выбора погоды живёт здесь, рядом с разметкой карточек
   $('diffPick').innerHTML = Object.values(DIFFICULTY).map(d=>`
     <div class="card" data-diff="${d.id}" style="cursor:pointer;${d.id===pending.difficulty?'border-color:var(--acc)':''}">
       <div class="h"><b>${d.name}</b></div>
@@ -294,7 +300,6 @@ function buildStart(){
   document.querySelectorAll('[data-diff]').forEach(e=>e.onclick=()=>{ pending.difficulty=e.dataset.diff; buildStart(); });
   document.querySelectorAll('[data-profile]').forEach(e=>e.onclick=()=>{ pending.profile=e.dataset.profile; buildStart(); });
   document.querySelectorAll('[data-crop]').forEach(e=>e.onclick=()=>{ pending.crop=e.dataset.crop; buildStart(); });
-  document.querySelectorAll('[data-weather]').forEach(e=>e.onclick=()=>{ pending.weather=e.dataset.weather; buildStart(); });
 }
 
 function renderResumeBox(){
@@ -326,6 +331,7 @@ function startGame(){
                       // в кампании на балконе — только грунт, остальное откроется с главой
                       sys:(pending.campaign && pending.sys && GROW_SYS[pending.sys] && GROW_SYS[pending.sys].ch>0)
                           ? 'soil' : pending.sys });
+  if (pending.weather === 'real') refreshRealWeather(false);   // подтянем архив в фоне
   tutorStep = 0; tutorDone = false; resetTutorFlags();
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
@@ -499,6 +505,11 @@ function renderGauges(){
     gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0) +
     gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0) +
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0) +
+    (()=>{ const D = dliInfo(world);
+      const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
+      return `<div class="g" title="Свет за сутки (DLI): сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Световой день ${D.day.toFixed(1)} ч, лампа ${D.lampHours.toFixed(1)} ч.">
+        <span>DLI</span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div>
+        <b>${D.val.toFixed(1)}</b></div>`; })() +
     gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0) +
     gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0);
   // подсказка о дрейфе датчиков
@@ -566,6 +577,10 @@ function renderFinance(){
   $('finance').innerHTML = `
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
+    ${(()=>{ const m = marginInfo(w);
+      return `<div class="finRow" title="Себестоимость килограмма = все расходы сезона ÷ собранные кг. Справа — цена дня.">
+        <span>себест./цена 1 кг</span><b class="dim">${m.cost==null?'—':money2(m.cost)}</b>
+        <b class="${m.margin==null?'':(m.margin>=0?'pos':'neg')}">${money2(m.price)}</b></div>`; })()}
     <div class="finRow total"><span>Прибыль</span>${cell(profitDay)}${cell(profit)}</div>
     <div class="finRow total"><span>Деньги</span>${cell(moneyDay)}${cell(w.money)}</div>
     <div class="finRow"><span>от старта</span><span class="dim">—</span>${cell(w.money-w.startMoney)}</div>
@@ -1097,7 +1112,17 @@ function renderSettings(){
       <div class="hint">Свободный сезон открывает всё сразу. В кампании таймеры приходят по шагам: свет → полив → CO₂ → полная автоматизация (нужен климат-контроллер). Кнопка «Досветка» под сценой сильнее расписания: нажали — таймер света выключается, и лампа снова в руках.</div>
     </div>
     <div class="card">
-      <div class="h"><b>Питание (fertigation)</b></div>
+      <div class="h"><b>Питание по стадии (fertigation)</b></div>
+      ${(()=>{ const R = stageRecipe(world);
+        const inEC = c.ecSet >= R.ec[0] && c.ecSet <= R.ec[1];
+        const mid = ((R.ec[0]+R.ec[1])/2).toFixed(1), phMid = ((R.ph[0]+R.ph[1])/2).toFixed(1);
+        return `<div class="kv"><span>стадия</span><b>${R.name}</b></div>
+        <div class="hint" style="margin-bottom:7px">${R.why}</div>
+        <div class="row"><label>Рецепт фазы
+            <div class="hint">EC ${R.ec[0]}–${R.ec[1]} · pH ${R.ph[0]}–${R.ph[1]}${
+              inEC ? ' · <span style="color:var(--acc)">EC в коридоре</span>'
+                   : ' · <span style="color:var(--warn)">EC вне коридора фазы</span>'}</div></label>
+          <button class="btn ${inEC?'':'good'}" id="btnRecipeApply">поставить ${mid} / ${phMid}</button></div>`; })()}
       ${slider('ec','EC, мСм/см',1.0,3.6,0.1,c.ecSet,v=>v.toFixed(1))}
       ${slider('ph','pH',5.0,6.8,0.1,c.phSet,v=>v.toFixed(1))}
       <div class="row"><label>Рецепт</label>
@@ -1175,6 +1200,62 @@ function renderSettings(){
       <input type="file" id="saveInput" accept=".json,application/json" style="display:none">
       <div style="margin-top:8px"><button class="btn warn" id="btnRestart">Начать заново</button></div>
     </div>
+    <div class="card" id="dliCard">
+      <div class="h"><b>Свет за сутки (DLI)</b></div>
+      ${(()=>{ const D = dliInfo(world);
+        const cls = D.val < D.min ? 'var(--warn)' : (D.val > D.max ? 'var(--bad)' : 'var(--acc)');
+        return `<div class="kv"><span>набрано сегодня</span><b style="color:${cls}">${D.val.toFixed(1)} из ${D.tgt} моль/м²</b></div>
+        <div class="kv"><span>вчера за день</span><b>${D.yest.toFixed(1)} моль/м² · ${D.verdict}</b></div>
+        <div class="g" style="grid-template-columns:1fr 96px"><span>${D.verdict}</span>
+          <div class="bar"><i class="${D.ref<D.min?'cold':''}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div></div>
+        <div class="kv"><span>световой день</span><b>${D.day.toFixed(1)} ч</b></div>
+        <div class="kv"><span>лампа сегодня</span><b>${D.lampHours.toFixed(1)} ч · ${D.lampDLI.toFixed(1)} моль</b></div>
+        <div class="kv"><span>фотопериод</span><b>${D.photo.toFixed(1)} ч <span style="color:var(--dim)">из ${D.photoMin}–${D.photoMax}</span>
+          <span style="color:${D.photoVerdict==='в норме'?'var(--acc)':'var(--warn)'}">${D.photoVerdict}</span></b></div>
+        <div class="hint" style="margin-top:6px">DLI — это весь свет за сутки, а не мгновенный PAR: у ${C.name.toLowerCase()}
+        норма ${D.min}–${D.max} моль/м², цель ${D.tgt}. Один час досветки даёт около ${D.perHour.toFixed(2)} моль/м²: ${
+          D.need <= 0.2 ? 'цель взята, лампа не нужна.'
+          : D.reachable ? 'до цели ещё '+Math.round(D.hours)+' ч лампы.'
+          : 'за 14 ч лампа даст только +'+D.gain14.toFixed(1)+' моль — зимой этого мало: спасают светлая сторона, плёнка на рамы и скороспелые сорта.'}</div>`; })()}
+    </div>
+    <div class="card" id="weatherCard">
+      <div class="h"><b>Погода за окном</b></div>
+      ${(()=>{ const rw = world.realWeather;
+        if (!rw) return `<div class="d" style="color:var(--txt)">Считаем по нормам</div>
+          <div class="hint">Многолетние средние по выбранной точке (1991–2020): так игра работает без сети.</div>`;
+        if (rw.error) return `<div class="d" style="color:var(--txt)">Сеть недоступна</div>
+          <div class="hint">${rw.error}. Считаем по нормам — на сезон это не влияет.</div>`;
+        const t = realWeatherAt(world, world.doy);
+        return `<div class="kv"><span>источник</span><b>${rw.source} · ${rw.n||0} дн.</b></div>
+        <div class="kv"><span>сегодня по факту</span><b>${t?((t.t>0?'+':'')+t.t.toFixed(1)+' °C'):'—'}</b></div>
+        <div class="kv"><span>облачность</span><b>${t?Math.round(t.cloud*100)+' %':'—'}</b></div>
+        <div class="hint">Архив за последний год по дням года: температура и облачность вместо средних норм.
+        Прогноз погодных событий (холодный фронт, оттепель) работает как раньше.</div>`; })()}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn" id="btnWeatherRefresh">Обновить из сети</button>
+        <button class="btn" id="btnWeatherNorms">Вернуться к нормам</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="h"><b>Клавиши</b></div>
+      ${[['пробел','пауза (время идёт как в жизни)'],['1 … 5','камеры: план, фронт, грядка, растение, свободная'],
+         ['H / B / W','собрать урожай / обрезать низ / полить'],['D / S','досветка / затенение'],
+         ['← → ↑ ↓','сдвинуть камеру'],['+ / −','ближе / дальше'],['R','вернуть ракурс'],
+         ['L','слой света'],['G / M / P','теплица / магазин / параметры'],['F','прогноз'],['Esc','закрыть окно'],
+         ['Ctrl+S','сохранить']]
+        .map(([k,d])=>`<div class="kv"><span>${d}</span><b>${k}</b></div>`).join('')}
+      <div class="hint" style="margin-top:6px">Клавиши не срабатывают, когда курсор в поле ввода.</div>
+    </div>
+    <div class="card" id="pwaCard">
+      <div class="h"><b>Приложение</b></div>
+      <div class="kv"><span>режим</span><b id="pwaState">проверяю…</b></div>
+      <div class="hint" style="margin-bottom:8px">Игра ставится на телефон и запускается без сети: манифест и
+      сервис-воркер лежат рядом с index.html. Сохранение — в самом браузере.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn good" id="btnInstall" style="display:none">Установить на устройство</button>
+        <button class="btn" id="btnPwaHelp">Как установить</button>
+      </div>
+    </div>
     <div class="card">
       <div class="h"><b>Модель (справка)</b></div>
       <div class="hint">
@@ -1220,6 +1301,33 @@ function renderSettings(){
   $('btnScreenSet').onclick = ()=>{ if (!world.has.screen) return toast('Сначала купите термоэкран'); world.ctrl.screenOn = !world.ctrl.screenOn; renderSettings(); };
   $('btnShadeSet').onclick = ()=>{ if (!world.has.shade) return toast('Сначала купите сетку'); world.ctrl.shadeOn = !world.ctrl.shadeOn; renderSettings(); };
   $('recipeSel').onchange = e => { world.ctrl.recipe = e.target.value; };
+  // рецепт под стадию: одна кнопка ставит EC и pH в середину коридора фазы
+  if ($('btnRecipeApply')) $('btnRecipeApply').onclick = ()=>{
+    const R = stageRecipe(world);
+    world.ctrl.ecSet = Math.round((R.ec[0]+R.ec[1])/2*10)/10;
+    world.ctrl.phSet = Math.round((R.ph[0]+R.ph[1])/2*10)/10;
+    world.ctrl.recipe = R.stage.key==='fruit' ? 'fruit' : 'std';
+    toast(`Рецепт «${R.name}»: EC ${world.ctrl.ecSet} · pH ${world.ctrl.phSet}`);
+    renderSettings(); renderAll(); saveNow(true);
+  };
+  if ($('btnWeatherRefresh')) $('btnWeatherRefresh').onclick = ()=>{
+    toast('Запрашиваю архив погоды…'); refreshRealWeather(true);
+  };
+  if ($('btnWeatherNorms')) $('btnWeatherNorms').onclick = ()=>{
+    world.realWeather = null;
+    toast('Погода снова по многолетним нормам');
+    renderSettings(); renderAll(); saveNow(true);
+  };
+  if ($('btnInstall')) $('btnInstall').onclick = ()=>{
+    if (!deferredInstall) return toast('Браузер не предложил установку: откройте меню и выберите «Установить приложение»');
+    deferredInstall.prompt();
+    deferredInstall = null;
+    const b = $('btnInstall'); if (b) b.style.display = 'none';
+  };
+  if ($('btnPwaHelp')) $('btnPwaHelp').onclick = ()=>{
+    toast('Android/Chrome: меню ⋮ → «Установить приложение». iPhone/Safari: «Поделиться» → «На экран «Домой»».');
+  };
+  updatePwaState();
   document.querySelectorAll('[data-auto]').forEach(b=>b.onclick=()=>{
     const id = b.dataset.auto, cur = !!(world.auto[id] && world.auto[id].on);
     const r = setAuto(world, id, !cur);
@@ -1593,25 +1701,47 @@ function handleClick(cx, cy){
 }
 
 document.querySelectorAll('#camBar [data-view]').forEach(b=>b.onclick=()=>setCamMode(b.dataset.view));
+/* Клавиши: камеры и сцена — как раньше, плюс быстрые действия и страницы.
+   В полях ввода клавиши не перехватываются, иначе цифры в них не набрать. */
 window.addEventListener('keydown', e=>{
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+  const k = (e.key || '').toLowerCase();
+  if ((e.ctrlKey||e.metaKey) && k==='s'){ e.preventDefault(); saveNow(false); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   const map = {'1':'top','2':'front','3':'bed','4':'plant','5':'free'};
-  if (e.key.toLowerCase()==='l'){ toggleLayer(); return; }
-  if (map[e.key]) setCamMode(map[e.key]);
-  if (e.key===' '){ e.preventDefault(); togglePause(); }
-  if (e.key==='ArrowLeft'){ e.preventDefault(); camNudge(-0.12, 0); }
-  if (e.key==='ArrowRight'){ e.preventDefault(); camNudge(0.12, 0); }
-  if (e.key==='ArrowUp'){ e.preventDefault(); camNudge(0, -0.07); }
-  if (e.key==='ArrowDown'){ e.preventDefault(); camNudge(0, 0.07); }
-  if (e.key==='+' || e.key==='='){ camZoomBy(1.12); }
-  if (e.key==='-' || e.key==='_'){ camZoomBy(1/1.12); }
-  if (e.key.toLowerCase()==='r'){ resetCam(); }
-  if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); saveNow(false); }
+  if (map[e.key]){ setCamMode(map[e.key]); return; }
+  if (e.key===' '){ e.preventDefault(); togglePause(); return; }
+  if (e.key==='ArrowLeft'){ e.preventDefault(); camNudge(-0.12, 0); return; }
+  if (e.key==='ArrowRight'){ e.preventDefault(); camNudge(0.12, 0); return; }
+  if (e.key==='ArrowUp'){ e.preventDefault(); camNudge(0, -0.07); return; }
+  if (e.key==='ArrowDown'){ e.preventDefault(); camNudge(0, 0.07); return; }
+  if (e.key==='+' || e.key==='='){ camZoomBy(1.12); return; }
+  if (e.key==='-' || e.key==='_'){ camZoomBy(1/1.12); return; }
+  if (k==='r'){ resetCam(); return; }
+  if (k==='l'){ toggleLayer(); return; }
+  if (k==='escape'){
+    ['help','manual','pred','mailModal'].forEach(id=>{ const el=$(id); if (el) el.classList.remove('on'); });
+    if (page!=='greenhouse') setPage('greenhouse');
+    return;
+  }
+  // страницы
+  if (k==='g'){ setPage('greenhouse'); return; }
+  if (k==='m'){ setPage('shop'); return; }
+  if (k==='p'){ setPage('settings'); return; }
+  if (k==='f'){ const p=$('pred'); if (p) p.classList.toggle('on'); return; }
+  if (!world || world.over) return;
+  // быстрые действия теми же путями, что и кнопки под сценой
+  if (k==='h'){ const r=harvestAll(world); toast(r.n?`Собрано ${r.n} шт · ${num(r.kg)} кг → склад`:'Нет спелых плодов'); renderAll(); if (page==='shop') renderShop(); return; }
+  if (k==='b'){ const n=pruneLower(world,2); toast(n?`Обрезано ${n} листьев`:'Нечего обрезать'); renderAll(); return; }
+  if (k==='w'){ const r=water(world); toast(r.msg); if (r.ok){ syncLightButtons(); renderAll(); saveNow(true); } return; }
+  if (k==='d'){ const r=toggleLamp(world); toast(r.msg); if (r.ok){ syncLightButtons(); renderAll(); saveNow(true); } return; }
+  if (k==='s'){ if (!world.has.shade) return toast('Сначала купите затеняющую сетку'); world.ctrl.shadeOn=!world.ctrl.shadeOn; toast(world.ctrl.shadeOn?'Сетка опущена':'Сетка поднята'); syncLightButtons(); renderAll(); return; }
 });
 
 function togglePause(){
   paused = !paused;
-  $('btnPause').textContent = paused?'1:1':'1:1';
+  $('btnPause').textContent = paused ? 'пауза' : '⏸';
   $('btnPause').classList.toggle('on', paused);
   $('btnPause').title = paused ? 'Реальное время включено: час за час. Нажмите, чтобы вернуться к ускорению'
                                : 'Пауза: время замедлится до реального';
@@ -1721,6 +1851,84 @@ function renderAll(){
   tutorTick();
 }
 
+/* ---------------- Реальная погода: архив open-meteo ----------------
+   Берём последний год по точке старта и раскладываем по дням года:
+   температура и облачность вместо средних норм. Нет сети — молча
+   возвращаемся к нормам, потому что погода не должна ломать игру.      */
+function owDate(d){ return d.toISOString().slice(0,10); }
+async function fetchWeatherRows(site){
+  const end = new Date(Date.now() - 6*86400e3);
+  const start = new Date(end.getTime() - 364*86400e3);
+  const url = 'https://archive-api.open-meteo.com/v1/archive?latitude='+site.lat.toFixed(2)+
+    '&longitude='+site.lon.toFixed(2)+'&start_date='+owDate(start)+'&end_date='+owDate(end)+
+    '&daily=temperature_2m_mean,cloud_cover_mean&timezone=auto';
+  const r = await fetch(url, {cache:'no-store'});
+  if (!r.ok) throw new Error('ответ '+r.status);
+  const j = await r.json();
+  const days = (j.daily && j.daily.time) || [];
+  const rows = [];
+  for (let i=0;i<days.length;i++){
+    const d = new Date(days[i]+'T12:00:00');
+    if (isNaN(d.getTime())) continue;
+    const t = j.daily.temperature_2m_mean ? j.daily.temperature_2m_mean[i] : null;
+    const cl = j.daily.cloud_cover_mean ? j.daily.cloud_cover_mean[i] : null;
+    if (t === null || t === undefined) continue;
+    rows.push({doy: doyFromDate(d.getMonth()+1, d.getDate()), t:+t, cloud: cl==null?null:cl/100});
+  }
+  return rows;
+}
+async function refreshRealWeather(showToast){
+  const site = (world && world.site) || siteById(pending.site || 'ekb');
+  try {
+    const rows = await fetchWeatherRows(site);
+    if (!rows.length) throw new Error('пустой ответ');
+    if (!world) return rows;
+    applyWeatherTable(world, rows, {source:'open-meteo'});
+    if (showToast) toast('Погода за окном: '+rows.length+' дней из архива open-meteo');
+    if (page==='settings') renderSettings();
+    renderAll(); saveNow(true);
+    return rows;
+  } catch(e){
+    if (world){
+      world.realWeather = {error:'Не удалось получить архив ('+(e.message||'сеть')+')'};
+      if (showToast) toast('Архив недоступен — считаем по нормам');
+      if (page==='settings') renderSettings();
+      renderAll();
+    } else if (showToast) toast('Архив недоступен — считаем по нормам');
+    return null;
+  }
+}
+
+/* ---------------- PWA: установка и офлайн ----------------
+   Манифест и сервис-воркер лежат рядом с index.html, поэтому игра
+   ставится на телефон и открывается без сети. Если браузер не умеет —
+   всё работает как раньше, без единой ошибки.                        */
+let deferredInstall = null;
+function updatePwaState(){
+  const el = $('pwaState');
+  if (!el) return;
+  const nav = (typeof navigator !== 'undefined') ? navigator : {};
+  const mm = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(display-mode: standalone)') : null;
+  const standalone = (mm && mm.matches) || nav.standalone;
+  const proto = (typeof location !== 'undefined' && location.protocol) || '';
+  const swOK = !!(nav.serviceWorker && nav.serviceWorker.controller);
+  el.textContent = standalone ? 'запущено как приложение'
+                 : proto.indexOf('http')!==0 ? 'нужен адрес http (не файл)'
+                 : swOK ? 'готово к установке' : 'кэш включается при первом запуске';
+}
+if (typeof window !== 'undefined' && window.addEventListener){
+  window.addEventListener('beforeinstallprompt', e=>{
+    e.preventDefault(); deferredInstall = e;
+    const b = $('btnInstall'); if (b) b.style.display = '';
+  });
+  window.addEventListener('appinstalled', ()=>{ deferredInstall = null; toast('Приложение установлено'); updatePwaState(); });
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator &&
+      typeof location !== 'undefined' && location.protocol.indexOf('http')===0){
+    navigator.serviceWorker.register('sw.js').then(()=>updatePwaState()).catch(()=>updatePwaState());
+    navigator.serviceWorker.addEventListener('controllerchange', updatePwaState);
+  }
+}
+
 /* ---------------- главный цикл ---------------- */
 let frozen = false;                    // отладочный «стоп-кадр»: VG.freeze(true)
 function frame(now){
@@ -1764,13 +1972,35 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+/* Следующий сезон: хозяйство (деньги, оборудование, склад, глава, репутация)
+   переезжает, куст и история начинаются заново. */
+function startNextSeason(){
+  if (!world) return;
+  const prev = world;
+  const carry = carrySnapshot(prev);
+  const opts = { profile: prev.profile, crop: prev.crop, sys: prev.sys,
+    seed: (prev.seed + 7919) >>> 0, difficulty: prev.diffId, campaign: !!prev.camp,
+    site: (prev.site && prev.site.id) || 'ekb', orient: (prev.site && prev.site.orient) || 'S',
+    startDoy: prev.doy, carry, weather: prev.weather };
+  world = makeWorld(opts);
+  if (prev.realWeather && prev.realWeather.t) world.realWeather = prev.realWeather;
+  if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
+  document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
+  endShown = false; paused = false; speed = 64; acc = 0; lastT = performance.now(); fc = null;
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
+  $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
+  setPage('greenhouse'); renderAll(); saveNow(true);
+  toast(`Сезон ${world.seasons}: хозяйство перенесено · репутация ${world.rep} · баланс ${money(world.money)}`);
+}
+
 function showEnd(){
   endShown = true;
   const w = world;
   const cost = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const profit = w.money - w.startMoney;
   const kgm2 = w.harvestedKg/w.area;
-  const kwhm2 = w.energyKWh/w.area;
+  const kwhSum = w.energyTotal || w.energyKWh || 0;
+  const kwhm2 = kwhSum/w.area;
   const verdict = profit > w.startMoney*0.4
     ? 'Отличный сезон: климат, свет и питание сработали вместе.'
     : profit > 0
@@ -1786,14 +2016,24 @@ function showEnd(){
     <div class="kv"><span>Урожай</span><b>${num(w.harvestedKg)} кг · ${kgm2.toFixed(1)} кг/м²</b></div>
     <div class="kv"><span>Выручка</span><b>${money(w.revenue)}</b></div>
     <div class="kv"><span>Затраты всего</span><b>−${money(cost)}</b></div>
-    <div class="kv"><span>Энергия</span><b>${num(w.energyKWh)} кВт·ч · ${kwhm2.toFixed(0)} кВт·ч/м²</b></div>
+    <div class="kv"><span>Энергия за сезон</span><b>${num(Math.round(kwhSum))} кВт·ч · ${kwhm2.toFixed(0)} кВт·ч/м²</b></div>
     <div class="kv"><span>Инцидентов</span><b>${w.incidents||0}</b></div>
     <div class="kv"><span>Заданий выполнено</span><b>${w.missionsDone}</b></div>
+    <div class="kv"><span>Себестоимость 1 кг</span><b>${costPerKg(w)==null?'—':money2(costPerKg(w))} · цена дня ${money2(priceToday(w,w.crop))}</b></div>
+    <div class="kv"><span>Свет за сутки</span><b>${(()=>{ const hs=(w.history||[]).filter(h=>h.dli>0); return hs.length?'в среднем '+ (hs.reduce((a,b)=>a+b.dli,0)/hs.length).toFixed(1)+' моль/м²':'—'; })()}</b></div>
+    <div class="kv"><span>Репутация</span><b>${w.rep||0}${w.carry?' · перенесена':''}</b></div>
     <div class="kv"><span>Итог</span><b class="${profit>=0?'pos':'neg'}">${money(profit)}</b></div>
     <div class="hint" style="margin-top:10px">${verdict}</div>
-    <p style="margin-top:14px"><button class="btn good" onclick="location.reload()">Новый сезон</button></p>
+    <div class="hint" style="margin-top:8px">Следующий сезон: деньги (и долг), оборудование, склад, глава кампании и репутация
+      переезжают. Куст, история и рынок начинаются заново.${
+        profit < 0 ? '<br><b style="color:var(--warn)">Баланс в минусе: он переедет как долг хозяйства. Если это не по силам — «Начать заново».</b>' : ''}</div>
+    <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn good" id="btnNextSeason">Следующий сезон с хозяйством</button>
+      <button class="btn" onclick="location.reload()">Начать заново</button></p>
   </div>`;
   document.body.appendChild(div);
+  const nb = div.querySelector('#btnNextSeason');
+  if (nb) nb.onclick = ()=>{ div.remove(); startNextSeason(); };
 }
 
 window.addEventListener('pagehide', ()=>{ if (world && !world.over) saveNow(true); });
