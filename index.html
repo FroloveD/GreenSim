@@ -5000,7 +5000,8 @@ function setPage(p){
   canvas.style.display = (p==='greenhouse') ? 'block' : 'none';
   if (p==='shop') renderShop();
   if (p==='settings') renderSettings();
-  renderTutor();
+  tutorTick();
+  if (p==='shop') renderShop(); // после перехода на шаг покупки подсветить нужную карточку
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setPage(b.dataset.tab));
 
@@ -5736,7 +5737,7 @@ function renderShop(){
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
     const r = buyItem(world, b.dataset.buy);
     toast(r.msg);
-    renderShop(); renderAll();
+    renderAll(); renderShop();
   });
   document.querySelectorAll('[data-contract]').forEach(b=>b.onclick=()=>{
     if (signContract(world, +b.dataset.contract)){ toast('Контракт подписан'); renderShop(); }
