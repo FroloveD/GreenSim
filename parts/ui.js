@@ -1485,7 +1485,7 @@ function renderPred(){
     <div class="hint" style="margin-top:6px">Оценка: копия вашего мира с текущими настройками, независимой погодой и ежедневным сбором. Это оценка, а не гарантия.</div>`;
 }
 
-/* ---------------- обучение: 5 шагов на первые дни ---------------- */
+/* ---------------- обучение: 7 практических шагов ---------------- */
 let tutorStep = 0, tutorDone = false;
 const tutorFlags = { cam:false, pred:false };
 function resetTutorFlags(){ for (const k in tutorFlags) tutorFlags[k] = false; }
@@ -1501,7 +1501,7 @@ const TUTOR = [
     done:()=>world.ctrl.co2Set >= 800 },
   { text:'Влага в горшке падает от испарения. Когда датчик покажет меньше 40 %, нажмите «Полить» под сценой или щёлкните по горшку: одна доза — 15 %. Держите 45–60 %.',
     done:()=>(world.wateredTotalL||0) > 0 },
-  { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр ${money(28)}, клейкие ловушки ${money(45)}, бочка воды ${money(90)} — купите одну вещь.',
+  { text:`В «Магазине» есть недорогие улучшения: термометр-гигрометр ${money(28)}, клейкие ловушки ${money(45)}, бочка воды ${money(90)} — купите одну вещь.`,
     done:()=>world.has.alarm||world.has.sticky||world.has.circFan||world.has.handDose||
             world.has.humid||world.has.ups||world.has.film||world.has.climatePC||world.has.ledStrip },
   { text:'Нажмите «Прогноз» сверху и постройте прогноз на 7 дней — так проверяют решение до трат.',
@@ -1533,10 +1533,7 @@ function renderTutor(){
 }
 function tutorTick(){
   if (!world || tutorDone) return;
-  // подсказки актуальны первые дни; дальше не мешаем
-  if (world.day > 5 && tutorStep < TUTOR.length){
-    tutorDone = true; $('tutor').classList.remove('on'); return;
-  }
+  // Не закрываем обучение по календарю: игрок может проходить шаги в своём темпе.
   while (tutorStep < TUTOR.length && TUTOR[tutorStep].done()) tutorStep++;
   if (tutorStep >= TUTOR.length){
     tutorDone = true;
