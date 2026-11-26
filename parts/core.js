@@ -265,7 +265,8 @@ const NET = {
 function netCost(w){ return Math.round(NET.cost*Math.pow(NET.costGrow, (w.net.houses||[]).length)); }
 function netGrossDay(w, h){
   const kg = (NET.kgM2Day[h.crop] || 0.15)*NET.area*NET.eff;
-  const price = CROPS[h.crop].price*(w.market&&w.market.mult?w.market.mult[h.crop]:1)*NET.priceF;
+  const price = CROPS[h.crop].price*(w.market&&w.market.mult?w.market.mult[h.crop]:1)*
+                seasonFactor(h.crop, w.doy)*NET.priceF;
   return {kg, price, gross: kg*price, opex: NET.opexM2Day*NET.area};
 }
 function netNetDay(w, h){ const g = netGrossDay(w, h); return g.gross - g.opex; }
@@ -312,6 +313,9 @@ const GEAR = {
   thermo:     {ch:0, why:'Датчик врёт — вы об этом не знаете. Второй прибор рядом покажет расхождение, и будет видно, когда пора калибровать.'},
   sticky:     {ch:0, why:'Клещ заводится в сухом тёплом воздухе и сначала незаметен. Ловушки ловят его до того, как он съест листья.'},
   ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку; включается вручную в «Параметрах», будильник напомнит.'},
+  windowFilm: {ch:0, why:'Зимой балкон теряет тепло через рамы быстрее, чем растение успевает расти. Плёнка в два слоя срезает потери почти на треть и стоит копейки.'},
+  heaterMini: {ch:0, why:'Штатного «тепла» на балконе 0,08 кВт — это ничто при −10 °C. Обогреватель 0,6 кВт держит ночь, но электричество идёт в расходы.'},
+  strip2:     {ch:0, why:'Короткий день зимой не закрывается одной лентой. Вторая добавляет +50% света к полосе — при том же таймере.'},
   water:      {ch:0, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
   fert20:     {ch:0, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
   whSection:  {ch:0, why:'Склад не резиновый: нет места — урожай останется на грядке. Каждая секция тянет содержание, поэтому расширяйте под объём.'},
@@ -692,7 +696,7 @@ function computeLight(w, dtH){
     const dirAbs = directIn*T*Math.max(cosSun, 0.03);
     const difAbs = diffuseIn*Math.exp(-0.6*laiAbove)*0.45;
     const lampAbs = (lampOn ? lampPPFD*Math.exp(-0.6*laiAbove)*0.55 : 0)
-                  + (stripOn ? 60*Math.exp(-0.8*laiAbove)*0.5 : 0);
+                  + (stripOn ? (w.has.strip2?90:60)*Math.exp(-0.8*laiAbove)*0.5 : 0);
     const I = 0.86*(dirAbs + difAbs + lampAbs);
     L.lf.Iabs = I;
     L.lf.relLight = clamp(I/420, 0.05, 1.2);
@@ -832,8 +836,11 @@ function climateSub(w, dtH, C){
   }
   const travel = dtH/0.30;                      // полный ход ≈ 18 мин
   w.act.vent += clamp(ventTarget - w.act.vent, -travel, travel);
+  // тепло: термоэкран/плёнка-экран работают как «одеяло», плёнка на рамы —
+  // как второй слой; для балкона это единственный способ пережить зиму
   const screenF = (w.has.screen && c.screenOn) ? 0.45 : (w.has.film ? 0.68 : 1);
-  const ua = E.UA*screenF + E.UAvent*w.act.vent;
+  const wrapF = w.has.windowFilm ? 0.72 : 1;
+  const ua = E.UA*screenF*wrapF + E.UAvent*w.act.vent;
 
   // --- транспирация ---
   const lai = totalLAI(w);
@@ -845,11 +852,14 @@ function climateSub(w, dtH, C){
   // --- приход тепла ---
   const shadeF = (w.has.shade && c.shadeOn) ? 0.55 : 1;
   const solarGain = out.ppfd*0.48*w.area*CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade)*0.85*shadeF;
-  const lampHeat = ((w.light.lampOn ? E.lampKW : 0) + (w.light.stripOn ? 0.1 : 0))*1000*0.9;
+  const lampHeat = ((w.light.lampOn ? E.lampKW : 0) + (w.light.stripOn ? (w.has.strip2?0.15:0.1) : 0))*1000*0.9;
   const heaterOK = w.equip.heater.ok && (w.power || w.has.ups);
   let heatIn = 0;
+  // на балконе штатного котла почти нет (0.08 кВт на 4 м²) — зимой нужен
+  // обогреватель: +0.6 кВт, но и счётчик крутится
+  const heatCapKW = E.heatKW + (w.has.heatBoost ? 0.6 : 0);
   if (heaterOK && w.temp < c.heatSet){
-    heatIn = E.heatKW*1000*clamp((c.heatSet - w.temp)/(w.has.climatePC?0.6:1.0), 0, 1);
+    heatIn = heatCapKW*1000*clamp((c.heatSet - w.temp)/(w.has.climatePC?0.6:1.0), 0, 1);
   }
   w.heatUse = heatIn/1000;
 
@@ -921,13 +931,13 @@ function climateSub(w, dtH, C){
 
   // --- деньги ---
   const eurHeat = w.heatUse*dtH*CFG.energyPrice;
-  const eurLamp = ((w.light.lampOn? E.lampKW:0) + (w.light.stripOn? 0.1:0))*dtH*CFG.energyPrice;
+  const eurLamp = ((w.light.lampOn? E.lampKW:0) + (w.light.stripOn? (w.has.strip2?0.15:0.1):0))*dtH*CFG.energyPrice;
   const co2Kg = injG*dtH/1000;
   const eurCO2 = co2Kg*CFG.co2Price;
   w.useCo2Kg = (w.useCo2Kg||0) + co2Kg;
   w.cost.energy += eurHeat; w.cost.lamp += eurLamp; w.cost.co2 += eurCO2;
   w.money -= (eurHeat+eurLamp+eurCO2);
-  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? 0.1:0))*dtH;
+  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? (w.has.strip2?0.15:0.1):0))*dtH;
   return w;
 }
 
@@ -1300,11 +1310,34 @@ function addLot(w, crop, kg, quality){
   return {put, lost};
 }
 
+/* ---------------- Рынок цен ----------------
+   Цена = базовая × профиль × сезон × недельный шум.
+   Сезон — это настоящая аграрная кривая: тепличный томат дорог зимой и в начале
+   весны (своего урожая нет, везут издалека) и дешевеет к августу, когда рынок
+   завален. Индексы округлённые, по обычной для России динамике оптовых цен.   */
+const PRICE_SEASON = {
+  tomato:  [1.32, 1.38, 1.30, 1.12, 0.97, 0.86, 0.74, 0.71, 0.79, 0.94, 1.12, 1.26],
+  cherry:  [1.26, 1.30, 1.24, 1.10, 0.98, 0.90, 0.82, 0.80, 0.86, 0.97, 1.10, 1.22],
+  cucumber: [1.40, 1.46, 1.34, 1.06, 0.86, 0.76, 0.66, 0.65, 0.76, 0.93, 1.16, 1.34],
+  lettuce: [1.18, 1.20, 1.14, 1.06, 0.98, 0.93, 0.91, 0.93, 0.99, 1.05, 1.11, 1.16]
+};
+/* сезонный множитель на конкретный день года */
+function seasonFactor(crop, doy){
+  const S = PRICE_SEASON[crop] || PRICE_SEASON.tomato;
+  return normAt(S, doy);
+}
+/* что будет с ценой через N дней — для подсказки «продать или подождать» */
+function seasonAhead(w, crop, days){
+  const now = seasonFactor(crop, w.doy);
+  const next = seasonFactor(crop, w.doy + (days||7));
+  return {now, next, pct: now ? (next/now - 1) : 0};
+}
+
 /* ---------------- Рынок цен ---------------- */
 function priceToday(w, crop){
   const C = CROPS[crop||w.crop];
   const m = (w.market && w.market.mult && w.market.mult[C.id]) || 1;
-  return C.price * w.profilePriceF * m;
+  return C.price * w.profilePriceF * seasonFactor(C.id, w.doy) * m;
 }
 function marketTrend(w, crop){
   const h = (w.market.hist[crop]||[]);
@@ -1314,13 +1347,15 @@ function marketTick(w){
   if (!w.market) return;
   for (const id in CROPS){
     const m = w.market.mult[id] || 1;
-    // медленный дрейф: цена ходит вокруг базовой, изредка «выстреливает»
-    let next = m + (rnd(w)-0.5)*0.09;
-    if (rnd(w) < 0.05) next += (rnd(w)-0.4)*0.28;
-    next = clamp(next, 0.72, 1.34);
+    // шум ходит вокруг СЕЗОННОЙ нормы: ±15% за неделю плюс редкий «выстрел»
+    let next = m + (rnd(w)-0.5)*0.06;
+    if (rnd(w) < 0.06) next += (rnd(w)-0.45)*0.22;
+    next = clamp(next, 0.82, 1.18);
     w.market.mult[id] = next;
+    // в историю пишем итоговую цену (сезон × шум) — по ней рисуется график
+    const eff = seasonFactor(id, w.doy) * next;
     const h = w.market.hist[id] = w.market.hist[id] || [];
-    h.push(next); if (h.length > 14) h.shift();
+    h.push(+eff.toFixed(3)); if (h.length > 30) h.shift();
   }
 }
 
@@ -1358,7 +1393,7 @@ function sellHarvest(w, crop, kgWant){
     if (left <= 0.01) break;
     const take = Math.min(lot.kg, left);
     const kq = lotQuality(lot);
-    kg += take; eur += take*CROPS[crop].price*w.profilePriceF*((w.market.mult[crop])||1)*kq;
+    kg += take; eur += take*priceToday(w, crop)*kq;
     lot.kg -= take; left -= take;
   }
   w.wh.lots = w.wh.lots.filter(l=>l.kg > 0.05);
@@ -1381,7 +1416,8 @@ function deliverContract(w, id){
   for (const lot of lots){
     if (left <= 0.01) break;
     const k = Math.min(lot.kg, left);
-    eur += k*CROPS[ct.crop].price*w.profilePriceF*ct.priceMult*lotQuality(lot);
+    // контракт фиксирует цену в момент подписания: она не ходит вместе с рынком
+    eur += k*(ct.priceLock || CROPS[ct.crop].price*w.profilePriceF*ct.priceMult)*lotQuality(lot);
     lot.kg -= k; left -= k;
   }
   w.wh.lots = w.wh.lots.filter(l=>l.kg > 0.05);
@@ -1501,10 +1537,12 @@ function offerContracts(w){
   const baseKg = Math.round(w.plantScale*C.fruitFresh*2*(w.profile==='agro'?3:1));
   return [
     {id:'wholesale', crop:w.crop, label:'Сетевой контракт', kg: baseKg*3,
-     priceMult:1.25, bonus: Math.round(baseKg*3*C.price*0.12), deadline: w.day+30,
+     priceMult:1.25, priceLock:+(priceToday(w, w.crop)*1.25).toFixed(3),
+     bonus: Math.round(baseKg*3*C.price*0.12), deadline: w.day+30,
      desc:`Поставить ${baseKg*3} кг к ${fmtDate(w.doy+30)}; штраф за недопоставку ${money(400)}`},
     {id:'premium', crop:w.crop, label:'Премиум-партия', kg: baseKg*2,
-     priceMult:1.6, bonus: Math.round(baseKg*2*C.price*0.35), deadline: w.day+20,
+     priceMult:1.6, priceLock:+(priceToday(w, w.crop)*1.6).toFixed(3),
+     bonus: Math.round(baseKg*2*C.price*0.35), deadline: w.day+20,
      desc:`${baseKg*2} кг к ${fmtDate(w.doy+20)} с бонусом за качество`}
   ];
 }
@@ -1608,6 +1646,7 @@ function makeWorld(opts){
     // его нет (в кампании он появляется вместе с теплицей), иначе игрок получал
     // «отказ клапана CO₂» на 4 м², где никакого клапана не покупали
     has: { led:false, lampBase:true, screen:false, shade:false,
+           windowFilm:false, heatBoost:false, strip2:false,
            co2: opts.campaign ? false : (P.id!=='balcony' && P.id!=='room'),
            dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
@@ -1970,6 +2009,15 @@ const SHOP_ITEMS = () => ([
     {id:'ledStrip', noScale:true, name:'LED-лента 2×50 Вт на грядку', base:220,
      desc:'+60 µmol/м²·с досветки, включается вручную (будильник напомнит)',
      buy:w=>{ w.has.ledStrip = true; }},
+    {id:'windowFilm', noScale:true, name:'Плёнка на рамы (2 слоя)', base:70,
+     desc:'−28% теплопотерь: зимой на балконе это разница между «стоит» и «растёт»',
+     buy:w=>{ w.has.windowFilm = true; }},
+    {id:'heaterMini', noScale:true, name:'Обогреватель 0,6 кВт', base:190,
+     desc:'+0,6 кВт тепла: держит ночную температуру у порога культуры (ест электричество)',
+     buy:w=>{ w.has.heatBoost = true; }},
+    {id:'strip2', noScale:true, name:'Вторая LED-лента (+50% света)', base:160,
+     desc:'+30 µmol к ленте: короткий зимний день перестаёт быть приговором',
+     req:w=>!!w.has.ledStrip, buy:w=>{ w.has.strip2 = true; }},
     {id:'humid', noScale:true, name:'Увлажнитель-туман 5 л/ч', base:260,
      desc:'поднимает влажность в жару (расход воды)',
      buy:w=>{ w.has.humid = true; }},
@@ -2203,6 +2251,8 @@ function deserializeWorld(text){
   if (!w.site.az) w.site.az = ORIENTS[w.site.orient || 'S'] ? ORIENTS[w.site.orient || 'S'].az : 180;
   if (w.startDoy === undefined) w.startDoy = ((w.doy - (w.day||1)) % 365 + 365) % 365 || 91;
   if (!w.warranty) w.warranty = [];
+  // миграция: зимнее снаряжение появилось позже
+  for (const k of ['windowFilm','heatBoost','strip2']) if (w.has && w.has[k] === undefined) w.has[k] = false;
   for (const k in (w.equip||{})){
     const eq = w.equip[k];
     if (eq.since === undefined) eq.since = 1;
@@ -2246,6 +2296,11 @@ function diagnose(w){
   if (w.pest.active)         push('bad', `Клещ ${Math.round(w.pest.level*100)}%: −${Math.round(35*w.pest.level)}% ассимиляции`);
   if (w.stress > 0.08)       push('warn', `Стресс климата ${Math.round(w.stress*100)}%: ${w.temp > C.tempOpt ? 'жарко' : 'холодно'} для этой культуры`);
   if (lai < 0.55)            push('warn', `Мало листвы (LAI ${lai.toFixed(2)}): нечему ловить свет — дайте кусту дорасти`);
+  // зима на балконе: без утепления и обогрева куст просто стоит
+  if (w.profile === 'balcony' && (w.out.temp||0) < 8 && !w.has.windowFilm)
+    push('warn', 'Холод снаружи: рамы теряют тепло — «Плёнка на рамы» в магазине срезает потери на 28%');
+  if (w.profile === 'balcony' && (w.out.temp||0) < 5 && !w.has.heatBoost)
+    push('warn', 'Ночи холодные: «Обогреватель 0,6 кВт» держит температуру у порога культуры (ест электричество)');
   if (w.co2 < 450)           push('warn', `CO₂ ${Math.round(w.co2)} ppm: фотосинтез недобирает до ${Math.round(Math.max(0,(1-w.co2/700))*30)}%`);
   if (nut < 0.9)             push('warn', `Питание ${Math.round(nut*100)}% от нормы: проверьте EC/pH и запас удобрений`);
   if (w.hour > 8 && w.hour < 18 && (w.light.meanLeaf||0) < 120 && (w.out.ppfd||0) > 250)
