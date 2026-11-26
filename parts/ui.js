@@ -1126,6 +1126,15 @@ function renderSettings(){
         <button class="btn" id="btnWeatherNorms">Вернуться к нормам</button>
       </div>
     </div>
+    <div class="card" id="pwaCard">
+      <div class="h"><b>Приложение</b></div>
+      <div class="kv"><span>режим</span><b id="pwaState">проверяю…</b></div>
+      <div class="hint" style="margin-bottom:8px">Игра устанавливается на устройство и может запускаться без сети. Сохранение остаётся в браузере.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn good" id="btnInstall" style="display:none">Установить на устройство</button>
+        <button class="btn" id="btnPwaHelp">Как установить</button>
+      </div>
+    </div>
     <div class="card" id="autoCard">
       <div class="h"><b>Таймеры и автоматизация</b></div>
       ${AUTO_KEYS.map(k=>{
@@ -1290,6 +1299,15 @@ function renderSettings(){
     world.realWeather=null; toast('Погода снова по нормам');
     renderSettings(); renderAll(); saveNow(true);
   };
+  if ($('btnInstall')) $('btnInstall').onclick = ()=>{
+    if (!deferredInstall) return toast('Браузер не предложил установку: откройте меню браузера и выберите «Установить приложение»');
+    deferredInstall.prompt(); deferredInstall=null;
+    const b=$('btnInstall'); if(b) b.style.display='none';
+  };
+  if ($('btnPwaHelp')) $('btnPwaHelp').onclick = ()=>{
+    toast('Android/Chrome: меню ⋮ → «Установить приложение». iPhone/Safari: «Поделиться» → «На экран «Домой»».');
+  };
+  updatePwaState();
   // Рецепт фазы: устанавливаем середину диапазонов EC и pH для текущей культуры.
   if ($('btnRecipeApply')) $('btnRecipeApply').onclick = ()=>{
     const R = stageRecipe(world);
@@ -1952,6 +1970,36 @@ async function refreshRealWeather(showToast){
       renderAll();
     } else if (showToast) toast('Архив недоступен — считаем по нормам');
     return null;
+  }
+}
+
+/* ---------------- PWA: установка и офлайн ----------------
+   Service worker обновляет index.html по сети и использует кэш при офлайне. */
+let deferredInstall = null;
+function updatePwaState(){
+  const el = $('pwaState');
+  if (!el) return;
+  const nav = (typeof navigator !== 'undefined') ? navigator : {};
+  const mm = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(display-mode: standalone)') : null;
+  const standalone = (mm && mm.matches) || nav.standalone;
+  const proto = (typeof location !== 'undefined' && location.protocol) || '';
+  const swOK = !!(nav.serviceWorker && nav.serviceWorker.controller);
+  el.textContent = standalone ? 'запущено как приложение'
+    : proto.indexOf('http')!==0 ? 'нужен адрес http (не файл)'
+    : swOK ? 'готово к установке' : 'кэш включается при первом запуске';
+}
+if (typeof window !== 'undefined' && window.addEventListener){
+  window.addEventListener('beforeinstallprompt', e=>{
+    e.preventDefault(); deferredInstall=e;
+    const b=$('btnInstall'); if(b) b.style.display='';
+  });
+  window.addEventListener('appinstalled', ()=>{
+    deferredInstall=null; toast('Приложение установлено'); updatePwaState();
+  });
+  if (typeof navigator!=='undefined' && 'serviceWorker' in navigator &&
+      typeof location!=='undefined' && location.protocol.indexOf('http')===0){
+    navigator.serviceWorker.register('sw.js').then(()=>updatePwaState()).catch(()=>updatePwaState());
+    navigator.serviceWorker.addEventListener('controllerchange',updatePwaState);
   }
 }
 
