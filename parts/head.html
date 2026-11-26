@@ -502,6 +502,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .climate-control .climate-value{font:10px var(--mono);white-space:nowrap}
   .climate-control input{grid-column:1/-1;width:100%;margin:1px 0 3px}
   .climate-control.is-disabled{opacity:.45}
+  .climate-controls>.hint,#ghCo2Hint{display:none!important}
   #dashGrid .col.left>[data-p="climate"]{overflow-y:auto;scrollbar-width:thin}
   @media(max-width:720px){.climate-controls{gap:7px}.climate-control label{font-size:11px}}
 
@@ -581,17 +582,17 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
         <div id="gauges"></div>
         <div id="climateControls" class="climate-controls">
           <div class="climate-control">
-            <label for="ghHeat">Отопление включать ниже</label>
+            <label for="ghHeat" class="sensor-label" data-tip-key="heatSet" data-tip="Порог температуры: если воздух холоднее заданного значения, система отопления получает команду включиться." tabindex="0" role="button">Отопление включать ниже<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghHeatVal">—</b></div>
             <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="0">
           </div>
           <div class="climate-control">
-            <label for="ghVent">Проветривание включать выше</label>
+            <label for="ghVent" class="sensor-label" data-tip-key="ventSet" data-tip="Порог проветривания: при превышении температуры открывается вентиляция, чтобы отводить лишнее тепло." tabindex="0" role="button">Проветривание включать выше<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghVentVal">—</b></div>
             <input id="ghVent" type="range" min="14" max="38" step="0.5" value="0">
           </div>
           <div class="climate-control" id="ghCo2Control">
-            <label for="ghCo2">Целевой CO₂</label>
+            <label for="ghCo2" class="sensor-label" data-tip-key="co2Set" data-tip="Целевая концентрация CO₂ для обогащения воздуха. Используйте её только при наличии оборудования и достаточном освещении." tabindex="0" role="button">Целевой CO₂<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghCo2Val">—</b></div>
             <input id="ghCo2" type="range" min="400" max="1200" step="25" value="0">
             <div class="hint" id="ghCo2Hint"></div>
