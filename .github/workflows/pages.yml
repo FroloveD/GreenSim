@@ -1,4 +1,4 @@
-﻿name: Deploy to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -10,11 +10,14 @@ permissions:
   pages: write
   id-token: write
 
+# не отменяем уже начавшуюся публикацию: прерванный деплой оставляет
+# артефакт github-pages «висящим» и следующий запуск падает на дубликате
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  # 1. СБОРКА: проверяем, что index.html собран из parts/* и не пустой
   build:
     runs-on: ubuntu-latest
     steps:
@@ -26,9 +29,11 @@ jobs:
           echo "index.html: $(wc -c < index.html) байт"
           bash build.sh
           if ! git diff --quiet -- index.html; then
-            echo "::error::index.html не совпадает со сборкой из parts/*. Запустите ./build.sh и закоммитьте."
+            echo "::error::index.html в репозитории не совпадает со сборкой из parts/*. Запустите ./build.sh локально и закоммитьте."
+            git diff --stat -- index.html
             exit 1
           fi
+          echo "сборка синхронна с parts/*"
 
       - uses: actions/configure-pages@v6
 
@@ -36,6 +41,8 @@ jobs:
         with:
           path: .
 
+  # 2. ПУБЛИКАЦИЯ: отдельная job — артефакт к этому моменту уже проиндексирован
+  #    (в одной job'е deploy-pages иногда не видит свежий артефакт, см. actions/deploy-pages#451)
   deploy:
     needs: build
     runs-on: ubuntu-latest

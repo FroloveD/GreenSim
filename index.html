@@ -476,7 +476,7 @@
         <button class="btn" id="btnPrune">Обрезать нижние листья</button>
         <button class="btn" id="btnLampQuick">Досветка</button>
         <button class="btn" id="btnShadeQuick">Затенение</button>
-        <span class="hint" id="sceneHint">клик по плоду — сбор · по листу — обрезка · по растению — фокус</span>
+        <span class="hint" id="sceneHint">клик по плоду — сбор · по листу — обрезка · по лампе — свет вкл/выкл</span>
       </div>
     </div>
 
@@ -1708,6 +1708,12 @@ const EQUIP_DEFS = {
 function hasLight(w){
   return !!(w && w.has && (w.has.led || w.has.ledStrip || w.has.lampBase));
 }
+/* горит ли свет прямо сейчас. Лампа и лента — два разных флага (лента дешевле
+   и слабее), а игроку важно одно: свет есть или нет. Раньше сцена смотрела
+   только на light.lampOn и при одной ленте оставалась тёмной. */
+function lightLit(w){
+  return !!(w && w.light && (w.light.lampOn || w.light.stripOn));
+}
 function lightName(w){
   if (!w) return 'нет';
   if (w.has.led) return 'LED-досветка';
@@ -1715,6 +1721,22 @@ function lightName(w){
   if (w.has.lampBase) return 'лампа-лента';
   return 'нет';
 }
+/* Включить/выключить досветку. Одна функция на все входы: кнопка «Досветка»
+   в панели под сценой, клик по светильнику в сцене и переключатель в
+   «Параметрах». Раньше каждый вход проверял своё (кнопка требовала именно
+   LED за 2800 € и при дешёвой ленте отвечала «купите LED»). */
+function toggleLamp(w){
+  if (!w || !w.has || !hasLight(w))
+    return {ok:false, on:false, name:'нет', msg:'Лампы нет — купите в магазине'};
+  w.ctrl.lampEnabled = !w.ctrl.lampEnabled;
+  const on = !!w.ctrl.lampEnabled;
+  w.ctrl.lampOn = on && !!w.power && hasLight(w);
+  const name = lightName(w);
+  let msg = on ? name+': включена' : 'Досветка выключена — за свет не платите';
+  if (on && !w.power) msg = name+': включена, но нет электричества';
+  return {ok:true, on, name, msg};
+}
+
 /* сколько дней проживут баки при вчерашнем расходе (null — данных ещё нет) */
 function tankDays(w, what){
   const last = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
@@ -2066,7 +2088,7 @@ function checkContracts(w){
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
    need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (лампа покупается в магазине)', reward:90,
+  {id:'m2', text:'Включите досветку кнопкой под сценой или кликом по лампе (сама лампа покупается в магазине)', reward:90,
    need:w=>!!(w.has.led||w.has.ledStrip||w.has.lampBase), check:w=>!w.ctrl.lampEnabled?false:(!!(w.has.led||w.has.ledStrip))},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
@@ -2335,7 +2357,7 @@ const SHOP_ITEMS = () => ([
      buy:w=>{ w.has.climatePC = true; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
-    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, работает 4:30–21:00',
+    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, включается вручную',
      buy:w=>{ w.has.led = true; }},
     {id:'ledBoost', name:'Форсирование LED (+50%)', base:2600, desc:'280 µmol, +энергия',
      req:w=>w.has.led, buy:w=>{ w.upg.ledBoost = true; }},
@@ -2995,14 +3017,22 @@ function drawScene(){
     }});
   }
 
-  // досветка
-  if (world.light.lampOn){
+  // досветка: светильники видны всегда, когда лампа есть — иначе по выключенной
+  // лампе некуда щёлкнуть. Горит — тёплый блик, выключена — серый корпус.
+  if (hasLight(world)){
+    const lit = lightLit(world);
     for (let i=0;i<4;i++){
       const x = 0.6+i*0.94;
       items.push({z: depthOf({x, y:CFG.ridgeY-0.42, z:1.5}), draw(){
         poly([{x:x-0.1,y:CFG.ridgeY-0.42,z:1.28},{x:x+0.1,y:CFG.ridgeY-0.42,z:1.28},
               {x:x+0.1,y:CFG.ridgeY-0.42,z:1.72},{x:x-0.1,y:CFG.ridgeY-0.42,z:1.72}],
-              'rgba(255,235,170,.75)');
+              lit ? 'rgba(255,235,170,.85)' : 'rgba(64,58,48,.92)');
+        if (!lit){                       // выключен: тёмный корпус с тонкой кромкой
+          const q = project({x, y:CFG.ridgeY-0.42, z:1.5});
+          ctx.strokeStyle = 'rgba(200,190,164,.45)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(3, 0.02*q.s), 0, 6.2832); ctx.stroke();
+          return;
+        }
         const q = project({x, y:CFG.ridgeY-0.42, z:1.5});
         const g = ctx.createRadialGradient(q.x,q.y,2,q.x,q.y,150);
         g.addColorStop(0,'rgba(255,230,150,.12)'); g.addColorStop(1,'rgba(255,230,150,0)');
@@ -3275,11 +3305,24 @@ function drawVessel(p){
 }
 
 /* ---------- клики по сцене ---------- */
+/* центры светильников досветки: по ним же рисуется свет и ловится клик */
+function lampSpots(){
+  const out = [];
+  if (!world || !hasLight(world)) return out;
+  for (let i=0;i<4;i++) out.push({x:0.6+i*0.94, y:CFG.ridgeY-0.42, z:1.5});
+  return out;
+}
 function hitTest(cx, cy){
   refreshView();
   const C = CROPS[world.crop];
   const rect = canvas.getBoundingClientRect();
   const x = cx-rect.left, y = cy-rect.top;
+  // 0) светильник досветки — клик включает и выключает лампу
+  for (const sp of lampSpots()){
+    const q = project(sp);
+    const rr = Math.max(11, 0.075*q.s);
+    if (Math.hypot(q.x-x, q.y-y) < rr) return {kind:'lamp'};
+  }
   // 1) плоды
   for (const p of world.plants) for (const tr of p.trusses){
     for (let fi=0; fi<tr.fruits.length; fi++){
@@ -3312,6 +3355,15 @@ function hitTest(cx, cy){
 function organInfo(hit){
   if (!hit) return null;
   const C = CROPS[world.crop];
+  if (hit.kind==='lamp'){
+    const lit = lightLit(world);
+    return {title:'Досветка', rows:[
+      ['лампа', lightName(world)],
+      ['состояние', lit ? 'горит' : (world.ctrl.lampEnabled ? 'включена, но нет электричества' : 'выключена')],
+      ['свет', lit ? '+'+(world.has.led?(world.upg.ledBoost?280:190):(world.has.ledStrip?60:90))+' µmol/м²·с' : '0 µmol/м²·с'],
+      ['клик', lit ? 'выключить лампу' : 'включить лампу']
+    ]};
+  }
   if (hit.kind==='fruit'){
     const f = hit.fruit;
     const grams = (f.mass/C.fruitSink)*C.fruitFresh*1000;
@@ -3945,7 +3997,7 @@ function renderAlerts(){
   if (hasLight(w) && w.ctrl.alarmOn){
     const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
     const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
-    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу в «Параметрах»`]);
+    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу кнопкой «Досветка» под сценой`]);
     if (!inside && w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: окно закончилось — выключите лампу, она ест электричество впустую`]);
   } else if (hasLight(w) && w.ctrl.lampEnabled && (w.hour < 4 || w.hour > 22)) {
     out.push(['warn', 'Досветка горит ночью: растение не фотосинтезирует, а счётчик крутится — выключите лампу']);
@@ -4368,10 +4420,9 @@ function renderSettings(){
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
   $('btnLampSet').onclick = ()=>{
-    if (!hasLight(world)) return toast('Сначала купите лампу в магазине');
-    world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-    toast(world.ctrl.lampEnabled ? lightName(world)+': включена вручную' : 'Досветка выключена');
-    renderSettings(); renderTop(); renderAlerts();
+    const r = toggleLamp(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderSettings(); renderTop(); renderAlerts(); }
   };
   if ($('btnAlarmSet')) $('btnAlarmSet').onclick = ()=>{
     world.ctrl.alarmOn = !world.ctrl.alarmOn;
@@ -4700,6 +4751,12 @@ document.querySelectorAll('.camNav [data-cam]').forEach(b=>{
 function handleClick(cx, cy){
   const hit = hitTest(cx, cy);
   if (!hit) return;
+  if (hit.kind==='lamp'){
+    const r = toggleLamp(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
+    return;
+  }
   if (hit.kind==='fruit'){
     const rev = harvestFruit(world, hit.plant, hit.fruit);
     if (rev>0) toast('+'+money(rev)+' за плод');
@@ -4790,21 +4847,38 @@ $('btnPrune').onclick = ()=>{
   renderAll();
 };
 $('btnLampQuick').onclick = ()=>{
-  if (!world.has.led) return toast('Купите LED в магазине');
-  world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-  toast(world.ctrl.lampEnabled?'Досветка включена':'Досветка выключена');
+  const r = toggleLamp(world);
+  toast(r.msg);
+  if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
 $('btnShadeQuick').onclick = ()=>{
-  if (!world.has.shade) return toast('Купите затеняющую сетку');
+  if (!world.has.shade) return toast('Сначала купите затеняющую сетку в магазине');
   world.ctrl.shadeOn = !world.ctrl.shadeOn;
   toast(world.ctrl.shadeOn?'Сетка опущена':'Сетка поднята');
+  syncLightButtons(); renderAll(); if (page==='settings') renderSettings();
 };
+/* подсветка состояния на кнопках под сценой: включено — зелёная */
+function syncLightButtons(){
+  if (!world) return;
+  const l = $('btnLampQuick');
+  if (l){
+    l.classList.toggle('good', !!world.ctrl.lampEnabled && hasLight(world));
+    l.textContent = (!!world.ctrl.lampEnabled && hasLight(world)) ? 'Досветка: вкл' : 'Досветка';
+    l.title = hasLight(world)
+      ? (world.ctrl.lampEnabled ? lightName(world)+' горит — нажмите, чтобы выключить'
+                                : lightName(world)+' выключена — нажмите, чтобы включить')
+      : 'Лампы нет: покупается в магазине';
+  }
+  const s = $('btnShadeQuick');
+  if (s) s.classList.toggle('good', !!world.ctrl.shadeOn);
+}
 
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
+  syncLightButtons();
   tutorTick();
 }
 

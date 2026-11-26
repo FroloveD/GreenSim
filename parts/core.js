@@ -982,6 +982,12 @@ const EQUIP_DEFS = {
 function hasLight(w){
   return !!(w && w.has && (w.has.led || w.has.ledStrip || w.has.lampBase));
 }
+/* горит ли свет прямо сейчас. Лампа и лента — два разных флага (лента дешевле
+   и слабее), а игроку важно одно: свет есть или нет. Раньше сцена смотрела
+   только на light.lampOn и при одной ленте оставалась тёмной. */
+function lightLit(w){
+  return !!(w && w.light && (w.light.lampOn || w.light.stripOn));
+}
 function lightName(w){
   if (!w) return 'нет';
   if (w.has.led) return 'LED-досветка';
@@ -989,6 +995,22 @@ function lightName(w){
   if (w.has.lampBase) return 'лампа-лента';
   return 'нет';
 }
+/* Включить/выключить досветку. Одна функция на все входы: кнопка «Досветка»
+   в панели под сценой, клик по светильнику в сцене и переключатель в
+   «Параметрах». Раньше каждый вход проверял своё (кнопка требовала именно
+   LED за 2800 € и при дешёвой ленте отвечала «купите LED»). */
+function toggleLamp(w){
+  if (!w || !w.has || !hasLight(w))
+    return {ok:false, on:false, name:'нет', msg:'Лампы нет — купите в магазине'};
+  w.ctrl.lampEnabled = !w.ctrl.lampEnabled;
+  const on = !!w.ctrl.lampEnabled;
+  w.ctrl.lampOn = on && !!w.power && hasLight(w);
+  const name = lightName(w);
+  let msg = on ? name+': включена' : 'Досветка выключена — за свет не платите';
+  if (on && !w.power) msg = name+': включена, но нет электричества';
+  return {ok:true, on, name, msg};
+}
+
 /* сколько дней проживут баки при вчерашнем расходе (null — данных ещё нет) */
 function tankDays(w, what){
   const last = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
@@ -1340,7 +1362,7 @@ function checkContracts(w){
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
    need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (лампа покупается в магазине)', reward:90,
+  {id:'m2', text:'Включите досветку кнопкой под сценой или кликом по лампе (сама лампа покупается в магазине)', reward:90,
    need:w=>!!(w.has.led||w.has.ledStrip||w.has.lampBase), check:w=>!w.ctrl.lampEnabled?false:(!!(w.has.led||w.has.ledStrip))},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
@@ -1609,7 +1631,7 @@ const SHOP_ITEMS = () => ([
      buy:w=>{ w.has.climatePC = true; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
-    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, работает 4:30–21:00',
+    {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, включается вручную',
      buy:w=>{ w.has.led = true; }},
     {id:'ledBoost', name:'Форсирование LED (+50%)', base:2600, desc:'280 µmol, +энергия',
      req:w=>w.has.led, buy:w=>{ w.upg.ledBoost = true; }},

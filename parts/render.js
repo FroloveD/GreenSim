@@ -363,14 +363,22 @@ function drawScene(){
     }});
   }
 
-  // досветка
-  if (world.light.lampOn){
+  // досветка: светильники видны всегда, когда лампа есть — иначе по выключенной
+  // лампе некуда щёлкнуть. Горит — тёплый блик, выключена — серый корпус.
+  if (hasLight(world)){
+    const lit = lightLit(world);
     for (let i=0;i<4;i++){
       const x = 0.6+i*0.94;
       items.push({z: depthOf({x, y:CFG.ridgeY-0.42, z:1.5}), draw(){
         poly([{x:x-0.1,y:CFG.ridgeY-0.42,z:1.28},{x:x+0.1,y:CFG.ridgeY-0.42,z:1.28},
               {x:x+0.1,y:CFG.ridgeY-0.42,z:1.72},{x:x-0.1,y:CFG.ridgeY-0.42,z:1.72}],
-              'rgba(255,235,170,.75)');
+              lit ? 'rgba(255,235,170,.85)' : 'rgba(64,58,48,.92)');
+        if (!lit){                       // выключен: тёмный корпус с тонкой кромкой
+          const q = project({x, y:CFG.ridgeY-0.42, z:1.5});
+          ctx.strokeStyle = 'rgba(200,190,164,.45)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(3, 0.02*q.s), 0, 6.2832); ctx.stroke();
+          return;
+        }
         const q = project({x, y:CFG.ridgeY-0.42, z:1.5});
         const g = ctx.createRadialGradient(q.x,q.y,2,q.x,q.y,150);
         g.addColorStop(0,'rgba(255,230,150,.12)'); g.addColorStop(1,'rgba(255,230,150,0)');
@@ -643,11 +651,24 @@ function drawVessel(p){
 }
 
 /* ---------- клики по сцене ---------- */
+/* центры светильников досветки: по ним же рисуется свет и ловится клик */
+function lampSpots(){
+  const out = [];
+  if (!world || !hasLight(world)) return out;
+  for (let i=0;i<4;i++) out.push({x:0.6+i*0.94, y:CFG.ridgeY-0.42, z:1.5});
+  return out;
+}
 function hitTest(cx, cy){
   refreshView();
   const C = CROPS[world.crop];
   const rect = canvas.getBoundingClientRect();
   const x = cx-rect.left, y = cy-rect.top;
+  // 0) светильник досветки — клик включает и выключает лампу
+  for (const sp of lampSpots()){
+    const q = project(sp);
+    const rr = Math.max(11, 0.075*q.s);
+    if (Math.hypot(q.x-x, q.y-y) < rr) return {kind:'lamp'};
+  }
   // 1) плоды
   for (const p of world.plants) for (const tr of p.trusses){
     for (let fi=0; fi<tr.fruits.length; fi++){
@@ -680,6 +701,15 @@ function hitTest(cx, cy){
 function organInfo(hit){
   if (!hit) return null;
   const C = CROPS[world.crop];
+  if (hit.kind==='lamp'){
+    const lit = lightLit(world);
+    return {title:'Досветка', rows:[
+      ['лампа', lightName(world)],
+      ['состояние', lit ? 'горит' : (world.ctrl.lampEnabled ? 'включена, но нет электричества' : 'выключена')],
+      ['свет', lit ? '+'+(world.has.led?(world.upg.ledBoost?280:190):(world.has.ledStrip?60:90))+' µmol/м²·с' : '0 µmol/м²·с'],
+      ['клик', lit ? 'выключить лампу' : 'включить лампу']
+    ]};
+  }
   if (hit.kind==='fruit'){
     const f = hit.fruit;
     const grams = (f.mass/C.fruitSink)*C.fruitFresh*1000;

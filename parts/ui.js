@@ -592,7 +592,7 @@ function renderAlerts(){
   if (hasLight(w) && w.ctrl.alarmOn){
     const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
     const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
-    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу в «Параметрах»`]);
+    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу кнопкой «Досветка» под сценой`]);
     if (!inside && w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: окно закончилось — выключите лампу, она ест электричество впустую`]);
   } else if (hasLight(w) && w.ctrl.lampEnabled && (w.hour < 4 || w.hour > 22)) {
     out.push(['warn', 'Досветка горит ночью: растение не фотосинтезирует, а счётчик крутится — выключите лампу']);
@@ -1015,10 +1015,9 @@ function renderSettings(){
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
   $('btnLampSet').onclick = ()=>{
-    if (!hasLight(world)) return toast('Сначала купите лампу в магазине');
-    world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-    toast(world.ctrl.lampEnabled ? lightName(world)+': включена вручную' : 'Досветка выключена');
-    renderSettings(); renderTop(); renderAlerts();
+    const r = toggleLamp(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderSettings(); renderTop(); renderAlerts(); }
   };
   if ($('btnAlarmSet')) $('btnAlarmSet').onclick = ()=>{
     world.ctrl.alarmOn = !world.ctrl.alarmOn;
@@ -1347,6 +1346,12 @@ document.querySelectorAll('.camNav [data-cam]').forEach(b=>{
 function handleClick(cx, cy){
   const hit = hitTest(cx, cy);
   if (!hit) return;
+  if (hit.kind==='lamp'){
+    const r = toggleLamp(world);
+    toast(r.msg);
+    if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
+    return;
+  }
   if (hit.kind==='fruit'){
     const rev = harvestFruit(world, hit.plant, hit.fruit);
     if (rev>0) toast('+'+money(rev)+' за плод');
@@ -1437,21 +1442,38 @@ $('btnPrune').onclick = ()=>{
   renderAll();
 };
 $('btnLampQuick').onclick = ()=>{
-  if (!world.has.led) return toast('Купите LED в магазине');
-  world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
-  toast(world.ctrl.lampEnabled?'Досветка включена':'Досветка выключена');
+  const r = toggleLamp(world);
+  toast(r.msg);
+  if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
 $('btnShadeQuick').onclick = ()=>{
-  if (!world.has.shade) return toast('Купите затеняющую сетку');
+  if (!world.has.shade) return toast('Сначала купите затеняющую сетку в магазине');
   world.ctrl.shadeOn = !world.ctrl.shadeOn;
   toast(world.ctrl.shadeOn?'Сетка опущена':'Сетка поднята');
+  syncLightButtons(); renderAll(); if (page==='settings') renderSettings();
 };
+/* подсветка состояния на кнопках под сценой: включено — зелёная */
+function syncLightButtons(){
+  if (!world) return;
+  const l = $('btnLampQuick');
+  if (l){
+    l.classList.toggle('good', !!world.ctrl.lampEnabled && hasLight(world));
+    l.textContent = (!!world.ctrl.lampEnabled && hasLight(world)) ? 'Досветка: вкл' : 'Досветка';
+    l.title = hasLight(world)
+      ? (world.ctrl.lampEnabled ? lightName(world)+' горит — нажмите, чтобы выключить'
+                                : lightName(world)+' выключена — нажмите, чтобы включить')
+      : 'Лампы нет: покупается в магазине';
+  }
+  const s = $('btnShadeQuick');
+  if (s) s.classList.toggle('good', !!world.ctrl.shadeOn);
+}
 
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
+  syncLightButtons();
   tutorTick();
 }
 
