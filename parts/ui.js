@@ -671,9 +671,9 @@ function renderTop(){
 }
 
 /* ---------------- дашборд: датчики ---------------- */
-function gauge(label, val, min, max, unit, cls, digits){
+function gauge(label, val, min, max, unit, cls, digits, tip){
   const pct = clamp((val-min)/(max-min),0,1)*100;
-  return `<div class="g"><span>${label}</span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
+  return `<div class="g"><span class="sensor-label" data-tip="${tip||label}" tabindex="0" role="button" aria-label="${label}: ${tip||label}">${label}<i>ⓘ</i></span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
     <b>${val.toFixed(digits===undefined?1:digits)}${unit}</b></div>`;
 }
 /* цвет шкалы влаги: сухо и перелив — красным, норма — спокойным */
@@ -685,15 +685,15 @@ function renderGauges(){
   const m = world.meas, C = CROPS[world.crop];
   const tCls = m.temp>C.heatTol ? 'hot' : (m.temp<C.coldTol ? 'cold' : '');
   $('gauges').innerHTML =
-    gauge('T', m.temp, 5, 38, '°C', tCls) +
-    gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0) +
-    gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0) +
-    gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0) +
+    gauge('T', m.temp, 5, 38, '°C', tCls, undefined, 'Температура воздуха на уровне датчика. Сравнивайте с диапазоном переносимости выбранной культуры.') +
+    gauge('RH', m.rh, 30, 99, '%', m.rh>C.rhMax?'hot':'', 0, 'Относительная влажность воздуха. Слишком высокая влажность повышает риск грибковых заболеваний.') +
+    gauge('CO₂', m.co2, 330, 1200, ' ppm', '', 0, 'Концентрация углекислого газа. Нужен для фотосинтеза; обогащение имеет смысл при достаточном освещении.') +
+    gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0, 'Фотосинтетически активная радиация на листьях: сколько света реально получает крона сейчас.') +
     (()=>{ const D = dliInfo(world); const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
       return `<div class="g" title="DLI за сутки: сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Фотопериод ${D.photo.toFixed(1)} ч.">
-        <span>DLI</span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
-    gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0) +
-    gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0);
+        <span class="sensor-label" data-tip="DLI — суммарная доза света за сутки. В отличие от PAR учитывает и интенсивность, и продолжительность освещения." tabindex="0" role="button" aria-label="DLI: суммарная доза света за сутки">DLI<i>ⓘ</i></span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
+    gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0, 'Влажность субстрата по датчику. Низкие значения означают дефицит воды, слишком высокие — риск переувлажнения корней.') +
+    gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0, 'Индекс развития болезни растений. Рост показателя означает, что условия или инфекционный фон ухудшают состояние посадок.');
   // подсказка о дрейфе датчиков
   const drift = Math.abs(world.drift.temp)+Math.abs(world.drift.rh)/10;
   const days = world.day - world.lastCalib;
@@ -710,7 +710,7 @@ function renderGauges(){
   } else if (drift > 0.6 || days > 25){
     hint = `Датчики не калибровались ${days} дн. — показания могут врать`;
   }
-  $('driftHint').innerHTML = hint ? `<span style="color:var(--warn)">⚠ ${hint}</span>` : 'показания датчиков, не «истина»';
+  $('driftHint').innerHTML = hint ? `<span style="color:var(--warn)" title="Сравнение основного датчика с контрольным. Большая разница или долгий интервал без калибровки снижают надёжность показаний.">⚠ ${hint}</span>` : 'показания датчиков, не «истина»';
 }
 
 
@@ -790,6 +790,9 @@ function renderFinance(){
   const cell = v => (v===null || v===undefined) ? '<span class="dim">—</span>'
     : `<b class="${v>0.004?'pos':(v<-0.004?'neg':'')}">${v>0.004?'+':''}${moneyNum(v)}</b>`;
   $('finance').innerHTML = `
+    <div class="finance-summary"><span>Прибыль сезона <b class="${profit>=0?'pos':'neg'}">${moneyNum(profit)}</b></span><span>Баланс <b>${moneyNum(w.money)}</b></span></div>
+    <button type="button" class="panel-fold finance-fold" data-fold-target="financeDetails" aria-expanded="false">Подробная экономика <span class="fold-icon">＋</span></button>
+    <div id="financeDetails" class="fold-content" hidden>
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
     ${(()=>{ const m = marginInfo(w);
@@ -812,7 +815,8 @@ function renderFinance(){
       const mx = Math.max(2, ...h.slice(-40).map(y=>Math.abs(y.profit||0)));
       const hp = Math.max(2, Math.abs(x.profit||0)/mx*34);
       return `<i style="height:${hp}px;background:${(x.profit||0)>=0?'#7ad8a0':'#ff7b72'}"></i>`;
-    }).join('')}</div>`;
+    }).join('')}</div>
+    </div>`;
 }
 
 /* ---------------- баки и возможности ---------------- */
@@ -1248,8 +1252,9 @@ function renderShop(){
       const label = owned ? 'Куплено'
         : (it.id==='repair' ? (price ? 'Отремонтировать' : 'Всё работает')
         : (noRoom ? 'Склад полон' : (!affordable ? 'Мало средств' : (it.dynamic ? 'Купить' : 'Установить'))));
-      html += `<div class="card">
-        <div class="h"><b>${it.name}</b></div>
+      const tutorBuy = world.camp && world.tutorialEnabled && ((it.id==='thermo' && tutorStep===4) || (it.id==='sticky' && tutorStep===5));
+      html += `<div class="card ${tutorBuy?'tutor-shop-buy':''}" data-shop-item="${it.id}">
+        <div class="h"><b>${it.name}</b>${tutorBuy?'<span class="lock">покупка по обучению</span>':''}</div>
         <div class="d">${it.desc}</div>
         ${it.why ? `<div class="why"><b>Зачем:</b> ${it.why}</div>` : ''}
         <div class="f"><span class="price">${it.id==='repair'? (price? money(price):'—') : money(price)}</span>
@@ -1696,15 +1701,17 @@ function renderPred(){
 
 /* ---------------- обучение кампании: сначала интерфейс, затем управление ---------------- */
 let tutorStep = 0, tutorDone = false;
-const tutorFlags = { cam:false, speed:false, settings:false, shop:false, greenhouse:false, climate:false };
+const tutorFlags = { cam:false, speed:false, settings:false, shop:false, buyThermo:false, buySticky:false, greenhouse:false, climate:false };
 function resetTutorFlags(){ for (const k in tutorFlags) tutorFlags[k] = false; }
 
 const TUTOR = [
   { text:'Начнём со сцены. Перетащите её мышью, чтобы осмотреть теплицу. Кнопки сверху переключают ракурсы, а клавиши 1–5 выбирают камеры.', done:()=>tutorFlags.cam },
   { text:'Настройте темп игры. Новая кампания начинается на скорости 4×. Кнопки 1×, 4×, 16× и выше меняют скорость хода времени. Для внимательного управления выбирайте 1×, для ожидания — ускорение. Попробуйте нажать любую кнопку скорости.', done:()=>tutorFlags.speed },
   { text:'Откройте «Параметры». Здесь находятся настройки выращивания, света, питания и автоматизации. Пока ничего покупать или включать не нужно.', done:()=>tutorFlags.settings },
-  { text:'Перейдите в «Магазин». Здесь оборудование открывается по мере развития кампании; часть устройств сначала нужно разблокировать главой.', done:()=>tutorFlags.shop },
-  { text:'Вернитесь в «Теплицу». Основной экран — рабочее место: здесь датчики, климатические регуляторы, состояние растений и быстрые действия.', done:()=>page==='greenhouse' && tutorFlags.settings && tutorFlags.shop },
+  { text:'Перейдите в «Магазин». Здесь оборудование открывается по мере развития кампании. Начнём с двух недорогих покупок, полезных уже на балконе.', done:()=>tutorFlags.shop },
+  { text:'Первая покупка — термометр-гигрометр с сигналом. Найдите его в разделе «Бюджетный старт» и установите: контрольный прибор поможет заметить расхождение с основным датчиком.', done:()=>!!world.has.alarm },
+  { text:'Вторая покупка — клейкие ловушки. Они снижают риск паутинного клеща. Купите комплект, если он ещё не установлен; не тратьте стартовый капитал на всё подряд.', done:()=>!!world.has.sticky },
+  { text:'Вернитесь в «Теплицу». Основной экран — рабочее место: здесь датчики, климатические регуляторы, состояние растений и быстрые действия.', done:()=>page==='greenhouse' && tutorFlags.settings && tutorFlags.shop && world.has.alarm && world.has.sticky },
   { text:'Попробуйте изменить порог отопления в панели «Климат». Это ручное управление: автоматика появится позже, после открытия нужной главы и покупки контроллера.', done:()=>tutorFlags.climate }
 ];
 
@@ -1719,7 +1726,7 @@ function clearTutorTarget(){
   document.querySelectorAll('.tutor-target').forEach(el=>el.classList.remove('tutor-target'));
 }
 function tutorTarget(){
-  const selectors = ['.camBar','.speeds','[data-tab="settings"]','[data-tab="shop"]','[data-tab="greenhouse"]','#ghHeat'];
+  const selectors = ['.camBar','.speeds','[data-tab="settings"]','[data-tab="shop"]','[data-buy="thermo"]','[data-buy="sticky"]','[data-tab="greenhouse"]','#ghHeat'];
   return document.querySelector(selectors[tutorStep] || '');
 }
 function renderTutor(){
@@ -1742,6 +1749,9 @@ function renderTutor(){
 }
 function tutorTick(){
   if (!world || !world.camp || !world.tutorialEnabled || tutorDone) { $('tutor').classList.remove('on'); return; }
+  // Уже купленные предметы не предлагаются повторно после загрузки сохранения.
+  tutorFlags.buyThermo = !!world.has.alarm;
+  tutorFlags.buySticky = !!world.has.sticky;
   // Обучение идёт по действиям игрока, а не по календарю.
   while (tutorStep < TUTOR.length && TUTOR[tutorStep].done()) tutorStep++;
   if (tutorStep >= TUTOR.length){
@@ -2119,6 +2129,32 @@ function syncLightButtons(){
   }
 }
 
+/* ---------------- компактные панели и подсказки датчиков ---------------- */
+function bindDashboardDetails(){
+  document.querySelectorAll('[data-fold-target]').forEach(btn=>{
+    if(btn.dataset.bound) return;
+    btn.dataset.bound='1';
+    btn.addEventListener('click',()=>{
+      const target=$(btn.dataset.foldTarget);
+      if(!target) return;
+      const open=btn.getAttribute('aria-expanded')!=='true';
+      btn.setAttribute('aria-expanded',String(open));
+      target.hidden=!open;
+      const icon=btn.querySelector('.fold-icon');
+      if(icon) icon.textContent=open?'−':'＋';
+    });
+  });
+  document.querySelectorAll('.sensor-label').forEach(el=>{
+    if(el.dataset.tipBound) return;
+    el.dataset.tipBound='1';
+    el.addEventListener('click',()=>el.classList.toggle('tip-open'));
+    el.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();el.classList.toggle('tip-open');}
+      if(e.key==='Escape')el.classList.remove('tip-open');
+    });
+  });
+}
+
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
@@ -2134,6 +2170,7 @@ function renderAll(){
     ? 'Максимальная скорость кампании — 64×'
     : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
+  bindDashboardDetails();
   renderTop(); renderGauges(); renderClimateControls(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   syncLightButtons();
