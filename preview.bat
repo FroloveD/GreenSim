@@ -15,10 +15,10 @@ where node >nul 2>nul
 if errorlevel 1 goto no_node
 
 if not exist "tools\serve.js" goto no_server_file
-if not exist "tools\build-preview.js" goto no_build_file
+if not exist "tools\build-preview.cjs" goto no_build_file
 
 echo [1/2] Building index.html...
-node tools\build-preview.js
+node tools\build-preview.cjs
 if errorlevel 1 goto build_failed
 
 echo.
@@ -44,7 +44,7 @@ echo ERROR: tools\serve.js is missing.
 goto failed
 
 :no_build_file
-echo ERROR: tools\build-preview.js is missing.
+echo ERROR: tools\build-preview.cjs is missing.
 goto failed
 
 :build_failed
