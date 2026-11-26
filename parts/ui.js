@@ -21,7 +21,6 @@ let world = null;
 let page = 'greenhouse';
 let settingsSection = 'climate';
 let trainingMode = false, trainingHold = false;
-let settingsSection = 'climate';
 let speed = 64, paused = false;   // скорость = игровых часов за реальную МИНУТУ
 let acc = 0, lastT = performance.now(), uiT = 0;
 let fc = null, endShown = false;
@@ -1856,7 +1855,7 @@ function showTutorAgain(){
 $('obNext').onclick = ()=>{ if(obI < document.querySelectorAll('#help .obSlide').length-1){ obI++; obPaint(); } };
 $('obPrev').onclick = ()=>{ if(obI>0){ obI--; obPaint(); } };
 $('obDots').onclick = e=>{ const k=e.target.dataset && e.target.dataset.ob; if(k!=null){ obI=+k; obPaint(); } };
-$('obGloss').onclick = ()=>{ $('help').classList.remove('on'); setPage('settings'); setTimeout(()=>{ const g=$('glossCard'); if(g) g.scrollIntoView({behavior:'smooth',block:'center'}); },60); };
+$('obGloss').onclick = ()=>{ $('help').classList.remove('on'); trainingHold=false; setPage('settings'); setTimeout(()=>{ const g=$('glossCard'); if(g) g.scrollIntoView({behavior:'smooth',block:'center'}); },60); };
 obPaint();
 $('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
@@ -2153,6 +2152,7 @@ document.addEventListener('visibilitychange', ()=>{
 resize();
 buildStart();
 renderResumeBox();
+document.body.classList.add('menu-open');
 if (peekSaveMeta()) $('menuContinue').hidden=false;
 $('menuCameraInvert').textContent=camInvertY?'Наклон камеры: инвертирован':'Наклон камеры: обычный';
 $('menuCurrency').value=curId;
