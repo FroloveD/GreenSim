@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+﻿name: Deploy to GitHub Pages
 
 on:
   push:
@@ -12,23 +12,36 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: "${{ steps.deployment.outputs.page_url }}"
     steps:
-      - uses: actions/checkout@v4
-      - name: Проверка сборки (index.html не пустой и собирается из parts)
+      - uses: actions/checkout@v7
+
+      - name: Проверка сборки (index.html соответствует parts/*)
         run: |
           test -s index.html
           echo "index.html: $(wc -c < index.html) байт"
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+          bash build.sh
+          if ! git diff --quiet -- index.html; then
+            echo "::error::index.html не совпадает со сборкой из parts/*. Запустите ./build.sh и закоммитьте."
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
