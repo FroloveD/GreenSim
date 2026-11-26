@@ -348,6 +348,7 @@ const GEAR = {
   rain:       {ch:1, why:'Запас воды на 40 м³: полив и подпитка идут каждый день, и бегать за водой некогда.'},
   repair:     {ch:0, why:'Сломалось — чинить сразу: простой оборудования в разгар плодоношения дороже ремонта. Ремонт доступен с первого дня: отказы случаются и на балконе.'},
 
+  autoTimer:  {ch:1, why:'Контроллер таймеров открывает расписание света, автоматический полив и управление CO₂. Сначала дойдите до главы «Комната» и купите его.'},
   climatePC:  {ch:2, why:'Перестаёте жить у пульта: контроллер сам держит T и RH и пишет логи колебаний.'},
   ups:        {ch:2, why:'Отключение света останавливает котёл. ИБП держит отопление, пока не дадут ток.'},
   led:        {ch:2, why:'190 µmol на всю площадь — промышленная досветка. На 4 м² она не окупится, на 400 м² — решает.'},
@@ -1842,7 +1843,7 @@ function makeWorld(opts){
     has: { led:false, lampBase:true, screen:false, shade:false,
            windowFilm:false, heatBoost:false, strip2:false,
            co2: opts.campaign ? false : (P.id!=='balcony' && P.id!=='room'),
-           dosing:false, secondSensor:false,
+           dosing:false, secondSensor:false, autoTimer:false, climatePC:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
     // гарантия: since — день установки (для стартового оборудования — 1-й день),
@@ -1940,6 +1941,7 @@ function autoAllowed(w, id){
   const k = autoKey(id);
   if (!k || !w) return false;
   if (autoChapter(w) < k.ch) return false;
+  if (!w.has.autoTimer) return false;
   if (id === 'lamp')  return hasLight(w);
   if (id === 'water') return w.sys === 'soil' || w.sys === 'coco';   // в гидропонике раствор и так циркулирует
   if (id === 'co2')   return !!w.has.co2;
@@ -1950,6 +1952,7 @@ function autoWhy(w, id){
   const k = autoKey(id);
   if (!k) return 'нет такого таймера';
   if (autoChapter(w) < k.ch) return 'откроется в главе ' + (k.ch+1);
+  if (!w.has.autoTimer) return 'сначала дойдите до главы «Комната» и купите контроллер таймеров в магазине';
   if (id === 'lamp'  && !hasLight(w)) return 'сначала купите лампу';
   if (id === 'water' && !(w.sys==='soil'||w.sys==='coco')) return 'в этой системе раствор и так в обороте';
   if (id === 'co2'   && !w.has.co2) return 'нужен клапан CO₂';
@@ -2230,8 +2233,11 @@ const SHOP_ITEMS = () => ([
     {id:'film', name:'Плёнка-экран (дешевле термоэкрана)', base:520,
      desc:'−32% теплопотерь ночью (термоэкран даёт −55%)',
      buy:w=>{ w.has.film = true; }},
+    {id:'autoTimer', noScale:true, name:'Контроллер таймеров', base:320,
+     desc:'открывает расписание досветки, полив по датчику и расписание CO₂; доступен после открытия главы «Комната»',
+     buy:w=>{ w.has.autoTimer = true; }},
     {id:'climatePC', noScale:true, name:'Климат-контроллер с логами', base:690,
-     desc:'точнее держит T и RH: меньше колебаний и стресса',
+     desc:'точнее держит T и RH: меньше колебаний и стресса; нужен для полной автоматизации',
      buy:w=>{ w.has.climatePC = true; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
