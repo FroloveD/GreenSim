@@ -502,6 +502,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .climate-control .climate-value{font:10px var(--mono);white-space:nowrap}
   .climate-control input{grid-column:1/-1;width:100%;margin:1px 0 3px}
   .climate-control.is-disabled{opacity:.45}
+  .climate-controls>.hint,#ghCo2Hint{display:none!important}
   #dashGrid .col.left>[data-p="climate"]{overflow-y:auto;scrollbar-width:thin}
   @media(max-width:720px){.climate-controls{gap:7px}.climate-control label{font-size:11px}}
 
@@ -581,17 +582,17 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
         <div id="gauges"></div>
         <div id="climateControls" class="climate-controls">
           <div class="climate-control">
-            <label for="ghHeat">Отопление включать ниже</label>
+            <label for="ghHeat" class="sensor-label" data-tip-key="heatSet" data-tip="Порог температуры: если воздух холоднее заданного значения, система отопления получает команду включиться." tabindex="0" role="button">Отопление включать ниже<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghHeatVal">—</b></div>
             <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="0">
           </div>
           <div class="climate-control">
-            <label for="ghVent">Проветривание включать выше</label>
+            <label for="ghVent" class="sensor-label" data-tip-key="ventSet" data-tip="Порог проветривания: при превышении температуры открывается вентиляция, чтобы отводить лишнее тепло." tabindex="0" role="button">Проветривание включать выше<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghVentVal">—</b></div>
             <input id="ghVent" type="range" min="14" max="38" step="0.5" value="0">
           </div>
           <div class="climate-control" id="ghCo2Control">
-            <label for="ghCo2">Целевой CO₂</label>
+            <label for="ghCo2" class="sensor-label" data-tip-key="co2Set" data-tip="Целевая концентрация CO₂ для обогащения воздуха. Используйте её только при наличии оборудования и достаточном освещении." tabindex="0" role="button">Целевой CO₂<i>ⓘ</i></label>
             <div class="climate-value"><b id="ghCo2Val">—</b></div>
             <input id="ghCo2" type="range" min="400" max="1200" step="25" value="0">
             <div class="hint" id="ghCo2Hint"></div>
@@ -4470,6 +4471,8 @@ function setCurrency(id){
 const num = v => Math.round(v).toLocaleString('ru-RU');
 
 let world = null;
+let activeSensorTip = '';
+let financeDetailsOpen = false;
 let page = 'greenhouse';
 let settingsSection = 'grow';
 
@@ -5125,7 +5128,7 @@ function renderTop(){
 /* ---------------- дашборд: датчики ---------------- */
 function gauge(label, val, min, max, unit, cls, digits, tip){
   const pct = clamp((val-min)/(max-min),0,1)*100;
-  return `<div class="g"><span class="sensor-label" data-tip="${tip||label}" tabindex="0" role="button" aria-label="${label}: ${tip||label}">${label}<i>ⓘ</i></span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
+  return `<div class="g"><span class="sensor-label ${activeSensorTip===label?'tip-open':''}" data-tip-key="${label}" data-tip="${tip||label}" tabindex="0" role="button" aria-label="${label}: ${tip||label}">${label}<i>ⓘ</i></span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
     <b>${val.toFixed(digits===undefined?1:digits)}${unit}</b></div>`;
 }
 /* цвет шкалы влаги: сухо и перелив — красным, норма — спокойным */
@@ -5143,7 +5146,7 @@ function renderGauges(){
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0, 'Фотосинтетически активная радиация на листьях: сколько света реально получает крона сейчас.') +
     (()=>{ const D = dliInfo(world); const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
       return `<div class="g" title="DLI за сутки: сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Фотопериод ${D.photo.toFixed(1)} ч.">
-        <span class="sensor-label" data-tip="DLI — суммарная доза света за сутки. В отличие от PAR учитывает и интенсивность, и продолжительность освещения." tabindex="0" role="button" aria-label="DLI: суммарная доза света за сутки">DLI<i>ⓘ</i></span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
+        <span class="sensor-label ${activeSensorTip==='DLI'?'tip-open':''}" data-tip-key="DLI" data-tip="DLI — суммарная доза света за сутки. В отличие от PAR учитывает и интенсивность, и продолжительность освещения." tabindex="0" role="button" aria-label="DLI: суммарная доза света за сутки">DLI<i>ⓘ</i></span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div><b>${D.val.toFixed(1)}</b></div>`; })() +
     gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0, 'Влажность субстрата по датчику. Низкие значения означают дефицит воды, слишком высокие — риск переувлажнения корней.') +
     gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0, 'Индекс развития болезни растений. Рост показателя означает, что условия или инфекционный фон ухудшают состояние посадок.');
   // подсказка о дрейфе датчиков
@@ -5189,6 +5192,10 @@ function renderClimateControls(){
     }
   });
   const co2=$('ghCo2'), co2Hint=$('ghCo2Hint'), co2Control=$('ghCo2Control');
+  const co2Label=document.querySelector('label[for="ghCo2"]');
+  if(co2Label) co2Label.dataset.tip=world.has.co2
+    ? 'Целевая концентрация CO₂ для обогащения воздуха. Включайте подачу только при достаточном свете.'
+    : 'Оборудования CO₂ пока нет. Уставка станет полезной после покупки клапана и баллона.';
   if (co2){
     co2.disabled=!world.has.co2;
     if(co2Hint) co2Hint.textContent=world.has.co2
@@ -5243,8 +5250,8 @@ function renderFinance(){
     : `<b class="${v>0.004?'pos':(v<-0.004?'neg':'')}">${v>0.004?'+':''}${moneyNum(v)}</b>`;
   $('finance').innerHTML = `
     <div class="finance-summary"><span>Прибыль сезона <b class="${profit>=0?'pos':'neg'}">${moneyNum(profit)}</b></span><span>Баланс <b>${moneyNum(w.money)}</b></span></div>
-    <button type="button" class="panel-fold finance-fold" data-fold-target="financeDetails" aria-expanded="false">Подробная экономика <span class="fold-icon">＋</span></button>
-    <div id="financeDetails" class="fold-content" hidden>
+    <button type="button" class="panel-fold finance-fold" data-fold-target="financeDetails" aria-expanded="${financeDetailsOpen}">Подробная экономика <span class="fold-icon">${financeDetailsOpen?'−':'＋'}</span></button>
+    <div id="financeDetails" class="fold-content" ${financeDetailsOpen?'':'hidden'}>
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
     ${(()=>{ const m = marginInfo(w);
@@ -6591,6 +6598,7 @@ function bindDashboardDetails(){
       if(!target) return;
       const open=btn.getAttribute('aria-expanded')!=='true';
       btn.setAttribute('aria-expanded',String(open));
+      if(target.id==='financeDetails') financeDetailsOpen=open;
       target.hidden=!open;
       const icon=btn.querySelector('.fold-icon');
       if(icon) icon.textContent=open?'−':'＋';
@@ -6599,10 +6607,10 @@ function bindDashboardDetails(){
   document.querySelectorAll('.sensor-label').forEach(el=>{
     if(el.dataset.tipBound) return;
     el.dataset.tipBound='1';
-    el.addEventListener('click',()=>el.classList.toggle('tip-open'));
+    el.addEventListener('click',()=>{ activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey; document.querySelectorAll('.sensor-label').forEach(node=>node.classList.toggle('tip-open',node.dataset.tipKey===activeSensorTip)); });
     el.addEventListener('keydown',e=>{
-      if(e.key==='Enter'||e.key===' '){e.preventDefault();el.classList.toggle('tip-open');}
-      if(e.key==='Escape')el.classList.remove('tip-open');
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey;el.classList.toggle('tip-open',activeSensorTip===el.dataset.tipKey);}
+      if(e.key==='Escape'){activeSensorTip='';el.classList.remove('tip-open');}
     });
   });
 }
@@ -6622,8 +6630,9 @@ function renderAll(){
     ? 'Максимальная скорость кампании — 64×'
     : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
+  renderTop(); renderGauges(); renderClimateControls(); renderFinance();
   bindDashboardDetails();
-  renderTop(); renderGauges(); renderClimateControls(); renderFinance(); renderAlerts();
+  renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   syncLightButtons();
   tutorTick();
