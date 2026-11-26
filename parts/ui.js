@@ -20,6 +20,8 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 let world = null;
 let page = 'greenhouse';
 let settingsSection = 'climate';
+let trainingMode = false, trainingHold = false;
+let settingsSection = 'climate';
 let speed = 64, paused = false;   // скорость = игровых часов за реальную МИНУТУ
 let acc = 0, lastT = performance.now(), uiT = 0;
 let fc = null, endShown = false;
@@ -337,9 +339,12 @@ function startGame(){
                           ? 'soil' : pending.sys });
   if (pending.weather === 'real') refreshRealWeather(false);
   tutorStep = 0; tutorDone = false; resetTutorFlags();
+  trainingMode = !!pending.training; trainingHold = trainingMode;
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
   $('start').classList.remove('on');
+  $('mainMenu').classList.remove('on'); $('mainSettings').classList.remove('on');
+  document.body.classList.remove('menu-open');
   $('pred').classList.remove('on');
   document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent='⏸';
@@ -352,6 +357,7 @@ function startGame(){
     : 'Сезон начат: '+CROPS[world.crop].name+', '+PROFILES[world.profile].area+' м², '
       +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность');
   if (world.mail.length) setTimeout(()=>toast('В почте письмо от тёти Розы'), 2400);
+  if (trainingMode) showOnboarding(0);
 }
 
 /* ---------------- роутер ---------------- */
@@ -1331,6 +1337,28 @@ function renderSettings(){
   }
   if (!document.querySelector('[data-settings-section="'+settingsSection+'"]')) settingsSection='climate';
   paintSettingsSections();
+  // Split the long settings page into focused sections without recreating its controls.
+  const settingsGrid = $('settingsBody').querySelector('.setgrid');
+  if (settingsGrid) {
+    const cards = [...settingsGrid.children];
+    const groups = [
+      {id:'climate',title:'Климат и место',icon:'☀',test:/^(Климат|Место и дата|Погода за окном)$/},
+      {id:'grow',title:'Выращивание',icon:'🌱',test:/^(Система выращивания|Свет и экраны|Свет за сутки \(DLI\)|Питание \(fertigation\))$/},
+      {id:'auto',title:'Автоматизация',icon:'⏱',test:/^Таймеры и автоматизация$/},
+      {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(Камера|Валюта|Приложение)$/},
+      {id:'help',title:'Обучение и справка',icon:'ⓘ',test:/^(Словарь терминов|Обучение|Модель \(справка\))$/},
+      {id:'save',title:'Сохранение и сезон',icon:'▣',test:/^Сезон$/}
+    ];
+    const nav=document.createElement('div'); nav.className='settings-nav';
+    const panels=document.createElement('div'); panels.className='settings-panels';
+    const buckets=new Map(groups.map(g=>[g.id,[]]));
+    cards.forEach(card=>{const title=card.querySelector('.h b')?.textContent?.trim()||'';const group=groups.find(g=>g.test.test(title))||groups[4];buckets.get(group.id).push(card);});
+    groups.forEach(g=>{const panel=document.createElement('section');panel.className='settings-section';panel.dataset.settingsSection=g.id;buckets.get(g.id).forEach(card=>panel.appendChild(card));if(!panel.children.length)return;panels.appendChild(panel);const button=document.createElement('button');button.type='button';button.className='settings-tab';button.dataset.settingsTab=g.id;button.textContent=g.icon+'  '+g.title;button.onclick=()=>{settingsSection=g.id;paintSettingsSections();};nav.appendChild(button);});
+    settingsGrid.replaceWith(nav,panels);
+  }
+  function paintSettingsSections(){document.querySelectorAll('[data-settings-section]').forEach(el=>el.hidden=el.dataset.settingsSection!==settingsSection);document.querySelectorAll('[data-settings-tab]').forEach(el=>el.classList.toggle('on',el.dataset.settingsTab===settingsSection));}
+  if (!document.querySelector('[data-settings-section="'+settingsSection+'"]')) settingsSection='climate';
+  paintSettingsSections();
   const bind = (id, key, fmt) => {
     const s = $('s_'+id);
     if (!s) return;                 // регулятора может не быть (например CO₂ без клапана)
@@ -1803,8 +1831,8 @@ $('btnPred').onclick = ()=>{ $('pred').classList.toggle('on'); };
 $('predClose').onclick = ()=>$('pred').classList.remove('on');
 document.querySelectorAll('[data-pred]').forEach(b=>b.onclick=()=>startPred(+b.dataset.pred));
 $('btnSave').onclick = ()=>saveNow(false);
-$('btnHelp').onclick = ()=>$('help').classList.add('on');
-$('helpClose').onclick = ()=>{ clearInterval(window._obT); $('help').classList.remove('on'); };
+$('btnHelp').onclick = ()=>showOnboarding(0);
+$('helpClose').onclick = ()=>{ clearInterval(window._obT); $('help').classList.remove('on'); trainingHold=false; };
 // ---- онбординг: пошаговый мастер ----
 let obI = 0;
 function obPaint(){
@@ -1817,7 +1845,7 @@ function obPaint(){
   $('helpClose').style.display = obI===slides.length-1 ? '' : 'none';
 }
 function showOnboarding(step){
-  obI = step||0; obPaint(); $('help').classList.add('on');
+  obI = step||0; obPaint(); if(trainingMode) trainingHold=true; $('help').classList.add('on');
 }
 function showTutorAgain(){
   tutorDone = false; tutorStep = 0; resetTutorFlags();
@@ -1832,6 +1860,15 @@ $('obGloss').onclick = ()=>{ $('help').classList.remove('on'); setPage('settings
 obPaint();
 $('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
+function openNewGame(mode){pending.training=mode==='training';pending.campaign=mode==='campaign';pending.profile=mode==='campaign'?'balcony':(mode==='training'?'hobby':'farm');$('mainMenu').classList.remove('on');$('start').classList.add('on');buildStart();}
+$('menuTraining').onclick=()=>openNewGame('training');
+$('menuCampaign').onclick=()=>openNewGame('campaign');
+$('menuFree').onclick=()=>openNewGame('free');
+$('menuContinue').onclick=()=>loadFromStorage();
+$('menuSettings').onclick=()=> $('mainSettings').classList.add('on');
+$('mainSettingsClose').onclick=()=> $('mainSettings').classList.remove('on');
+$('menuCameraInvert').onclick=()=>{setCamInvertY(!camInvertY);$('menuCameraInvert').textContent=camInvertY?'Наклон камеры: инвертирован':'Наклон камеры: обычный';};
+$('menuCurrency').onchange=e=>setCurrency(e.target.value);
 // Main menu routes the player into a mode before opening the existing setup wizard.
 function openNewGame(mode){
   pending.training=mode==='training'; pending.campaign=mode==='campaign';
@@ -1929,7 +1966,7 @@ function frame(now){
   const dtReal = Math.min(0.25, Math.max(0, (now-lastT)/1000));   // на слабом железе кадры редкие — не теряем время
   lastT = now;
   if (world){
-    if (!world.over){
+    if (!world.over && !trainingHold){
       // пауза не останавливает время: 1 реальная секунда = 1 игровая секунда
       // скорость задана как «игровых часов за реальную минуту»: 1× — час за минуту
       const rateH = paused ? 1/3600 : speed/60;
