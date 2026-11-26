@@ -429,6 +429,16 @@ function drawScene(){
       drawVessel(p);
     }});
 
+    // листовые: розетка целиком, без стебля и без «плодов»
+    if (C.leafy){
+      for (const l of lettuceRosette(p, C)){
+        items.push({z: depthOf(l.cen), draw(){
+          poly(l.corners, lettuceColor(l.lf, l.ring), '#0a0806', 1.5);
+          line3(l.base, l.tip, 'rgba(12,10,6,.32)', 1);
+        }});
+      }
+    }
+
     // стебель: начинается от поверхности ёмкости, а не от пола — иначе куст
     // «стоит за горшком» и с верхних ракурсов кажется, что он не в нём
     const mouth = plantBaseY(world);
@@ -437,35 +447,30 @@ function drawScene(){
       const ny = nodeYw(C,i);
       if (ny > mouth - 0.01) pts.push({x:p.x+Math.sin(i*0.4)*0.006, y:ny, z:p.z+Math.cos(i*0.4)*0.006});
     }
-    items.push({z: depthOf({x:p.x, y:1.0, z:p.z}), draw(){
-      ctx.beginPath();
-      for (let i=0;i<pts.length;i++){ const q = project(pts[i]); if(i===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y); }
-      ctx.lineCap='round';
-      ctx.strokeStyle = '#0a0806'; ctx.lineWidth = Math.max(3.4, 4.6 + p.nPhy*0.10); ctx.stroke();
-      ctx.strokeStyle = isSel ? '#c8ea70' : '#8f9a54';
-      ctx.lineWidth = Math.max(1.2, 1.6 + p.nPhy*0.06); ctx.stroke();
-      if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeYw(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
-    }});
-
-    // листья
-    for (const lf of p.leaves){
-      if (lf.area < 2e-4 && !lf.dead) continue;
-      const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
-      items.push({z: depthOf(g.cen), draw(){
-        poly(g.corners, leafColor(lf), '#0a0806', 1.7);
-        if (!lf.dead) line3(g.base, g.tip, 'rgba(12,10,6,.55)', 1.1);
+    if (!C.leafy){
+      items.push({z: depthOf({x:p.x, y:1.0, z:p.z}), draw(){
+        ctx.beginPath();
+        for (let i=0;i<pts.length;i++){ const q = project(pts[i]); if(i===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y); }
+        ctx.lineCap='round';
+        ctx.strokeStyle = '#0a0806'; ctx.lineWidth = Math.max(3.4, 4.6 + p.nPhy*0.10); ctx.stroke();
+        ctx.strokeStyle = isSel ? '#c8ea70' : '#8f9a54';
+        ctx.lineWidth = Math.max(1.2, 1.6 + p.nPhy*0.06); ctx.stroke();
+        if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeYw(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
       }});
+
+      // листья
+      for (const lf of p.leaves){
+        if (lf.area < 2e-4 && !lf.dead) continue;
+        const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
+        items.push({z: depthOf(g.cen), draw(){
+          poly(g.corners, leafColor(lf), '#0a0806', 1.7);
+          if (!lf.dead) line3(g.base, g.tip, 'rgba(12,10,6,.55)', 1.1);
+        }});
+      }
     }
 
-    // плоды / головки
-    if (C.leafy){
-      const ready = p.head >= C.headTarget;
-      items.push({z: depthOf({x:p.x,y:nodeYw(C, Math.min(p.nPhy,6)),z:p.z}), draw(){
-        const r = 0.05+0.08*clamp(p.head/C.headTarget,0,1);
-        dot3({x:p.x, y:nodeYw(C, Math.min(p.nPhy,6)), z:p.z}, r,
-             ready? '#d8ec8e' : '#87ad4e', '#0a0806', 2.2);
-      }});
-    } else {
+    // плоды (у листовых головка уже нарисована розеткой)
+    if (!C.leafy){
       for (const tr of p.trusses){
         for (let fi=0; fi<tr.fruits.length; fi++){
           const f = tr.fruits[fi];
@@ -702,6 +707,77 @@ function drawVessel(p){
       ctx.fillStyle = '#43301a'; ctx.fill();
     }
   }
+}
+
+/* ---------- салат: розетка, а не куст ----------
+   Томат тянется вверх по стеблю, салат растёт листьями от самой земли: короткий
+   черешок, широкая округлая пластина, внешние листья лежат, внутренние
+   поднимаются и смыкаются в головку. Поэтому для листовых культур рисуем не
+   «стебель с листьями» (это делало салат маленьким томатом), а кольца розетки. */
+function lettuceRosette(p, C){
+  const t = clamp(p.head/(C.headTarget||1), 0, 1.2);
+  const out = [];
+  const baseY = (typeof plantBaseY === 'function' ? plantBaseY(world) : 0) + 0.004;
+  const nMax = Math.max(1, C.maxPhy-1);
+  for (const lf of p.leaves){
+    if (lf.dead || lf.area < 2e-4) continue;
+    const ring = clamp(lf.i/nMax, 0, 1);                 // 0 — внешнее кольцо, 1 — центр
+    const ang = lf.i*2.3999 + (p.id||0)*0.9;
+    const len = 0.115 - 0.055*ring + 0.035*t;
+    const wid = 0.105 - 0.045*ring + 0.020*t;
+    const lift = -0.016 + 0.115*ring*ring + 0.045*t;     // внешние вниз, внутренние вверх
+    const dirx = Math.cos(ang), dirz = Math.sin(ang);
+    const y0 = baseY + 0.010 + 0.020*ring;
+    const base = {x:p.x + dirx*0.010, y:y0, z:p.z + dirz*0.010};
+    const tip  = {x:p.x + dirx*len, y:y0 + lift, z:p.z + dirz*len};
+    const sx = -dirz, sz = dirx;
+    // лист салата — лопатка с округлой вершиной: ширина набирается к середине
+    // и снова падает к кончику, поэтому это многоугольник, а не четырёхугольник
+    const U = [0, 0.26, 0.52, 0.78, 0.93, 1], W = [0.30, 0.76, 1, 0.95, 0.68, 0.22];
+    const cs = [];
+    for (let i=0;i<U.length;i++){
+      const u = U[i], h = wid*0.5*W[i];
+      const px = base.x + (tip.x-base.x)*u, py = base.y + lift*u*u, pz = base.z + (tip.z-base.z)*u;
+      cs.push({x:px - sx*h, y:py, z:pz - sz*h});
+    }
+    for (let i=U.length-1;i>=0;i--){
+      const u = U[i], h = wid*0.5*W[i];
+      const px = base.x + (tip.x-base.x)*u, py = base.y + lift*u*u, pz = base.z + (tip.z-base.z)*u;
+      cs.push({x:px + sx*h, y:py, z:pz + sz*h});
+    }
+    out.push({lf, ring, corners:cs, base, tip,
+      cen:{x:(base.x+tip.x)/2, y:(base.y+tip.y)/2, z:(base.z+tip.z)/2}});
+  }
+  // головка: когда налилась, в центре смыкаются короткие светлые листья
+  if (t > 0.35){
+    const k = Math.round(3 + 4*clamp(t, 0, 1));
+    for (let i=0;i<k;i++){
+      const ang = i*2.3999 + 0.8;
+      const len = 0.030 + 0.026*clamp(t,0,1);
+      const dirx = Math.cos(ang), dirz = Math.sin(ang);
+      const y0 = baseY + 0.030 + 0.010*clamp(t,0,1);
+      const base = {x:p.x + dirx*0.008, y:y0, z:p.z + dirz*0.008};
+      const tip  = {x:p.x + dirx*len, y:y0 + 0.026 + 0.026*clamp(t,0,1), z:p.z + dirz*len};
+      const sx = -dirz, sz = dirx, hw = 0.026;
+      out.push({lf:null, ring:1.4, head:true,
+        corners:(function(){
+          const cs = [];
+          for (let j=0;j<5;j++){ const u = j/4, h = hw*(0.45 + 0.55*Math.sin(Math.PI*Math.min(1,u*1.15)));
+            cs.push({x:base.x+(tip.x-base.x)*u - sx*h, y:base.y+(tip.y-base.y)*u, z:base.z+(tip.z-base.z)*u - sz*h}); }
+          for (let j=4;j>=0;j--){ const u = j/4, h = hw*(0.45 + 0.55*Math.sin(Math.PI*Math.min(1,u*1.15)));
+            cs.push({x:base.x+(tip.x-base.x)*u + sx*h, y:base.y+(tip.y-base.y)*u, z:base.z+(tip.z-base.z)*u + sz*h}); }
+          return cs;
+        })(),
+        base, tip, cen:{x:(base.x+tip.x)/2, y:(base.y+tip.y)/2, z:(base.z+tip.z)/2}});
+    }
+  }
+  return out;
+}
+/* цвет листа салата: внешние кольца темнее, головка почти жёлто-зелёная */
+function lettuceColor(leaf, ring){
+  if (leaf && leaf.dead) return '#77683a';
+  const ramp = ['#3d6a32','#4a7d3a','#5c9243','#74a94e','#93c05c','#bcd97f','#d8ec9a'];
+  return ramp[clamp(Math.round(ring*(ramp.length-1)), 0, ramp.length-1)];
 }
 
 /* ---------- эффекты сбора ----------

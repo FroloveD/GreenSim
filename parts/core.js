@@ -67,8 +67,8 @@ const CROPS = {
   cherry: {
     id:'cherry', name:'Томат черри', icon:'🍒',
     phyllochron:32, maxPhy:32, internode:0.076, leafMax:0.046, vcmax:110, tilt:50,
-    leafy:false, trussStart:4, trussEvery:2, fruitsPerTruss:[10,14], fruitSink:4,
-    fruitFresh:0.022, price:5.5, density:2.6, goalKgM2:6.5,
+    leafy:false, trussStart:4, trussEvery:2, fruitsPerTruss:[12,18], fruitSink:4,
+    fruitFresh:0.024, price:5.8, density:2.6, goalKgM2:8,
     tempOpt:24, rhMax:91, coldTol:8, heatTol:31, seedCost:1.4, shelfDays:9, bulkL:1.6,
     note:'Много мелких плодов: чувствителен к нагрузке, дороже на рынке.'
   },
@@ -107,7 +107,7 @@ for (const k in CROP_LIGHT) Object.assign(CROPS[k], CROP_LIGHT[k]);
    eventF — частота погодных событий.                                     */
 const DIFFICULTY = {
   easy: { id:'easy', name:'Лёгкая', fixedF:0.70, failF:0.55, priceF:1.12, driftF:0.6, eventF:0.8,
-          note:'прощает ошибки: дешевле содержание, реже аварии, цена выше' },
+          note:'прощает ошибки: дешевле содержание, реже аварии, цена выше; балкон стартует с утеплителем и обогревателем' },
   normal: { id:'normal', name:'Обычная', fixedF:1.00, failF:1.00, priceF:1.00, driftF:1.0, eventF:1.0,
           note:'базовый баланс: как в жизни, без поблажек и без издевательств' },
   hard: { id:'hard', name:'Жёсткая', fixedF:1.25, failF:1.60, priceF:0.95, driftF:1.5, eventF:1.25,
@@ -861,7 +861,10 @@ function emitPhytomer(w, p, i){
   if (!C.leafy && i >= C.trussStart-1 && ((i-(C.trussStart-1)) % C.trussEvery === 0)){
     const gtr = organNode(gstem, 'truss', 'truss#'+i);
     const [a,b] = C.fruitsPerTruss;
-    const tr = {type:'truss', id:gtr.id, node:gtr, i, age:0, fruits:[], maxFruit:a+Math.floor(rnd(w)*(b-a+1))};
+    // sealAge — через сколько дней кисть перестаёт набирать плоды и зреет целиком.
+    // Разброс нужен, чтобы кисти на одном растении не краснели хором.
+    const tr = {type:'truss', id:gtr.id, node:gtr, i, age:0, cAge:0, fruits:[],
+                sealAge: 6 + rnd(w)*3.5, maxFruit:a+Math.floor(rnd(w)*(b-a+1))};
     p.trusses.push(tr); p.organs.push(tr);
   }
 }
@@ -888,6 +891,7 @@ function makePlant(w, x, z, id){
     for (const tr of p.trusses){
       const nFruits = 2 + Math.floor(rnd(w)*2);          // не nf: nf — формат числа
       for (let k=0;k<nFruits;k++) addFruit(w, p, tr, C.fruitSink*(0.55 + 0.30*rnd(w)));
+      tr.cAge = rnd(w)*4;                                // стартовые кисти зреют не в один день
     }
   } else {
     p.head = 6 + rnd(w)*4;
@@ -1183,11 +1187,19 @@ function growthTick(w, dtDays, C){
 
       // соцветия: завязывание ограничено углеродом и стрессом
       const setP = clamp(0.12 + p.carbonStatus/9, 0.10, 1.0)*(1-0.7*clamp(p.stress,0,1))*(1-0.5*w.disease)*(1-0.5*(w.waterStress||0));
-      const maxGrow = Math.max(1, Math.floor(p.carbonStatus/1.6));
+      // сколько плодов может наливаться разом: ограничение по углероду, но
+      // мелкоплодные культуры (черри) держат на кисти много плодов сразу
+      const growCap = clamp(15/C.fruitSink, 1, 4);
+      const maxGrow = Math.max(1, Math.floor(p.carbonStatus/1.6*growCap));
       let grow = p.fruits.filter(x=>!x.ripe&&!x.harvested).length;
       for (const tr of p.trusses){
         tr.age += dtDays;
-        if (grow < maxGrow && tr.age>2 && tr.fruits.length < tr.maxFruit && rnd(w) < dtDays*1.1*setP){
+        tr.cAge = (tr.cAge||0) + dtDays;                  // возраст текущей волны плодов
+        const alive = tr.fruits.filter(x=>!x.harvested).length;
+        // в кисть с уже покрасневшими плодами новые не завязываются: кисть снимают
+        // целиком, и «половина красная» на ней остаться не должна
+        const hasRipe = tr.fruits.some(x=>x.ripe && !x.harvested);
+        if (grow < maxGrow && tr.age>2 && !hasRipe && alive < tr.maxFruit && rnd(w) < dtDays*1.1*setP){
           addFruit(w, p, tr, 0.05); grow++;
         }
       }
@@ -1197,10 +1209,20 @@ function growthTick(w, dtDays, C){
       const carbonFruit = pool*fFruit + p.pool*0.02;
       p.pool -= p.pool*0.02;
       for (const x of gr){
-        x.mass += carbonFruit*Math.max(0.15,1-x.mass/C.fruitSink)/sinkSum * (1-0.4*f.caDef*0.2);
-        if (x.mass >= C.fruitSink){
-          x.ripe = true;
-          x.rot = f.caDef > 0.45 && rnd(w) < 0.35;         // вершинная гниль
+        x.mass = Math.min(C.fruitSink*1.02,
+          x.mass + carbonFruit*Math.max(0.15,1-x.mass/C.fruitSink)/sinkSum * (1-0.4*f.caDef*0.2));
+      }
+      // Кисть зреет целиком: сперва все плоды добирают массу, потом краснеют разом.
+      // Иначе спелые плоды появлялись по одному и сбор шёл волнами — по 2–3 штуки,
+      // а выручка прыгала день ото дня. Теперь сбор идёт ровными партиями по кистям.
+      for (const tr of p.trusses){
+        const raw = tr.fruits.filter(x=>!x.harvested);
+        if (!raw.length || raw.some(x=>x.ripe)) continue;
+        const sealed = raw.length >= tr.maxFruit || tr.cAge > (tr.sealAge||7);   // кисть больше не набирает плодов
+        const mmin = raw.reduce((s,x)=>Math.min(s,x.mass), Infinity);
+        if (sealed && mmin >= C.fruitSink*0.93){
+          for (const x of raw){ x.mass = C.fruitSink; x.ripe = true; x.rot = f.caDef > 0.45 && rnd(w) < 0.35; }
+          tr.ripeAt = w.day;
         }
       }
       p.bio.fruit = p.fruits.filter(x=>!x.harvested).reduce((s,x)=>s+x.mass,0);
@@ -1242,9 +1264,9 @@ function fxKgText(kg){
   if (kg >= 1) return '+' + (Math.round(kg*10)/10).toFixed(1).replace('.', ',') + ' кг';
   return '+' + Math.round(kg*1000) + ' г';
 }
-function fxPick(w, C, p, tr, fi, f){
+function fxPick(w, C, p, tr, fi, f, kgOverride){
   if (w.forecast) return;                       // прогноз не должен сыпать искрами
-  const kg = C.fruitFresh*(w.plantScale||1);
+  const kg = (kgOverride || C.fruitFresh)*(w.plantScale||1);
   fxPush({k:'pick', pos:fruitPos(C, p, tr, fi), txt:fxKgText(kg),
           col: f.rot ? '#a8823f' : '#e8472a', born: (typeof performance!=='undefined'?performance.now():Date.now()), dur:1.15});
 }
@@ -1276,13 +1298,23 @@ function harvestAll(w){
       }
     }
   } else {
-    for (const p of w.plants) for (const tr of p.trusses) for (let fi=0; fi<tr.fruits.length; fi++){
-      const f = tr.fruits[fi];
-      if (!(f.ripe && !f.harvested)) continue;
-      f.harvested = true; n++;
-      if (f.rot){ rotKg += C.fruitFresh; continue; }
-      kg += C.fruitFresh;
-      fxPick(w, C, p, tr, fi, f);
+    // кисть снимают целиком — и подпись веса одна на кисть, а не на каждый плод
+    for (const p of w.plants) for (const tr of p.trusses){
+      let tkg = 0, first = -1;
+      for (let fi=0; fi<tr.fruits.length; fi++){
+        const f = tr.fruits[fi];
+        if (!(f.ripe && !f.harvested)) continue;
+        f.harvested = true; n++;
+        if (f.rot){ rotKg += C.fruitFresh; continue; }
+        kg += C.fruitFresh; tkg += C.fruitFresh;
+        if (first < 0) first = fi;
+      }
+      if (tkg > 0) fxPick(w, C, p, tr, first, tr.fruits[first], tkg);
+      // снятая кисть пустеет и начинает новую волну — так сбор идёт ровно
+      if (tr.fruits.some(x=>x.harvested)){
+        tr.fruits = tr.fruits.filter(x=>!x.harvested);
+        tr.cAge = 0;
+      }
     }
   }
   if (n>0){
@@ -1998,6 +2030,9 @@ function makeWorld(opts){
       co2:{ok:true, down:0, since:1, stuck:false}, dosing:{ok:true, down:0, since:1},
       sensor:{ok:true, down:0, since:1}
     },
+    // лёгкая сложность: на балконе утеплитель и обогреватель уже стоят —
+    // новичку не нужно на первой же холодной ночи искать, чем закрыть рамы
+    startKit: [],                 // что уже стоит «с коробки» (лёгкая сложность на балконе)
     warranty: [],                 // {k, name, eur, due, day} — возвраты в пути
     stock: { fertKg: 120*(P.area/400), co2Kg: 140*(P.area/400), waterM3: 100*(P.area/400), seeds: 400*(P.area/400) },
     // склад: секции, партии урожая, потери
@@ -2046,6 +2081,14 @@ function makeWorld(opts){
     w.has.ledStrip = true; w.ctrl.lampEnabled = true;
     w.money = 100; w.startMoney = 100;
     campaignTick(w);
+  }
+  // Лёгкая сложность: балкон сразу оборудован — утеплитель на рамах и обогреватель
+  // уже стоят. Новичок не тратит первые деньги на то, без чего сезон не начать.
+  if (P.id === 'balcony' && D.id === 'easy' && !opts.campaign){
+    w.has.windowFilm = true;
+    w.has.heatBoost = true;
+    w.startKit = ['windowFilm','heaterMini'];
+    w.log.unshift({t:'Д'+w.day, m:'Балкон уже утеплён: плёнка на рамах и обогреватель 0,6 кВт стоят с первого дня', k:'hl'});
   }
   if (opts.realWeather) applyWeatherTable(w, opts.realWeather.rows || opts.realWeather,
                                           {source:(opts.realWeather.source||'open-meteo')});

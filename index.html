@@ -671,6 +671,11 @@
     <b>«Бюджетный старт»</b>: термометр-гигрометр (<span data-eur="28"></span>), клейкие ловушки (<span data-eur="45"></span>), бочка воды (<span data-eur="90"></span>) —
     это дешевле одного мешка удобрений и сразу снимает часть рисков; 3) в «Параметрах» поднимите
     целевой CO₂ до 800 ppm; 4) перед тратами загляните в «Прогноз» — он покажет, окупится ли решение.</p>
+    <h3>Сбор по кистям</h3>
+    <p style="margin-bottom:8px">Плоды на кисти зреют <b>вместе</b>: пока кисть набирает массу, все её плоды зелёные,
+    а потом краснеют в один день и снимаются <b>целой кистью</b> — с одной подписью веса на кисть, а не по плоду.
+    Поэтому урожай приходит ровными партиями, а не волнами «то густо, то пусто». Снять одну кисть можно и кликом
+    по любому её плоду. Салат растёт иначе — розеткой листьев, и снимается кочаном.</p>
     <h3>Склад и деньги</h3>
     <p style="margin-bottom:8px">Урожай больше не превращается в деньги сам по себе: он ложится на <b>склад</b>.
     Каждая культура хранится свой срок — салат 4 дня, огурец 7, черри 9, томат 12; чем дольше лежит, тем ниже
@@ -763,7 +768,10 @@
     Сбор урожая, продажа, покупка, вода, щелчок светильника, приход счёта, суд и конец сезона звучат по-разному.
     Браузеры включают звук только после первого действия: щёлкните по игре один раз. Глушит клавиша <b>Z</b>
     или карточка «Звук» в «Параметрах» — там же громкость; настройка хранится отдельно от сейва.
-    Собранный плод больше не исчезает молча: он подлетает, тает и рядом всплывает его вес («+6,8 кг»).</p>
+    Собранный плод больше не исчезает молча: он подлетает, тает и рядом всплывает вес кисти («+6,8 кг»).</p>
+    <p style="margin-bottom:8px">Фон теплицы — тихий слой под событиями: гудит вентилятор, капает вода с листьев,
+    и громкость подложки растёт только когда в теплице действительно есть чем шуметь. Он включается и выключается
+    отдельной строкой «Фон теплицы» рядом с общим звуком.</p>
     <h3>Приложение и офлайн</h3>
     <p style="margin-bottom:8px">Игра ставится на телефон и запускается без сети: рядом с <code>index.html</code>
     лежат <code>manifest.webmanifest</code> и сервис-воркер <code>sw.js</code>. На Android/Chrome —
@@ -797,7 +805,8 @@
 <div id="start" class="modal on">
   <div class="sheet">
     <h1>Новый сезон</h1>
-    <p>Выберите капитал, культуру и сложность. От капитала зависит площадь теплицы, цена реализации и постоянные расходы.</p>
+    <p>Выберите капитал, культуру и сложность. От капитала зависит площадь теплицы, цена реализации и постоянные расходы.
+    На <b>лёгкой</b> сложности балкон стартует уже с утеплителем на рамах и обогревателем 0,6 кВт — покупать их не нужно.</p>
     <div id="resumeBox"></div>
     <h3>1. Режим</h3>
     <div class="grid" id="campPick" style="grid-template-columns:1fr 1fr"></div>
@@ -914,8 +923,8 @@ const CROPS = {
   cherry: {
     id:'cherry', name:'Томат черри', icon:'🍒',
     phyllochron:32, maxPhy:32, internode:0.076, leafMax:0.046, vcmax:110, tilt:50,
-    leafy:false, trussStart:4, trussEvery:2, fruitsPerTruss:[10,14], fruitSink:4,
-    fruitFresh:0.022, price:5.5, density:2.6, goalKgM2:6.5,
+    leafy:false, trussStart:4, trussEvery:2, fruitsPerTruss:[12,18], fruitSink:4,
+    fruitFresh:0.024, price:5.8, density:2.6, goalKgM2:8,
     tempOpt:24, rhMax:91, coldTol:8, heatTol:31, seedCost:1.4, shelfDays:9, bulkL:1.6,
     note:'Много мелких плодов: чувствителен к нагрузке, дороже на рынке.'
   },
@@ -954,7 +963,7 @@ for (const k in CROP_LIGHT) Object.assign(CROPS[k], CROP_LIGHT[k]);
    eventF — частота погодных событий.                                     */
 const DIFFICULTY = {
   easy: { id:'easy', name:'Лёгкая', fixedF:0.70, failF:0.55, priceF:1.12, driftF:0.6, eventF:0.8,
-          note:'прощает ошибки: дешевле содержание, реже аварии, цена выше' },
+          note:'прощает ошибки: дешевле содержание, реже аварии, цена выше; балкон стартует с утеплителем и обогревателем' },
   normal: { id:'normal', name:'Обычная', fixedF:1.00, failF:1.00, priceF:1.00, driftF:1.0, eventF:1.0,
           note:'базовый баланс: как в жизни, без поблажек и без издевательств' },
   hard: { id:'hard', name:'Жёсткая', fixedF:1.25, failF:1.60, priceF:0.95, driftF:1.5, eventF:1.25,
@@ -1708,7 +1717,10 @@ function emitPhytomer(w, p, i){
   if (!C.leafy && i >= C.trussStart-1 && ((i-(C.trussStart-1)) % C.trussEvery === 0)){
     const gtr = organNode(gstem, 'truss', 'truss#'+i);
     const [a,b] = C.fruitsPerTruss;
-    const tr = {type:'truss', id:gtr.id, node:gtr, i, age:0, fruits:[], maxFruit:a+Math.floor(rnd(w)*(b-a+1))};
+    // sealAge — через сколько дней кисть перестаёт набирать плоды и зреет целиком.
+    // Разброс нужен, чтобы кисти на одном растении не краснели хором.
+    const tr = {type:'truss', id:gtr.id, node:gtr, i, age:0, cAge:0, fruits:[],
+                sealAge: 6 + rnd(w)*3.5, maxFruit:a+Math.floor(rnd(w)*(b-a+1))};
     p.trusses.push(tr); p.organs.push(tr);
   }
 }
@@ -1735,6 +1747,7 @@ function makePlant(w, x, z, id){
     for (const tr of p.trusses){
       const nFruits = 2 + Math.floor(rnd(w)*2);          // не nf: nf — формат числа
       for (let k=0;k<nFruits;k++) addFruit(w, p, tr, C.fruitSink*(0.55 + 0.30*rnd(w)));
+      tr.cAge = rnd(w)*4;                                // стартовые кисти зреют не в один день
     }
   } else {
     p.head = 6 + rnd(w)*4;
@@ -2030,11 +2043,19 @@ function growthTick(w, dtDays, C){
 
       // соцветия: завязывание ограничено углеродом и стрессом
       const setP = clamp(0.12 + p.carbonStatus/9, 0.10, 1.0)*(1-0.7*clamp(p.stress,0,1))*(1-0.5*w.disease)*(1-0.5*(w.waterStress||0));
-      const maxGrow = Math.max(1, Math.floor(p.carbonStatus/1.6));
+      // сколько плодов может наливаться разом: ограничение по углероду, но
+      // мелкоплодные культуры (черри) держат на кисти много плодов сразу
+      const growCap = clamp(15/C.fruitSink, 1, 4);
+      const maxGrow = Math.max(1, Math.floor(p.carbonStatus/1.6*growCap));
       let grow = p.fruits.filter(x=>!x.ripe&&!x.harvested).length;
       for (const tr of p.trusses){
         tr.age += dtDays;
-        if (grow < maxGrow && tr.age>2 && tr.fruits.length < tr.maxFruit && rnd(w) < dtDays*1.1*setP){
+        tr.cAge = (tr.cAge||0) + dtDays;                  // возраст текущей волны плодов
+        const alive = tr.fruits.filter(x=>!x.harvested).length;
+        // в кисть с уже покрасневшими плодами новые не завязываются: кисть снимают
+        // целиком, и «половина красная» на ней остаться не должна
+        const hasRipe = tr.fruits.some(x=>x.ripe && !x.harvested);
+        if (grow < maxGrow && tr.age>2 && !hasRipe && alive < tr.maxFruit && rnd(w) < dtDays*1.1*setP){
           addFruit(w, p, tr, 0.05); grow++;
         }
       }
@@ -2044,10 +2065,20 @@ function growthTick(w, dtDays, C){
       const carbonFruit = pool*fFruit + p.pool*0.02;
       p.pool -= p.pool*0.02;
       for (const x of gr){
-        x.mass += carbonFruit*Math.max(0.15,1-x.mass/C.fruitSink)/sinkSum * (1-0.4*f.caDef*0.2);
-        if (x.mass >= C.fruitSink){
-          x.ripe = true;
-          x.rot = f.caDef > 0.45 && rnd(w) < 0.35;         // вершинная гниль
+        x.mass = Math.min(C.fruitSink*1.02,
+          x.mass + carbonFruit*Math.max(0.15,1-x.mass/C.fruitSink)/sinkSum * (1-0.4*f.caDef*0.2));
+      }
+      // Кисть зреет целиком: сперва все плоды добирают массу, потом краснеют разом.
+      // Иначе спелые плоды появлялись по одному и сбор шёл волнами — по 2–3 штуки,
+      // а выручка прыгала день ото дня. Теперь сбор идёт ровными партиями по кистям.
+      for (const tr of p.trusses){
+        const raw = tr.fruits.filter(x=>!x.harvested);
+        if (!raw.length || raw.some(x=>x.ripe)) continue;
+        const sealed = raw.length >= tr.maxFruit || tr.cAge > (tr.sealAge||7);   // кисть больше не набирает плодов
+        const mmin = raw.reduce((s,x)=>Math.min(s,x.mass), Infinity);
+        if (sealed && mmin >= C.fruitSink*0.93){
+          for (const x of raw){ x.mass = C.fruitSink; x.ripe = true; x.rot = f.caDef > 0.45 && rnd(w) < 0.35; }
+          tr.ripeAt = w.day;
         }
       }
       p.bio.fruit = p.fruits.filter(x=>!x.harvested).reduce((s,x)=>s+x.mass,0);
@@ -2089,9 +2120,9 @@ function fxKgText(kg){
   if (kg >= 1) return '+' + (Math.round(kg*10)/10).toFixed(1).replace('.', ',') + ' кг';
   return '+' + Math.round(kg*1000) + ' г';
 }
-function fxPick(w, C, p, tr, fi, f){
+function fxPick(w, C, p, tr, fi, f, kgOverride){
   if (w.forecast) return;                       // прогноз не должен сыпать искрами
-  const kg = C.fruitFresh*(w.plantScale||1);
+  const kg = (kgOverride || C.fruitFresh)*(w.plantScale||1);
   fxPush({k:'pick', pos:fruitPos(C, p, tr, fi), txt:fxKgText(kg),
           col: f.rot ? '#a8823f' : '#e8472a', born: (typeof performance!=='undefined'?performance.now():Date.now()), dur:1.15});
 }
@@ -2123,13 +2154,23 @@ function harvestAll(w){
       }
     }
   } else {
-    for (const p of w.plants) for (const tr of p.trusses) for (let fi=0; fi<tr.fruits.length; fi++){
-      const f = tr.fruits[fi];
-      if (!(f.ripe && !f.harvested)) continue;
-      f.harvested = true; n++;
-      if (f.rot){ rotKg += C.fruitFresh; continue; }
-      kg += C.fruitFresh;
-      fxPick(w, C, p, tr, fi, f);
+    // кисть снимают целиком — и подпись веса одна на кисть, а не на каждый плод
+    for (const p of w.plants) for (const tr of p.trusses){
+      let tkg = 0, first = -1;
+      for (let fi=0; fi<tr.fruits.length; fi++){
+        const f = tr.fruits[fi];
+        if (!(f.ripe && !f.harvested)) continue;
+        f.harvested = true; n++;
+        if (f.rot){ rotKg += C.fruitFresh; continue; }
+        kg += C.fruitFresh; tkg += C.fruitFresh;
+        if (first < 0) first = fi;
+      }
+      if (tkg > 0) fxPick(w, C, p, tr, first, tr.fruits[first], tkg);
+      // снятая кисть пустеет и начинает новую волну — так сбор идёт ровно
+      if (tr.fruits.some(x=>x.harvested)){
+        tr.fruits = tr.fruits.filter(x=>!x.harvested);
+        tr.cAge = 0;
+      }
     }
   }
   if (n>0){
@@ -2845,6 +2886,9 @@ function makeWorld(opts){
       co2:{ok:true, down:0, since:1, stuck:false}, dosing:{ok:true, down:0, since:1},
       sensor:{ok:true, down:0, since:1}
     },
+    // лёгкая сложность: на балконе утеплитель и обогреватель уже стоят —
+    // новичку не нужно на первой же холодной ночи искать, чем закрыть рамы
+    startKit: [],                 // что уже стоит «с коробки» (лёгкая сложность на балконе)
     warranty: [],                 // {k, name, eur, due, day} — возвраты в пути
     stock: { fertKg: 120*(P.area/400), co2Kg: 140*(P.area/400), waterM3: 100*(P.area/400), seeds: 400*(P.area/400) },
     // склад: секции, партии урожая, потери
@@ -2893,6 +2937,14 @@ function makeWorld(opts){
     w.has.ledStrip = true; w.ctrl.lampEnabled = true;
     w.money = 100; w.startMoney = 100;
     campaignTick(w);
+  }
+  // Лёгкая сложность: балкон сразу оборудован — утеплитель на рамах и обогреватель
+  // уже стоят. Новичок не тратит первые деньги на то, без чего сезон не начать.
+  if (P.id === 'balcony' && D.id === 'easy' && !opts.campaign){
+    w.has.windowFilm = true;
+    w.has.heatBoost = true;
+    w.startKit = ['windowFilm','heaterMini'];
+    w.log.unshift({t:'Д'+w.day, m:'Балкон уже утеплён: плёнка на рамах и обогреватель 0,6 кВт стоят с первого дня', k:'hl'});
   }
   if (opts.realWeather) applyWeatherTable(w, opts.realWeather.rows || opts.realWeather,
                                           {source:(opts.realWeather.source||'open-meteo')});
@@ -4236,6 +4288,16 @@ function drawScene(){
       drawVessel(p);
     }});
 
+    // листовые: розетка целиком, без стебля и без «плодов»
+    if (C.leafy){
+      for (const l of lettuceRosette(p, C)){
+        items.push({z: depthOf(l.cen), draw(){
+          poly(l.corners, lettuceColor(l.lf, l.ring), '#0a0806', 1.5);
+          line3(l.base, l.tip, 'rgba(12,10,6,.32)', 1);
+        }});
+      }
+    }
+
     // стебель: начинается от поверхности ёмкости, а не от пола — иначе куст
     // «стоит за горшком» и с верхних ракурсов кажется, что он не в нём
     const mouth = plantBaseY(world);
@@ -4244,35 +4306,30 @@ function drawScene(){
       const ny = nodeYw(C,i);
       if (ny > mouth - 0.01) pts.push({x:p.x+Math.sin(i*0.4)*0.006, y:ny, z:p.z+Math.cos(i*0.4)*0.006});
     }
-    items.push({z: depthOf({x:p.x, y:1.0, z:p.z}), draw(){
-      ctx.beginPath();
-      for (let i=0;i<pts.length;i++){ const q = project(pts[i]); if(i===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y); }
-      ctx.lineCap='round';
-      ctx.strokeStyle = '#0a0806'; ctx.lineWidth = Math.max(3.4, 4.6 + p.nPhy*0.10); ctx.stroke();
-      ctx.strokeStyle = isSel ? '#c8ea70' : '#8f9a54';
-      ctx.lineWidth = Math.max(1.2, 1.6 + p.nPhy*0.06); ctx.stroke();
-      if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeYw(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
-    }});
-
-    // листья
-    for (const lf of p.leaves){
-      if (lf.area < 2e-4 && !lf.dead) continue;
-      const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
-      items.push({z: depthOf(g.cen), draw(){
-        poly(g.corners, leafColor(lf), '#0a0806', 1.7);
-        if (!lf.dead) line3(g.base, g.tip, 'rgba(12,10,6,.55)', 1.1);
+    if (!C.leafy){
+      items.push({z: depthOf({x:p.x, y:1.0, z:p.z}), draw(){
+        ctx.beginPath();
+        for (let i=0;i<pts.length;i++){ const q = project(pts[i]); if(i===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y); }
+        ctx.lineCap='round';
+        ctx.strokeStyle = '#0a0806'; ctx.lineWidth = Math.max(3.4, 4.6 + p.nPhy*0.10); ctx.stroke();
+        ctx.strokeStyle = isSel ? '#c8ea70' : '#8f9a54';
+        ctx.lineWidth = Math.max(1.2, 1.6 + p.nPhy*0.06); ctx.stroke();
+        if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeYw(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
       }});
+
+      // листья
+      for (const lf of p.leaves){
+        if (lf.area < 2e-4 && !lf.dead) continue;
+        const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
+        items.push({z: depthOf(g.cen), draw(){
+          poly(g.corners, leafColor(lf), '#0a0806', 1.7);
+          if (!lf.dead) line3(g.base, g.tip, 'rgba(12,10,6,.55)', 1.1);
+        }});
+      }
     }
 
-    // плоды / головки
-    if (C.leafy){
-      const ready = p.head >= C.headTarget;
-      items.push({z: depthOf({x:p.x,y:nodeYw(C, Math.min(p.nPhy,6)),z:p.z}), draw(){
-        const r = 0.05+0.08*clamp(p.head/C.headTarget,0,1);
-        dot3({x:p.x, y:nodeYw(C, Math.min(p.nPhy,6)), z:p.z}, r,
-             ready? '#d8ec8e' : '#87ad4e', '#0a0806', 2.2);
-      }});
-    } else {
+    // плоды (у листовых головка уже нарисована розеткой)
+    if (!C.leafy){
       for (const tr of p.trusses){
         for (let fi=0; fi<tr.fruits.length; fi++){
           const f = tr.fruits[fi];
@@ -4511,6 +4568,77 @@ function drawVessel(p){
   }
 }
 
+/* ---------- салат: розетка, а не куст ----------
+   Томат тянется вверх по стеблю, салат растёт листьями от самой земли: короткий
+   черешок, широкая округлая пластина, внешние листья лежат, внутренние
+   поднимаются и смыкаются в головку. Поэтому для листовых культур рисуем не
+   «стебель с листьями» (это делало салат маленьким томатом), а кольца розетки. */
+function lettuceRosette(p, C){
+  const t = clamp(p.head/(C.headTarget||1), 0, 1.2);
+  const out = [];
+  const baseY = (typeof plantBaseY === 'function' ? plantBaseY(world) : 0) + 0.004;
+  const nMax = Math.max(1, C.maxPhy-1);
+  for (const lf of p.leaves){
+    if (lf.dead || lf.area < 2e-4) continue;
+    const ring = clamp(lf.i/nMax, 0, 1);                 // 0 — внешнее кольцо, 1 — центр
+    const ang = lf.i*2.3999 + (p.id||0)*0.9;
+    const len = 0.115 - 0.055*ring + 0.035*t;
+    const wid = 0.105 - 0.045*ring + 0.020*t;
+    const lift = -0.016 + 0.115*ring*ring + 0.045*t;     // внешние вниз, внутренние вверх
+    const dirx = Math.cos(ang), dirz = Math.sin(ang);
+    const y0 = baseY + 0.010 + 0.020*ring;
+    const base = {x:p.x + dirx*0.010, y:y0, z:p.z + dirz*0.010};
+    const tip  = {x:p.x + dirx*len, y:y0 + lift, z:p.z + dirz*len};
+    const sx = -dirz, sz = dirx;
+    // лист салата — лопатка с округлой вершиной: ширина набирается к середине
+    // и снова падает к кончику, поэтому это многоугольник, а не четырёхугольник
+    const U = [0, 0.26, 0.52, 0.78, 0.93, 1], W = [0.30, 0.76, 1, 0.95, 0.68, 0.22];
+    const cs = [];
+    for (let i=0;i<U.length;i++){
+      const u = U[i], h = wid*0.5*W[i];
+      const px = base.x + (tip.x-base.x)*u, py = base.y + lift*u*u, pz = base.z + (tip.z-base.z)*u;
+      cs.push({x:px - sx*h, y:py, z:pz - sz*h});
+    }
+    for (let i=U.length-1;i>=0;i--){
+      const u = U[i], h = wid*0.5*W[i];
+      const px = base.x + (tip.x-base.x)*u, py = base.y + lift*u*u, pz = base.z + (tip.z-base.z)*u;
+      cs.push({x:px + sx*h, y:py, z:pz + sz*h});
+    }
+    out.push({lf, ring, corners:cs, base, tip,
+      cen:{x:(base.x+tip.x)/2, y:(base.y+tip.y)/2, z:(base.z+tip.z)/2}});
+  }
+  // головка: когда налилась, в центре смыкаются короткие светлые листья
+  if (t > 0.35){
+    const k = Math.round(3 + 4*clamp(t, 0, 1));
+    for (let i=0;i<k;i++){
+      const ang = i*2.3999 + 0.8;
+      const len = 0.030 + 0.026*clamp(t,0,1);
+      const dirx = Math.cos(ang), dirz = Math.sin(ang);
+      const y0 = baseY + 0.030 + 0.010*clamp(t,0,1);
+      const base = {x:p.x + dirx*0.008, y:y0, z:p.z + dirz*0.008};
+      const tip  = {x:p.x + dirx*len, y:y0 + 0.026 + 0.026*clamp(t,0,1), z:p.z + dirz*len};
+      const sx = -dirz, sz = dirx, hw = 0.026;
+      out.push({lf:null, ring:1.4, head:true,
+        corners:(function(){
+          const cs = [];
+          for (let j=0;j<5;j++){ const u = j/4, h = hw*(0.45 + 0.55*Math.sin(Math.PI*Math.min(1,u*1.15)));
+            cs.push({x:base.x+(tip.x-base.x)*u - sx*h, y:base.y+(tip.y-base.y)*u, z:base.z+(tip.z-base.z)*u - sz*h}); }
+          for (let j=4;j>=0;j--){ const u = j/4, h = hw*(0.45 + 0.55*Math.sin(Math.PI*Math.min(1,u*1.15)));
+            cs.push({x:base.x+(tip.x-base.x)*u + sx*h, y:base.y+(tip.y-base.y)*u, z:base.z+(tip.z-base.z)*u + sz*h}); }
+          return cs;
+        })(),
+        base, tip, cen:{x:(base.x+tip.x)/2, y:(base.y+tip.y)/2, z:(base.z+tip.z)/2}});
+    }
+  }
+  return out;
+}
+/* цвет листа салата: внешние кольца темнее, головка почти жёлто-зелёная */
+function lettuceColor(leaf, ring){
+  if (leaf && leaf.dead) return '#77683a';
+  const ramp = ['#3d6a32','#4a7d3a','#5c9243','#74a94e','#93c05c','#bcd97f','#d8ec9a'];
+  return ramp[clamp(Math.round(ring*(ramp.length-1)), 0, ramp.length-1)];
+}
+
 /* ---------- эффекты сбора ----------
    Плод не исчезает бесследно: он подлетает вверх, уменьшается и тает, рядом
    всплывает «+12 г». Живёт чуть больше секунды — этого хватает, чтобы глаз
@@ -4713,19 +4841,21 @@ function toast(msg){
    очистку сейва. Где WebAudio нет (старый браузер, jsdom в тестах) — молча ничего. */
 const SND_KEY = 'vg_sound_v1';
 const sndCfg = (()=>{
-  const def = {on:true, vol:0.7};
+  const def = {on:true, vol:0.7, amb:true};
   try {
     const raw = localStorage.getItem(SND_KEY);
     if (raw){ const o = JSON.parse(raw);
-      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1)}; }
+      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1),
+              amb: o.amb !== false}; }
   } catch(e){}
   return def;
 })();
 function sndSave(){
-  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol})); } catch(e){}
+  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol, amb:sndCfg.amb})); } catch(e){}
 }
 const SFX = (()=>{
   let ctx = null, master = null, noiseBuf = null, armed = false;
+  let ambFan = null, ambGain = null, ambLevel = 0, dripLevel = 0, dripTimer = 0;
   const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
   const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
   function ensure(){
@@ -4747,12 +4877,62 @@ const SFX = (()=>{
   function arm(){
     ensure();
     if (!ctx) return false;
+    ensureAmbient();
     if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch(e){} }
     armed = true;
     return true;
   }
   function syncGain(){
     if (master) master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+  }
+  /* ---------- фон теплицы: вентилятор гудит, капель капает ----------
+     Гул — это тот же буфер шума, но зацикленный и сильно отфильтрованный: он
+     не «звучит», а создаёт ощущение работающей теплицы. Громкость ведёт за собой
+     форточки и обдув, капель — за влажностью субстрата. Всё на минимуме: фон не
+     должен спорить с событийными звуками. */
+  function ensureAmbient(){
+    if (!ctx || ambFan) return;
+    ambFan = ctx.createBufferSource();
+    ambFan.buffer = noiseBuf; ambFan.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = 210; bp.Q.value = 0.7;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    ambGain = ctx.createGain(); ambGain.gain.value = 0;
+    ambFan.connect(bp); bp.connect(lp); lp.connect(ambGain); ambGain.connect(master);
+    try { ambFan.start(); } catch(e){}
+  }
+  function drip(){
+    if (!ctx || !sndCfg.on || sndCfg.vol <= 0) return;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sine';
+    const f0 = 1100 + Math.random()*700;
+    osc.frequency.setValueAtTime(f0, t0);
+    osc.frequency.exponentialRampToValueAtTime(f0*0.45, t0 + 0.11);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.035*(0.6 + Math.random()*0.7), t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+    osc.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + 0.2);
+  }
+  function ambientTick(){
+    if (!ctx) return;
+    const want = (sndCfg.on && sndCfg.amb && sndCfg.vol > 0) ? ambLevel : 0;
+    if (ambGain) ambGain.gain.setTargetAtTime(want*0.055*sndCfg.vol, ctx.currentTime, 0.6);
+    if (want <= 0.01) return;
+    // капель: редкие капли, темп зависит от влажности, а не от таймера кадра
+    if (dripLevel > 0.05 && !dripTimer){
+      dripTimer = setTimeout(()=>{
+        dripTimer = 0;
+        if (sndCfg.on && sndCfg.amb && Math.random() < dripLevel) drip();
+      }, 550 + Math.random()*900);
+    }
+  }
+  function ambient(o){
+    ambLevel = clamp(o && o.fan || 0, 0, 1);
+    dripLevel = clamp(o && o.drip || 0, 0, 1);
+    if (ctx) ensureAmbient();
+    ambientTick();
   }
   function tone(o){
     const t0 = ctx.currentTime + (o.at||0);
@@ -4846,7 +5026,10 @@ const SFX = (()=>{
     try { r(opt || {}); return true; } catch(e){ return false; }
   }
   return {
-    arm, play,
+    arm, play, ambient,
+    get amb(){ return sndCfg.amb; },
+    setAmb(v){ sndCfg.amb = !!v; sndSave(); return sndCfg.amb; },
+    ambState(){ return {fan:ambLevel, drip:dripLevel, on:sndCfg.amb, gain: ambGain ? ambGain.gain.value : 0}; },
     names: ()=>Object.keys(RECIPES),
     get on(){ return sndCfg.on; },
     get vol(){ return sndCfg.vol; },
@@ -5246,7 +5429,8 @@ function startGame(){
   toast(pending.campaign
     ? 'Кампания: балкон, '+money(100)+', '+CROPS[world.crop].name.toLowerCase()
     : 'Сезон начат: '+CROPS[world.crop].name+', '+PROFILES[world.profile].area+' м², '
-      +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность');
+      +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность'
+      +((world.startKit&&world.startKit.length)?' · балкон уже утеплён, обогреватель стоит':''));
   if (world.mail.length) setTimeout(()=>toast('В почте письмо от тёти Розы'), 2400);
 }
 
@@ -5929,7 +6113,10 @@ const OWNED = {
   led:w=>w.has.led, ledBoost:w=>w.upg.ledBoost, screen:w=>w.has.screen, shade:w=>w.has.shade,
   dosing:w=>w.has.dosing, secondSensor:w=>w.has.secondSensor, worker:w=>w.upg.worker,
   reliability:w=>w.upg.reliability, service:w=>w.has.service, insurance:w=>w.has.insurance,
-  biocontrol:w=>w.has.biocontrol, weather:w=>w.has.weatherSrv, autoBuy:w=>w.upg.autoBuy
+  biocontrol:w=>w.has.biocontrol, weather:w=>w.has.weatherSrv, autoBuy:w=>w.upg.autoBuy,
+  // балкон на лёгкой сложности приходит с этими двумя — в магазине они уже «куплены»
+  windowFilm:w=>!!w.has.windowFilm, heaterMini:w=>!!w.has.heatBoost,
+  humid:w=>!!w.has.humid, ups:w=>!!w.has.ups, strip2:w=>!!w.has.strip2, panel:w=>!!w.has.panel
 };
 function shopTopLine(){
   const tr = marketTrend(world, world.crop);
@@ -6053,6 +6240,9 @@ function renderSettings(){
         <div class="hint">Звук синтезируется в браузере: файлов нет, работает офлайн. Клавиша <b>Z</b> глушит и возвращает.</div></label>
         <button class="btn ${SFX.on?'good':''}" id="btnSndSet">${SFX.on?'вкл':'выкл'}</button></div>
       <input type="range" id="sndVol" min="0" max="100" step="5" value="${Math.round(SFX.vol*100)}">
+      <div class="row"><label>Фон теплицы: вентилятор и капель
+        <div class="hint">Тихий слой под событиями: гул форточек и обдува, редкие капли по влажности субстрата.</div></label>
+        <button class="btn ${SFX.amb?'good':''}" id="btnAmbSet">${SFX.amb?'вкл':'выкл'}</button></div>
       <div class="hint">${SFX.state().running ? 'браузер разрешил звук' : 'звук включится после первого клика — так требуют браузеры'}</div>
     </div>
     <div class="card">
@@ -6277,6 +6467,8 @@ function renderSettings(){
   bind('ph','phSet', v=>nf(v,1));
   const bs = $('btnSndSet');
   if (bs) bs.onclick = ()=>{ toggleSound(); };
+  const ba = $('btnAmbSet');
+  if (ba) ba.onclick = ()=>{ SFX.setAmb(!SFX.amb); renderSettings(); toast(SFX.amb ? 'Фон теплицы включён' : 'Фон теплицы выключен'); };
   const vs = $('sndVol');
   if (vs) vs.oninput = ()=>{ SFX.arm(); SFX.setVol(vs.value/100); const d = vs.parentNode.querySelector('.d'); if (d) d.textContent = SFX.on ? 'включён · громкость '+Math.round(SFX.vol*100)+'%' : 'выключен'; };
 
@@ -6974,6 +7166,15 @@ function frame(now){
     }
     if (now - uiT > 130){
       uiT = now;
+      // фон теплицы: чем сильнее проветривание и обдув, тем слышнее вентилятор;
+      // капель зависит от влажности субстрата, а не от календаря
+      {
+        const a = world.act || {};
+        const fan = clamp((a.vent||0)*0.8 + (world.has.circFan?0.22:0) + (world.has.climatePC?0.08:0)
+                          + (world.has.humid && world.rh < 70 ? 0.10 : 0), 0, 1);
+        const drip = clamp(((world.moist||0) - 58)/34, 0, 1);
+        SFX.ambient({fan, drip});
+      }
       renderTop();                                  // часы и баланс идут на любой вкладке
       if (page==='greenhouse') renderAll();
       else if (page==='shop'){ const b=$('shopBalance'); if (b) b.innerHTML = shopTopLine(); }

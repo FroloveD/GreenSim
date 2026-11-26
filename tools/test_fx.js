@@ -77,12 +77,19 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c?'✅ ':'❌ ')+m+(ex
     Object.assign(pending, {campaign:false, profile:'hobby', crop:'tomato', site:'ekb', startDoy:130});
     startGame();
     for (let d=0; d<40; d++){ for (let k=0;k<24;k++){ stepWorld(world,1); if (world.moist<45) water(world);} harvestAll(world); }
-    for (let d=0; d<4; d++){ for (let k=0;k<24;k++){ stepWorld(world,1); if (world.moist<45) water(world);} }
+    // кисти зреют целиком, поэтому ждём, пока на кисти покраснеет вся партия
+    const findRipe = ()=>{
+      for (const p of world.plants) for (const tr of p.trusses) for (const f of tr.fruits)
+        if (f.ripe && !f.harvested) return {p, f};
+      return null;
+    };
+    let hit = null;
+    for (let d=0; d<20 && !hit; d++){
+      for (let k=0;k<24;k++){ stepWorld(world,1); if (world.moist<45) water(world);}
+      hit = findRipe();
+    }
     // один плод — кликом, до общего сбора
     FX.length = 0;
-    let hit = null;
-    for (const p of world.plants) for (const tr of p.trusses) for (const f of tr.fruits)
-      if (!hit && f.ripe && !f.harvested) hit = {p, f};
     const single = hit ? (harvestFruit(world, hit.p, hit.f), FX.length) : -1;
     // теперь весь сбор разом, и сразу рисуем — эффект живёт чуть больше секунды
     FX.length = 0;
@@ -94,7 +101,8 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c?'✅ ':'❌ ')+m+(ex
   });
   ok(fx.single === 1, 'клик по одному плоду даёт свой эффект', `${fx.single}`);
   ok(fx.n > 0, 'сбор урожая собрал плоды', `${fx.n} шт`);
-  ok(fx.fx === fx.n, 'на каждый плод родился эффект', `${fx.fx} эффектов`);
+  ok(fx.fx >= 1 && fx.fx <= fx.n, 'эффект рождается на кисть, а не на каждый плод',
+     `${fx.fx} эффектов на ${fx.n} плодов`);
   ok(fx.first && /^\+/.test(fx.first.txt) && /(кг|г)$/.test(fx.first.txt), 'подпись эффекта — вес плода', fx.first && fx.first.txt);
   ok(fx.drawn > 0, 'сцена с эффектами рисуется', `эффектов на экране: ${fx.drawn}`);
   await cdpShot(page, shotFile('fx_harvest.png'));
@@ -117,6 +125,31 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c?'✅ ':'❌ ')+m+(ex
   ok(card.found, 'в «Параметрах» есть карточка «Звук»', card.text);
   ok(card.off, 'кнопка в карточке глушит звук');
   await page.evaluate(()=>{ SFX.setOn(true); });
+
+  /* ---------- 10. фоновый эмбиент теплицы ---------- */
+  const ambOff = await page.evaluate(()=>{ SFX.setAmb(false); return SFX.ambState(); });
+  ok(ambOff.on === false, 'фон можно выключить отдельно от событийных звуков', JSON.stringify(ambOff));
+  const ambOn = await page.evaluate(async ()=>{
+    SFX.setAmb(true);
+    // гоняем тик эмбиента как в игровом цикле: вентилятор дует, подложка набирает громкость
+    world.act = world.act || {}; world.act.vent = 0.9;
+    for (let i=0;i<60;i++){ SFX.ambient({fan:0.9, drip:0.4}); await new Promise(r=>setTimeout(r, 20)); }
+    return SFX.ambState();
+  });
+  ok(ambOn.on === true && ambOn.fan > 0, 'фон включается и знает про вентилятор', JSON.stringify(ambOn));
+  ok(ambOn.gain > 0, 'подложка реально звучит (громкость > 0)', 'gain '+ambOn.gain.toFixed(4));
+  const hush = await page.evaluate(async ()=>{
+    // без вентилятора и капели фон должен затихнуть до нуля
+    for (let i=0;i<60;i++){ SFX.ambient({fan:0, drip:0}); await new Promise(r=>setTimeout(r, 20)); }
+    return SFX.ambState();
+  });
+  ok(hush.gain < ambOn.gain*0.5, 'в тихой теплице фон притухает', ambOn.gain.toFixed(4)+' → '+hush.gain.toFixed(4));
+  const ambCard = await page.evaluate(()=>{
+    setPage('settings'); renderAll();
+    const c = [...document.querySelectorAll('.card')].find(x=>/^Звук/.test(x.textContent.trim()));
+    return {row:/Фон теплицы/.test(c ? c.textContent : ''), btn:!!(c && c.querySelector('#btnAmbSet'))};
+  });
+  ok(ambCard.row && ambCard.btn, 'в карточке «Звук» есть строка про фон теплицы с кнопкой');
 
   ok(errs.length === 0, 'ошибок в консоли нет', errs.join(' | ') || 'чисто');
   console.log(fails ? `\nПРОВАЛЕНО: ${fails}` : '\nЗвук и эффекты сбора в порядке');

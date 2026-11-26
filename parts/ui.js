@@ -41,19 +41,21 @@ function toast(msg){
    очистку сейва. Где WebAudio нет (старый браузер, jsdom в тестах) — молча ничего. */
 const SND_KEY = 'vg_sound_v1';
 const sndCfg = (()=>{
-  const def = {on:true, vol:0.7};
+  const def = {on:true, vol:0.7, amb:true};
   try {
     const raw = localStorage.getItem(SND_KEY);
     if (raw){ const o = JSON.parse(raw);
-      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1)}; }
+      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1),
+              amb: o.amb !== false}; }
   } catch(e){}
   return def;
 })();
 function sndSave(){
-  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol})); } catch(e){}
+  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol, amb:sndCfg.amb})); } catch(e){}
 }
 const SFX = (()=>{
   let ctx = null, master = null, noiseBuf = null, armed = false;
+  let ambFan = null, ambGain = null, ambLevel = 0, dripLevel = 0, dripTimer = 0;
   const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
   const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
   function ensure(){
@@ -75,12 +77,62 @@ const SFX = (()=>{
   function arm(){
     ensure();
     if (!ctx) return false;
+    ensureAmbient();
     if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch(e){} }
     armed = true;
     return true;
   }
   function syncGain(){
     if (master) master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+  }
+  /* ---------- фон теплицы: вентилятор гудит, капель капает ----------
+     Гул — это тот же буфер шума, но зацикленный и сильно отфильтрованный: он
+     не «звучит», а создаёт ощущение работающей теплицы. Громкость ведёт за собой
+     форточки и обдув, капель — за влажностью субстрата. Всё на минимуме: фон не
+     должен спорить с событийными звуками. */
+  function ensureAmbient(){
+    if (!ctx || ambFan) return;
+    ambFan = ctx.createBufferSource();
+    ambFan.buffer = noiseBuf; ambFan.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = 210; bp.Q.value = 0.7;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    ambGain = ctx.createGain(); ambGain.gain.value = 0;
+    ambFan.connect(bp); bp.connect(lp); lp.connect(ambGain); ambGain.connect(master);
+    try { ambFan.start(); } catch(e){}
+  }
+  function drip(){
+    if (!ctx || !sndCfg.on || sndCfg.vol <= 0) return;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sine';
+    const f0 = 1100 + Math.random()*700;
+    osc.frequency.setValueAtTime(f0, t0);
+    osc.frequency.exponentialRampToValueAtTime(f0*0.45, t0 + 0.11);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.035*(0.6 + Math.random()*0.7), t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+    osc.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + 0.2);
+  }
+  function ambientTick(){
+    if (!ctx) return;
+    const want = (sndCfg.on && sndCfg.amb && sndCfg.vol > 0) ? ambLevel : 0;
+    if (ambGain) ambGain.gain.setTargetAtTime(want*0.055*sndCfg.vol, ctx.currentTime, 0.6);
+    if (want <= 0.01) return;
+    // капель: редкие капли, темп зависит от влажности, а не от таймера кадра
+    if (dripLevel > 0.05 && !dripTimer){
+      dripTimer = setTimeout(()=>{
+        dripTimer = 0;
+        if (sndCfg.on && sndCfg.amb && Math.random() < dripLevel) drip();
+      }, 550 + Math.random()*900);
+    }
+  }
+  function ambient(o){
+    ambLevel = clamp(o && o.fan || 0, 0, 1);
+    dripLevel = clamp(o && o.drip || 0, 0, 1);
+    if (ctx) ensureAmbient();
+    ambientTick();
   }
   function tone(o){
     const t0 = ctx.currentTime + (o.at||0);
@@ -174,7 +226,10 @@ const SFX = (()=>{
     try { r(opt || {}); return true; } catch(e){ return false; }
   }
   return {
-    arm, play,
+    arm, play, ambient,
+    get amb(){ return sndCfg.amb; },
+    setAmb(v){ sndCfg.amb = !!v; sndSave(); return sndCfg.amb; },
+    ambState(){ return {fan:ambLevel, drip:dripLevel, on:sndCfg.amb, gain: ambGain ? ambGain.gain.value : 0}; },
     names: ()=>Object.keys(RECIPES),
     get on(){ return sndCfg.on; },
     get vol(){ return sndCfg.vol; },
@@ -574,7 +629,8 @@ function startGame(){
   toast(pending.campaign
     ? 'Кампания: балкон, '+money(100)+', '+CROPS[world.crop].name.toLowerCase()
     : 'Сезон начат: '+CROPS[world.crop].name+', '+PROFILES[world.profile].area+' м², '
-      +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность');
+      +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность'
+      +((world.startKit&&world.startKit.length)?' · балкон уже утеплён, обогреватель стоит':''));
   if (world.mail.length) setTimeout(()=>toast('В почте письмо от тёти Розы'), 2400);
 }
 
@@ -1257,7 +1313,10 @@ const OWNED = {
   led:w=>w.has.led, ledBoost:w=>w.upg.ledBoost, screen:w=>w.has.screen, shade:w=>w.has.shade,
   dosing:w=>w.has.dosing, secondSensor:w=>w.has.secondSensor, worker:w=>w.upg.worker,
   reliability:w=>w.upg.reliability, service:w=>w.has.service, insurance:w=>w.has.insurance,
-  biocontrol:w=>w.has.biocontrol, weather:w=>w.has.weatherSrv, autoBuy:w=>w.upg.autoBuy
+  biocontrol:w=>w.has.biocontrol, weather:w=>w.has.weatherSrv, autoBuy:w=>w.upg.autoBuy,
+  // балкон на лёгкой сложности приходит с этими двумя — в магазине они уже «куплены»
+  windowFilm:w=>!!w.has.windowFilm, heaterMini:w=>!!w.has.heatBoost,
+  humid:w=>!!w.has.humid, ups:w=>!!w.has.ups, strip2:w=>!!w.has.strip2, panel:w=>!!w.has.panel
 };
 function shopTopLine(){
   const tr = marketTrend(world, world.crop);
@@ -1381,6 +1440,9 @@ function renderSettings(){
         <div class="hint">Звук синтезируется в браузере: файлов нет, работает офлайн. Клавиша <b>Z</b> глушит и возвращает.</div></label>
         <button class="btn ${SFX.on?'good':''}" id="btnSndSet">${SFX.on?'вкл':'выкл'}</button></div>
       <input type="range" id="sndVol" min="0" max="100" step="5" value="${Math.round(SFX.vol*100)}">
+      <div class="row"><label>Фон теплицы: вентилятор и капель
+        <div class="hint">Тихий слой под событиями: гул форточек и обдува, редкие капли по влажности субстрата.</div></label>
+        <button class="btn ${SFX.amb?'good':''}" id="btnAmbSet">${SFX.amb?'вкл':'выкл'}</button></div>
       <div class="hint">${SFX.state().running ? 'браузер разрешил звук' : 'звук включится после первого клика — так требуют браузеры'}</div>
     </div>
     <div class="card">
@@ -1605,6 +1667,8 @@ function renderSettings(){
   bind('ph','phSet', v=>nf(v,1));
   const bs = $('btnSndSet');
   if (bs) bs.onclick = ()=>{ toggleSound(); };
+  const ba = $('btnAmbSet');
+  if (ba) ba.onclick = ()=>{ SFX.setAmb(!SFX.amb); renderSettings(); toast(SFX.amb ? 'Фон теплицы включён' : 'Фон теплицы выключен'); };
   const vs = $('sndVol');
   if (vs) vs.oninput = ()=>{ SFX.arm(); SFX.setVol(vs.value/100); const d = vs.parentNode.querySelector('.d'); if (d) d.textContent = SFX.on ? 'включён · громкость '+Math.round(SFX.vol*100)+'%' : 'выключен'; };
 
@@ -2302,6 +2366,15 @@ function frame(now){
     }
     if (now - uiT > 130){
       uiT = now;
+      // фон теплицы: чем сильнее проветривание и обдув, тем слышнее вентилятор;
+      // капель зависит от влажности субстрата, а не от календаря
+      {
+        const a = world.act || {};
+        const fan = clamp((a.vent||0)*0.8 + (world.has.circFan?0.22:0) + (world.has.climatePC?0.08:0)
+                          + (world.has.humid && world.rh < 70 ? 0.10 : 0), 0, 1);
+        const drip = clamp(((world.moist||0) - 58)/34, 0, 1);
+        SFX.ambient({fan, drip});
+      }
       renderTop();                                  // часы и баланс идут на любой вкладке
       if (page==='greenhouse') renderAll();
       else if (page==='shop'){ const b=$('shopBalance'); if (b) b.innerHTML = shopTopLine(); }
