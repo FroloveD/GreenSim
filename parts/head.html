@@ -513,7 +513,6 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   <div class="menu-kicker">GreenSim · симулятор тепличного хозяйства</div>
   <div class="menu-title">НОВАЯ ИГРА</div><p class="menu-subtitle">Выберите режим</p>
   <div class="menu-actions">
-    <button id="menuTraining"><span class="menu-symbol">⌖</span><span><b>Обучение</b><small>Освойте управление в ознакомительной сессии</small></span></button>
     <button id="menuCampaign"><span class="menu-symbol">▤</span><span><b>Кампания</b><small>История, главы и развитие хозяйства</small></span></button>
     <button id="menuFree"><span class="menu-symbol">🌱</span><span><b>Свободная игра</b><small>Настройте сезон без сценарных ограничений</small></span></button>
     <button id="menuContinue" hidden><span class="menu-symbol">▶</span><span><b>Продолжить</b><small>Загрузить последнее сохранение</small></span></button>
@@ -842,6 +841,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     <div id="resumeBox"></div>
     <h3>1. Режим</h3>
     <div class="grid" id="campPick" style="grid-template-columns:1fr 1fr"></div>
+    <div class="card" id="campaignTutorOption" hidden style="margin:8px 0"><label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="campaignTutorEnabled" checked style="margin-top:3px"><span><b>Обучение кампании</b><span class="hint" style="display:block">Пошаговое знакомство с интерфейсом и управлением. Можно отключить сейчас и включить позже в параметрах.</span></span></label></div>
     <h3 id="lblCapital">2. Капитал и площадь</h3>
     <div class="grid" id="profilePick" style="grid-template-columns:1fr 1fr 1fr"></div>
     <h3 id="lblCrop">2. Культура</h3>
@@ -869,7 +869,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   </div>
 </div>
 
-<!-- обучение: короткие шаги на первые дни -->
+<!-- контекстное обучение кампании: интерфейсные шаги -->
 <div id="tutor">
   <div class="ttl"><span id="tutorStep">Шаг 1 из 7</span>
     <span class="acts"><button id="tutorFold" title="Свернуть/развернуть подсказку">свернуть</button>
