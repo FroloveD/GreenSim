@@ -569,6 +569,10 @@ function renderFinance(){
   $('finance').innerHTML = `
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
+    ${(()=>{ const m = marginInfo(w);
+      return `<div class="finRow" title="Себестоимость килограмма = все расходы сезона ÷ собранные кг. Справа — цена дня.">
+        <span>себест./цена 1 кг</span><b class="dim">${m.cost==null?'—':money2(m.cost)}</b>
+        <b class="${m.margin==null?'':(m.margin>=0?'pos':'neg')}">${money2(m.price)}</b></div>`; })()}
     <div class="finRow total"><span>Прибыль</span>${cell(profitDay)}${cell(profit)}</div>
     <div class="finRow total"><span>Деньги</span>${cell(moneyDay)}${cell(w.money)}</div>
     <div class="finRow"><span>от старта</span><span class="dim">—</span>${cell(w.money-w.startMoney)}</div>
