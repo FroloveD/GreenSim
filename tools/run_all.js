@@ -19,6 +19,8 @@ const SUITE = [
   { n:'питание: рецепты EC/pH по стадиям', f:'tools/test_stage.js', browser:false },
   { n:'новый сезон: перенос хозяйства', f:'tools/test_carry.js', browser:false },
   { n:'погода: архив Open-Meteo и fallback', f:'tools/test_weather.js', browser:false },
+  { n:'раунд: DLI, экономика, рецепты, перенос и погода', f:'tools/test_season2.js', browser:false },
+  { n:'UX: DLI, рецепт, новый сезон и PWA', f:'tools/test_ux7.js', browser:true },
   { n:'рынок: сезон цен и зимнее снаряжение', f:'tools/test_market.js', browser:false },
   { n:'сюжет: главы, ремонт, задания',     f:'tools/test_plot.js',    browser:true },
   { n:'экономика: долг, свет, копейки',    f:'tools/test_econ.js',    browser:true },
