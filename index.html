@@ -4669,6 +4669,8 @@ function clearSave(){
 }
 function applyLoadedWorld(pack, silent){
   world = pack.world;
+  if (!world.has) world.has = {};
+  if (!world.has.autoTimer && world.auto) ['lamp','water','co2','full'].forEach(k=>{ if(world.auto[k]) world.auto[k].on=false; });
   if (world.camp && world.tutorialEnabled === undefined) world.tutorialEnabled = true;
   world.tutorialEnabled = !!(world.camp && world.tutorialEnabled);
   tutorStep = 0; resetTutorFlags();
@@ -4760,7 +4762,9 @@ function buildStart(){
       <div class="d">Обычный старт: выберите капитал, культуру и сложность. Хобби, ферма или агрокомплекс.</div>
     </div>`;
     camp.querySelectorAll('[data-camp]').forEach(e=>e.onclick=()=>{
-      pending.campaign = e.dataset.camp==='1';
+      const nextCampaign = e.dataset.camp==='1';
+      if (nextCampaign !== pending.campaign) pending.tutorialEnabled = nextCampaign;
+      pending.campaign = nextCampaign;
       pending.profile = pending.campaign ? 'balcony' : 'farm';
       buildStart();
     });
@@ -6129,7 +6133,7 @@ const TUTOR = [
   { text:'Начнём со сцены. Перетащите её мышью, чтобы осмотреть теплицу. Кнопки сверху переключают ракурсы, а клавиши 1–5 выбирают камеры.', done:()=>tutorFlags.cam },
   { text:'Откройте «Параметры». Здесь находятся настройки выращивания, света, питания и автоматизации. Пока ничего покупать или включать не нужно.', done:()=>tutorFlags.settings },
   { text:'Перейдите в «Магазин». Здесь оборудование открывается по мере развития кампании; часть устройств сначала нужно разблокировать главой.', done:()=>tutorFlags.shop },
-  { text:'Вернитесь в «Теплицу». Основной экран — рабочее место: здесь датчики, климатические регуляторы, состояние растений и быстрые действия.', done:()=>tutorFlags.greenhouse && tutorFlags.settings && tutorFlags.shop },
+  { text:'Вернитесь в «Теплицу». Основной экран — рабочее место: здесь датчики, климатические регуляторы, состояние растений и быстрые действия.', done:()=>page==='greenhouse' && tutorFlags.settings && tutorFlags.shop },
   { text:'Попробуйте изменить порог отопления в панели «Климат». Это ручное управление: автоматика появится позже, после открытия нужной главы и покупки контроллера.', done:()=>tutorFlags.climate }
 ];
 
