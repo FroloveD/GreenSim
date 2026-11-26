@@ -479,6 +479,21 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     0%,100%{outline-color:rgba(122,216,160,.65);box-shadow:0 0 0 3px rgba(122,216,160,.10),0 0 12px rgba(122,216,160,.20)}
     50%{outline-color:var(--acc);box-shadow:0 0 0 7px rgba(122,216,160,.22),0 0 25px rgba(122,216,160,.42)}
   }
+
+  /* ---- компактные карточки настроек ---- */
+  .setgrid{gap:7px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+  .setgrid .card{padding:8px 9px;gap:4px;box-shadow:3px 3px 0 rgba(10,8,6,.65)}
+  .setgrid .card .h{gap:5px;margin-bottom:0}
+  .setgrid .card .h b{font-size:11.5px}
+  .setgrid .row{gap:6px;margin-bottom:6px}
+  .setgrid .row label{font-size:10.8px;line-height:1.3}
+  .setgrid .row .val{font-size:11px;min-width:54px}
+  .setgrid .hint{font-size:9.8px;line-height:1.32}
+  .setgrid input[type=range]{margin:1px 0}
+  .setgrid input[type=range]+div[style*="height:8px"]{height:4px!important}
+  .setgrid .kv{padding:2px 0;font-size:10.5px}
+  @media(max-width:720px){.setgrid{grid-template-columns:1fr;gap:6px}.setgrid .card{padding:7px 8px}}
+
 </style>
 </head>
 <body>
@@ -841,6 +856,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
 <div id="toast"></div>
 <script>
+
 "use strict";
 // === SIM CORE START ===
 /* Ядро симуляции. Никакого DOM: гоняется в Node для тестов и в Web Worker в проде.
@@ -3575,6 +3591,7 @@ function forecastSummary(fc){
 }
 
 // === SIM CORE END ===
+
 /* =========================================================================
    РЕНДЕР: свои камеры (сверху / фронт / грядка / растение / свободно)
    ========================================================================= */
@@ -4377,6 +4394,7 @@ function pointInPoly(x,y,pts){
   }
   return inside;
 }
+
 /* =========================================================================
    UI: три страницы (Теплица / Магазин / Параметры), дашборд, прогноз
    ========================================================================= */
@@ -4414,6 +4432,164 @@ function toast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('on'), 1700);
 }
+
+
+const SND_KEY = 'vg_sound_v1';
+const sndCfg = (()=>{
+  const def = {on:true, vol:0.7};
+  try {
+    const raw = localStorage.getItem(SND_KEY);
+    if (raw){ const o = JSON.parse(raw);
+      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1)}; }
+  } catch(e){}
+  return def;
+})();
+function sndSave(){
+  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol})); } catch(e){}
+}
+const SFX = (()=>{
+  let ctx = null, master = null, noiseBuf = null, armed = false;
+  const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
+  const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
+  function ensure(){
+    if (ctx || !hasAudio()) return ctx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+      master.connect(ctx.destination);
+      const n = Math.floor((ctx.sampleRate||44100)*0.5);
+      noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i=0;i<n;i++) d[i] = Math.random()*2-1;
+    } catch(e){ ctx = null; }
+    return ctx;
+  }
+  /* первое действие игрока: разбудить контекст */
+  function arm(){
+    ensure();
+    if (!ctx) return false;
+    if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch(e){} }
+    armed = true;
+    return true;
+  }
+  function syncGain(){
+    if (master) master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+  }
+  function tone(o){
+    const t0 = ctx.currentTime + (o.at||0);
+    const dur = o.dur || 0.2;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(Math.max(20, o.f0), t0);
+    if (o.f1 && o.f1 !== o.f0)
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.f1), t0 + dur);
+    const peak = Math.max(0.0005, o.gain === undefined ? 0.18 : o.gain);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + (o.attack || 0.008));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    let node = osc;
+    if (o.lp){ const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = o.lp; osc.connect(f); node = f; }
+    node.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + dur + 0.03);
+  }
+  function noise(o){
+    const t0 = ctx.currentTime + (o.at||0);
+    const dur = o.dur || 0.25;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = o.type || 'bandpass';
+    f.frequency.setValueAtTime(o.f0 || 900, t0);
+    f.frequency.exponentialRampToValueAtTime(Math.max(60, o.f1 || o.f0 || 900), t0 + dur);
+    f.Q.value = o.q === undefined ? 1.2 : o.q;
+    const g = ctx.createGain();
+    const peak = Math.max(0.0005, o.gain === undefined ? 0.12 : o.gain);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + dur + 0.03);
+  }
+  /* рисунок каждого звука: короткие, разные по характеру, без мелодий-навязчивостей */
+  const RECIPES = {
+    harvest(o){                                     // сорвали плод: короткий «плук»
+      const k = clamp((o && o.heavy) || 0.5, 0, 1);
+      tone({type:'triangle', f0:540 + 220*k, f1:300 + 120*k, dur:0.12, gain:0.16});
+      noise({f0:2200, f1:900, dur:0.07, gain:0.05, q:0.7});
+    },
+    sell(o){                                        // касса: две монетки
+      tone({f0:1320, dur:0.10, gain:0.10});
+      tone({f0:1760, dur:0.16, gain:0.08, at:0.06});
+      tone({f0:2640, dur:0.09, gain:0.045, at:0.12});
+    },
+    buy(){                                          // покупка: глухой стук и подъём
+      tone({f0:190, f1:90, dur:0.14, gain:0.16, type:'sine'});
+      tone({f0:520, f1:780, dur:0.13, gain:0.07, at:0.05, type:'triangle'});
+    },
+    water(){                                        // вода: шум с падающим фильтром
+      noise({f0:1400, f1:320, dur:0.34, gain:0.10, q:0.6});
+      noise({f0:800, f1:240, dur:0.42, gain:0.06, q:0.5, at:0.05});
+    },
+    lamp(){                                         // щелчок светильника
+      noise({f0:3200, f1:1800, dur:0.04, gain:0.07, q:0.9});
+      tone({f0:900, f1:700, dur:0.05, gain:0.05, type:'square'});
+    },
+    bill(){                                         // пришёл счёт: тусклый колокольчик
+      tone({f0:880, dur:0.5, gain:0.10});
+      tone({f0:1174, dur:0.42, gain:0.07, at:0.05});
+      tone({f0:440, dur:0.6, gain:0.05, at:0.02, type:'triangle'});
+    },
+    court(){                                        // суд: низкое предупреждение
+      tone({f0:160, f1:120, dur:0.5, gain:0.16, type:'sawtooth', lp:700});
+      tone({f0:120, f1:80, dur:0.7, gain:0.10, at:0.25, type:'sawtooth', lp:600});
+    },
+    error(){                                        // отказ
+      tone({f0:220, f1:170, dur:0.13, gain:0.13, type:'square', lp:1200});
+    },
+    warn(){                                         // предупреждение
+      tone({f0:660, dur:0.10, gain:0.08, type:'triangle'});
+      tone({f0:560, dur:0.12, gain:0.08, at:0.11, type:'triangle'});
+    },
+    end(){                                          // сезон закрыт: короткая арпеджио
+      [523, 659, 784, 1047].forEach((f,i)=>tone({f0:f, dur:0.28, gain:0.09, at:i*0.09, type:'triangle'}));
+    },
+    bankrupt(){                                     // банкротство: вниз по минору
+      [440, 349, 262, 196].forEach((f,i)=>tone({f0:f, dur:0.42, gain:0.11, at:i*0.14, type:'sine'}));
+    }
+  };
+  function play(name, opt){
+    if (!sndCfg.on || sndCfg.vol <= 0) return false;
+    if (!ctx) ensure();
+    if (!ctx || ctx.state === 'suspended') return false;      // без действия игрока браузер молчит
+    const r = RECIPES[name];
+    if (!r) return false;
+    const now = (typeof performance!=='undefined' ? performance.now() : Date.now());
+    if (lastAt[name] && now - lastAt[name] < 45) return false;  // пачка плодов = один звук
+    lastAt[name] = now;
+    try { r(opt || {}); return true; } catch(e){ return false; }
+  }
+  return {
+    arm, play,
+    names: ()=>Object.keys(RECIPES),
+    get on(){ return sndCfg.on; },
+    get vol(){ return sndCfg.vol; },
+    setOn(v){ sndCfg.on = !!v; sndSave(); syncGain(); return sndCfg.on; },
+    setVol(v){ sndCfg.vol = clamp(+v || 0, 0, 1); sndSave(); syncGain(); return sndCfg.vol; },
+    state(){ return { on:sndCfg.on, vol:sndCfg.vol, armed, ctx: !!ctx,
+                      running: !!(ctx && ctx.state === 'running') }; }
+  };
+})();
+function playSfx(name, opt){ try { return SFX.play(name, opt); } catch(e){ return false; } }
+function toggleSound(){
+  SFX.arm();
+  const on=SFX.setOn(!SFX.on);
+  toast(on?'Звук включён':'Звук выключен');
+  if(page==='settings') renderSettings();
+  return on;
+}
+
+
+
 
 /* ---------------- сохранение сезона ----------------
    localStorage может быть недоступен (iframe без allow-same-origin, приватный режим),
@@ -5502,6 +5678,15 @@ function renderSettings(){
       }).join('')}
       <div class="hint">Переход стоит денег и обнуляет часть гнили: это новый корневой объём, а не пересадка куста.</div>
     </div>
+    <div class="card" id="soundCard">
+      <div class="h"><b>Звук</b></div>
+      <div class="d" style="color:var(--txt)" id="soundState">\${SFX.on ? 'включён · громкость '+Math.round(SFX.vol*100)+'%' : 'выключен'}</div>
+      <div class="row"><label>Звуковые эффекты интерфейса
+        <div class="hint">Звук создаётся браузером, дополнительные файлы не нужны. Клавиша Z включает и выключает звук.</div></label>
+        <button class="btn \${SFX.on?'good':''}" id="btnSndSet">\${SFX.on?'вкл':'выкл'}</button></div>
+      <input type="range" id="sndVol" min="0" max="100" step="5" value="\${Math.round(SFX.vol*100)}">
+      <div class="row"><label>Проверка звука</label><button class="btn" id="btnSndTest">проверить</button></div>
+    </div>
     <div class="card">
       <div class="h"><b>Свет и экраны</b></div>
       <div class="row"><label>Досветка: <b>${lightName(world)}</b>
@@ -5613,6 +5798,12 @@ function renderSettings(){
         </select></div>
       <div class="hint">Низкий EC — дефицит питания, высокий — засоление. Без кальция плоды поражает вершинная гниль.
       ${world.has.dosing?'Автодозирование установлено ✓':'Без автодозирования дозы плавают (−7% усвоения)'}</div>
+    </div>
+    <div class="card">
+      <div class="h"><b>Клавиши</b></div>
+      \${[['Пробел','пауза / реальное время'],['1–5','переключение камер'],['← → ↑ ↓','сдвиг камеры'],['+ / −','приближение и отдаление'],['R','сброс ракурса'],['L','слой освещения'],['Ctrl + S','сохранить сезон']]
+        .map(([k,d])=>\`<div class="kv"><span>\${d}</span><b>\${k}</b></div>\`).join('')}
+      <div class="hint" style="margin-top:6px">Горячие клавиши не перехватывают ввод в полях.</div>
     </div>
     <div class="card">
       <div class="h"><b>Камера</b></div>
@@ -5728,6 +5919,15 @@ function renderSettings(){
   bind('co2','co2Set', v=>v+' ppm');
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
+  if ($('btnSndSet')) $('btnSndSet').onclick = ()=>toggleSound();
+  if ($('sndVol')) $('sndVol').oninput = ()=>{
+    SFX.arm(); SFX.setVol($('sndVol').value/100);
+    const state=$('soundState'); if(state) state.textContent=SFX.on?'включён · громкость '+Math.round(SFX.vol*100)+'%':'выключен';
+  };
+  if ($('btnSndTest')) $('btnSndTest').onclick = ()=>{
+    SFX.arm(); if(!SFX.on) SFX.setOn(true);
+    SFX.play('buy'); renderSettings();
+  };
   $('btnLampSet').onclick = ()=>{
     const r = toggleLamp(world);
     toast(r.msg);
@@ -6167,6 +6367,7 @@ window.addEventListener('keydown', e=>{
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   const map = {'1':'top','2':'front','3':'bed','4':'plant','5':'free'};
   if (e.key.toLowerCase()==='l'){ toggleLayer(); return; }
+  if (e.key.toLowerCase()==='z'){ toggleSound(); return; }
   if (map[e.key]) setCamMode(map[e.key]);
   if (e.key===' '){ e.preventDefault(); togglePause(); }
   if (e.key==='ArrowLeft'){ e.preventDefault(); camNudge(-0.12, 0); }
@@ -6549,6 +6750,7 @@ window.VG = {
   shop:()=>SHOP(),
   missions:()=>MISSIONS.map(m=>m.text)
 };
+
 </script>
 </body>
 </html>
