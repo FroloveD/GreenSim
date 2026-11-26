@@ -1811,6 +1811,13 @@ function syncLightButtons(){
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
+  // В кампании оставляем максимум 64×: сверхбыстрый прогон скрывает причинно-следственные связи обучения.
+  const turboButton = document.querySelector('.spd[data-s="480"]');
+  if (turboButton) turboButton.hidden = !!world.camp;
+  const speed64Button = document.querySelector('.spd[data-s="64"]');
+  if (speed64Button) speed64Button.title = world.camp
+    ? 'Максимальная скорость кампании — 64×'
+    : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
