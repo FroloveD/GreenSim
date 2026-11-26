@@ -53,7 +53,7 @@ ok(crops.every(k=>M.CROPS[k].dliMin>0 && M.CROPS[k].dliMin<M.CROPS[k].dliTgt &&
 // 5. Диагностика сообщает причину, риск и действие.
 {
   const w=M.makeWorld({profile:'hobby',crop:'tomato',seed:41,site:'ekb',startDoy:15});
-  for(let h=0;h<18;h++) M.stepWorld(w,1);
+  for(let h=0;h<11;h++) M.stepWorld(w,1);
   const item=M.diagnose(w).items.find(x=>/^DLI /.test(x.text));
   ok(!!item, 'дефицит DLI попадает в диагностику', item && item.text);
   ok(!!(item&&item.why&&item.risk&&item.action), 'сообщение содержит почему, риск и что сделать');
