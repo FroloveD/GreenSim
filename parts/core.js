@@ -1447,6 +1447,28 @@ function whRot(w){
 }
 
 /* ---------------- Продажа со склада ---------------- */
+/* ---------------- Себестоимость килограмма ----------------
+   Сколько стоило вырастить то, что уже собрано: все расходы сезона на кг.
+   Сравниваем с ценой дня — это и есть ответ «я зарабатываю или доедаю склад». */
+function seasonCost(w){ return Object.values(w.cost||{}).reduce((s,x)=>s+(x||0),0); }
+function costPerKg(w){
+  const kg = w.harvestedKg || 0;
+  if (kg < 0.05) return null;
+  return seasonCost(w)/kg;
+}
+function marginInfo(w, crop){
+  const c = costPerKg(w);
+  const price = priceToday(w, crop || w.crop);
+  if (c === null) return {cost:null, price, margin:null, pct:null};
+  return {cost:c, price, margin:price-c, pct:(price-c)/Math.max(0.01,price)};
+}
+/* оценка себестоимости «наперёд»: вчерашние расходы на вчерашний урожай */
+function costPerKgDay(w){
+  const h = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
+  if (!h || !(h.harvestedKg>0.05)) return null;
+  return (h.cost||0)/(h.harvestedKg||1);
+}
+
 function lotQuality(lot){ return clamp(lot.q*(1 - 0.55*lot.age/Math.max(1,lot.shelf*1.4)), 0.35, 1); }
 function sellHarvest(w, crop, kgWant){
   crop = crop || w.crop;
