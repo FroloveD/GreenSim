@@ -1284,7 +1284,7 @@ function renderShop(){
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
     const r = buyItem(world, b.dataset.buy);
     toast(r.msg);
-    renderShop(); renderAll();
+    renderAll(); renderShop();
   });
   document.querySelectorAll('[data-contract]').forEach(b=>b.onclick=()=>{
     if (signContract(world, +b.dataset.contract)){ toast('Контракт подписан'); renderShop(); }
