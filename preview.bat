@@ -1,56 +1,71 @@
 @echo off
 setlocal
+REM Запуск через отдельный CMD с /k гарантирует, что окно не закроется.
+if /i not "%~1"=="--run" (
+  start "GreenSim preview server" cmd /k ""%~f0" --run"
+  exit /b
+)
+
 cd /d "%~dp0"
+title GreenSim preview server
 
 echo.
 echo ========================================
-echo   GreenSim - сборка и локальный просмотр
+echo   GreenSim - локальный просмотр
 echo ========================================
+echo.
+echo Папка проекта: %CD%
 echo.
 
 where bash >nul 2>nul
 if errorlevel 1 (
   echo ОШИБКА: Git Bash не найден. Установи Git for Windows.
-  pause
-  exit /b 1
+  goto :failed
 )
 
 where node >nul 2>nul
 if errorlevel 1 (
   echo ОШИБКА: Node.js не найден или не добавлен в PATH.
-  pause
-  exit /b 1
+  goto :failed
 )
 
-echo [1/3] Собираю index.html из файлов parts...
+if not exist "tools\serve.js" (
+  echo ОШИБКА: не найден tools\serve.js
+  goto :failed
+)
+
+echo [1/3] Собираю index.html...
 bash ./build.sh
 if errorlevel 1 (
   echo.
-  echo СБОРКА НЕ ПРОШЛА. Сервер не запущен.
-  pause
-  exit /b 1
+  echo ОШИБКА: сборка не прошла.
+  goto :failed
 )
 
 echo.
 echo [2/3] Проверяю порт 8080...
 powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue) { exit 1 }"
 if errorlevel 1 (
-  echo ОШИБКА: порт 8080 уже занят.
-  echo Останови предыдущий сервер GreenSim сочетанием Ctrl+C в его окне.
-  pause
-  exit /b 1
+  echo ОШИБКА: порт 8080 уже занят. Останови другой сервер или закрой программу, которая его использует.
+  goto :failed
 )
 
 echo.
-echo [3/3] Запускаю сервер в этом окне...
+echo [3/3] Запускаю сервер...
 echo Адрес игры: http://localhost:8080/
-echo Для остановки сервера нажми Ctrl+C.
+echo Окно не закрывай. Для остановки нажми Ctrl+C.
 echo.
-start "" /b powershell -NoProfile -Command "Start-Sleep -Seconds 1; Start-Process 'http://localhost:8080/'"
+start "" "http://localhost:8080/"
 node tools\serve.js
+set "SERVER_EXIT=%ERRORLEVEL%"
+echo.
+echo Сервер завершил работу. Код выхода: %SERVER_EXIT%
+goto :end
 
-if errorlevel 1 (
-  echo.
-  echo ОШИБКА: сервер завершился с ошибкой.
-  pause
-)
+:failed
+echo.
+echo Запуск не выполнен. Сообщение об ошибке выше.
+:end
+echo.
+echo Это окно оставлено открытым для диагностики.
+pause
