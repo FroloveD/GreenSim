@@ -19,7 +19,7 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 
 let world = null;
 let page = 'greenhouse';
-let settingsSection = 'climate';
+let settingsSection = 'grow';
 let trainingMode = false, trainingHold = false;
 let speed = 64, paused = false;   // скорость = игровых часов за реальную МИНУТУ
 let acc = 0, lastT = performance.now(), uiT = 0;
@@ -703,6 +703,38 @@ function renderGauges(){
   $('driftHint').innerHTML = hint ? `<span style="color:var(--warn)">⚠ ${hint}</span>` : 'показания датчиков, не «истина»';
 }
 
+
+function renderClimateControls(){
+  if (!world) return;
+  const fields = [
+    ['ghHeat','ghHeatVal','heatSet',v=>v.toFixed(1)+' °C'],
+    ['ghVent','ghVentVal','ventSet',v=>v.toFixed(1)+' °C'],
+    ['ghCo2','ghCo2Val','co2Set',v=>Math.round(v)+' ppm']
+  ];
+  fields.forEach(([inputId,valueId,key,fmt])=>{
+    const input=$(inputId), value=$(valueId);
+    if (!input || !value) return;
+    if (document.activeElement !== input) input.value=world.ctrl[key];
+    value.textContent=fmt(world.ctrl[key]);
+    if (!input.dataset.bound){
+      input.oninput=()=>{
+        world.ctrl[key]=parseFloat(input.value);
+        value.textContent=fmt(world.ctrl[key]);
+      };
+      input.onchange=()=>saveNow(true);
+      input.dataset.bound='1';
+    }
+  });
+  const co2=$('ghCo2'), co2Hint=$('ghCo2Hint'), co2Control=$('ghCo2Control');
+  if (co2){
+    co2.disabled=!world.has.co2;
+    if(co2Hint) co2Hint.textContent=world.has.co2
+      ? 'Уставка клапана обогащения воздуха.'
+      : 'Нет оборудования CO₂: настройка станет доступна после покупки.';
+    if(co2Control) co2Control.classList.toggle('is-disabled',!world.has.co2);
+  }
+}
+
 /* ---------------- дашборд: финансы ---------------- */
 function renderFinance(){
   const w = world;
@@ -1257,17 +1289,6 @@ function renderSettings(){
       <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
     </div>
     <div class="card">
-      <div class="h"><b>Место и дата</b></div>
-      <div class="d" style="color:var(--txt)">${(world.site&&world.site.name)||'Екатеринбург'} · ${(ORIENTS[(world.site&&world.site.orient)||'S']||ORIENTS.S).name}</div>
-      <div class="hint">старт ${fmtDate(world.startDoy||world.doy)} · день ${world.day} из ${world.seasonDays||CFG.seasonDays}</div>
-      ${(()=>{ const N = siteNormals(world.site||{region:'uralsib'});
-        const now = Math.round(normAt(N.temp, world.doy));
-        return `<div class="hint">норма сейчас ${now>0?'+':''}${now} °C · солнце ${Math.round(normAt(N.sun, world.doy)*100)} % от возможного
-        · регион ${N.region}</div>
-        <div class="hint">данные: средние многолетние 1991–2020 по открытым источникам (Гидрометцентр, Википедия).
-        Смена места и даты — только новой игрой: климат сезона не подменяется на ходу.</div>`; })()}
-    </div>
-    <div class="card">
       <div class="h"><b>Система выращивания</b></div>
       <div class="d" style="color:var(--txt)">${sysOf(world).name}</div>
       <div class="hint" style="margin-bottom:8px">${sysOf(world).note}</div>
@@ -1491,7 +1512,7 @@ function renderSettings(){
   if (settingsGrid) {
     const cards = [...settingsGrid.children];
     const groups = [
-      {id:'climate',title:'Климат и место',icon:'☀',test:/^(Климат|Место и дата|Погода за окном)$/},
+      {id:'climate',title:'Погода',icon:'☀',test:/^Погода за окном$/},
       {id:'grow',title:'Выращивание',icon:'🌱',test:/^(Система выращивания|Свет и экраны|Свет за сутки \(DLI\)|Питание \(fertigation\))$/},
       {id:'auto',title:'Автоматизация',icon:'⏱',test:/^Таймеры и автоматизация$/},
       {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(Камера|Валюта|Приложение)$/},
@@ -2121,7 +2142,7 @@ function renderAll(){
     ? 'Максимальная скорость кампании — 64×'
     : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
-  renderTop(); renderGauges(); renderFinance(); renderAlerts();
+  renderTop(); renderGauges(); renderClimateControls(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   syncLightButtons();
   tutorTick();
