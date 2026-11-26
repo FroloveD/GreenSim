@@ -1,11 +1,12 @@
 @echo off
 setlocal
-REM Запуск через отдельный CMD с /k гарантирует, что окно не закроется.
+REM Запуск через отдельный CMD с /k: окно остаётся открытым для диагностики.
 if /i not "%~1"=="--run" (
   start "GreenSim preview server" cmd /k ""%~f0" --run"
   exit /b
 )
 
+chcp 65001 >nul
 cd /d "%~dp0"
 title GreenSim preview server
 
@@ -17,12 +18,6 @@ echo.
 echo Папка проекта: %CD%
 echo.
 
-where bash >nul 2>nul
-if errorlevel 1 (
-  echo ОШИБКА: Git Bash не найден. Установи Git for Windows.
-  goto :failed
-)
-
 where node >nul 2>nul
 if errorlevel 1 (
   echo ОШИБКА: Node.js не найден или не добавлен в PATH.
@@ -33,20 +28,20 @@ if not exist "tools\serve.js" (
   echo ОШИБКА: не найден tools\serve.js
   goto :failed
 )
-
-echo [1/3] Собираю index.html...
-bash ./build.sh
-if errorlevel 1 (
-  echo.
-  echo ОШИБКА: сборка не прошла.
+if not exist "tools\build-preview.js" (
+  echo ОШИБКА: не найден tools\build-preview.js
   goto :failed
 )
+
+echo [1/3] Собираю index.html средствами Node.js...
+node tools\build-preview.js
+if errorlevel 1 goto :failed
 
 echo.
 echo [2/3] Проверяю порт 8080...
 powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue) { exit 1 }"
 if errorlevel 1 (
-  echo ОШИБКА: порт 8080 уже занят. Останови другой сервер или закрой программу, которая его использует.
+  echo ОШИБКА: порт 8080 уже занят. Останови другой сервер или освободи порт.
   goto :failed
 )
 
