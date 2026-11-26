@@ -37,8 +37,8 @@ const CAM_HOME = {yaw:-0.62, pitch:0.26, dist:7.4, zoom:1.05, target:{x:2, y:1.1
    положительный — сверху вниз. Раньше минимум был 0.05, то есть из
    домашнего ракурса (0.26) вверх оставалось всего ~12° — и поворот
    «упирался» почти сразу.                                          */
-const PITCH_MIN = -0.55, PITCH_MAX = 1.32;
-const CAM_FLOOR_Y = 0.45;      // ниже этого камера не опускается
+const PITCH_MIN = -0.32, PITCH_MAX = 1.32;
+const CAM_FLOOR_Y = 0.18;      // ниже этого камера не опускается
 let camTween = null;
 
 /* положение камеры для вида: то, куда её нужно поставить */
@@ -144,7 +144,10 @@ function persp(target, dist, yaw, pitch){
   // ужимается до пятачка посреди экрана
   const portrait = H > W*1.15;
   const fit = (portrait ? Math.min(W*1.35, H*0.8) : Math.min(W*1.15, H))/700;
-  return {ortho:false, target, dist, yaw, pitch, f:780*clamp(fit, 0.45, 1.25)};
+  // на телефоне снизу кадр занимают панель камеры и док: поднимаем оптический
+  // центр, иначе сцена (особенно при взгляде вверх) прячется под кнопками
+  const oy = portrait ? H*0.075 : 0;
+  return {ortho:false, target, dist, yaw, pitch, f:780*clamp(fit, 0.45, 1.25), oy};
 }
 
 let _view = null;                       // инициализируется лениво (world создаётся позже)
@@ -168,7 +171,7 @@ function project(p){
   const y2 = dy*cp - z1*sp, z2 = dy*sp + z1*cp;
   const zz = z2 + v.dist;
   const s = v.f/Math.max(0.25, zz);
-  return {x: W/2 + x1*s, y: H/2 - y2*s, s, z: zz};
+  return {x: W/2 + x1*s, y: H/2 - (v.oy||0) - y2*s, s, z: zz};
 }
 function depthOf(p){ return project(p).z; }
 
@@ -266,7 +269,7 @@ function drawScene(){
   if (!_view.ortho){
     // линия горизонта. Наклон вниз — как раньше (светлое «за стеклом» держится
     // в кадре). Наклон вверх — уходит вниз кадра, чтобы вверху было небо, а не пол.
-    const yHor = H/2 + _view.f*Math.abs(Math.tan(_view.pitch));
+    const yHor = H/2 - (_view.oy||0) + _view.f*Math.abs(Math.tan(_view.pitch));
     const top = Math.max(0, Math.min(H, yHor));
     const g = ctx.createLinearGradient(0, Math.max(0,yHor - H*0.1), 0, H);
     g.addColorStop(0, '#4a2f14');
@@ -283,6 +286,22 @@ function drawScene(){
   poly([{x:0,y:0,z:0},{x:CFG.floorW,y:0,z:0},{x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
        '#2b1c0e','#0a0806',2.5);
   if (interior && !_view.ortho){
+    // потолок: без него при взгляде снизу вверх комната выглядела как открытая
+    // площадка — стена обрывалась в небо. Рисуем до растений: они ближе.
+    poly([{x:0,y:2.7,z:0},{x:CFG.floorW,y:2.7,z:0},
+          {x:CFG.floorW,y:2.7,z:CFG.floorD},{x:0,y:2.7,z:CFG.floorD}],
+         '#6b4d23','#0a0806',3.5);
+    for (let i=1;i<4;i++){
+      const z = i*(CFG.floorD/4);
+      line3({x:0,y:2.68,z},{x:CFG.floorW,y:2.68,z}, '#0f0a05', 2.5);
+    }
+    for (let i=1;i<3;i++){
+      const x = i*(CFG.floorW/3);
+      line3({x,y:2.68,z:0},{x,y:2.68,z:CFG.floorD}, '#0f0a05', 2);
+    }
+    // лампа на потолке — ориентир: видно, что смотрим вверх
+    poly([{x:1.55,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.65},{x:1.55,y:2.66,z:1.65}],
+         '#2a1d0e','#0a0806',2);
     // стена комнаты с окном — рисуем сразу за полом, иначе она закрывает растения
     poly([{x:0,y:2.7,z:CFG.floorD},{x:CFG.floorW,y:2.7,z:CFG.floorD},
           {x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
