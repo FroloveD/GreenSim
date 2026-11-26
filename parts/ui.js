@@ -2035,7 +2035,7 @@ function setCampaignTutorEnabled(enabled, restart){
   world.tutorialEnabled=!!enabled;
   if (enabled && restart){ tutorStep=0; tutorDone=false; world.tutorialCompleted=false; resetTutorFlags(); }
   if (!enabled){ tutorDone=true; clearTutorTarget(); $('tutor').classList.remove('on'); }
-  else { tutorDone=false; renderTutor(); }
+  else { tutorDone=false; setPage('greenhouse'); renderTutor(); }
   saveNow(true);
   if (page==='settings') renderSettings();
   toast(enabled ? 'Обучение кампании включено' : 'Обучение кампании отключено');
