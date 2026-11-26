@@ -92,7 +92,7 @@ const PROFILES = {
     id:'room', name:'Комната', start:450, area:20, startDoy:91, priceF:4.0,
     fixedDay:2.5, heatPerM2:0.05, uaPerM2:5.0, volPerM2:2.6, capPerM2:5.0e3, lampPerM2:90,
     co2PerM2:2, labor:1.0, upgF:0.6, loanMax:500, riskF:0.55, tauF:0.55,
-    note:'20 м²: стеллажи, LED и вытяжка'
+    note:'20 м²: стеллажи, LED-лента и вытяжка'
   },
   agro: {
     id:'agro', name:'Агрокомплекс', start:100000, area:1500, startDoy:91, priceF:0.72,
@@ -272,7 +272,7 @@ const CHAPTERS = [
   {id:'balcony', name:'Балкон', profile:'balcony', goal:350, moveCost:0,
    note:'4 м², два горшка и лампа на стойке'},
   {id:'room', name:'Комната', profile:'room', goal:1500, moveCost:380,
-   note:'20 м²: стеллаж в три полки, вытяжка, LED'},
+   note:'20 м²: стеллаж в три полки, вытяжка, LED-лента'},
   {id:'farm', name:'Теплица', profile:'farm', goal:3000, moveCost:1000,
    note:'400 м² под стеклом: полный климат-контроль'},
   {id:'net',  name:'Сеть', profile:'farm', goal:12000, moveCost:0,
@@ -697,21 +697,24 @@ function climateSub(w, dtH, C){
   // --- CO₂ ---
   const co2OK = w.has.co2 && w.equip.co2.ok && w.power;
   const co2Stuck = w.has.co2 && w.equip.co2.stuck;
-  // без клапана воздух держится на комнатном уровне (улица ~420 ppm + дыхание людей и растений)
-  const airBase = w.has.co2 ? 420 : 480;
   const photoCO2 = (w.assimRate||0)*w.plantScale*44/30/24;      // г/ч
   let injG = 0;
   if (co2Stuck && w.stock.co2Kg > 0.2) injG = E.co2MaxG;
   else if (co2OK && c.co2Set > w.co2 && w.stock.co2Kg > 0.2)
     injG = E.co2MaxG*clamp((c.co2Set-w.co2)/80,0,1);
   const netPPM = (injG - photoCO2)/w.gPerPPM;
-  // без клапана воздух всё равно обменивается с комнатой через щели: иначе растения выедали бы CO₂ до пола
-  const leak = w.has.co2 ? 0 : 2.5;                // 1/ч: окна и щели комнаты (~2.5 объёма в час)
-  const exch = 7*w.act.vent + leak;
-  if (exch > 0.05){
-    const Ceq = airBase + netPPM/exch;
-    w.co2 = Ceq + (w.co2-Ceq)*Math.exp(-dtH/exch);
-  } else w.co2 += netPPM*dtH;
+  if (!w.has.co2){
+    // без клапана газа нет, воздух домашний: 600 ppm днём, 800 ppm ночью (закрытое помещение, люди дышат).
+    // Растения его не «выедают»: комната пополняется воздухом, поэтому уровень держится в этом коридоре.
+    const home = homeCO2(w.hour);
+    w.co2 = home + (w.co2-home)*Math.exp(-dtH/1.0);
+  } else {
+    const exch = 7*w.act.vent;
+    if (exch > 0.05){
+      const Ceq = 420 + netPPM/exch;
+      w.co2 = Ceq + (w.co2-Ceq)*Math.exp(-dtH/exch);
+    } else w.co2 += netPPM*dtH;
+  }
   w.co2 = clamp(w.co2, 330, 2000);
   w.stock.co2Kg = Math.max(0, w.stock.co2Kg - injG*dtH/1000);
 
@@ -1043,10 +1046,20 @@ function addLot(w, crop, kg, quality){
 }
 
 /* ---------------- Рынок цен ---------------- */
+// Домашний уровень CO₂ без клапана: 600 ppm в середине дня, 800 ppm в полночь, плавно между ними.
+function homeCO2(hour){
+  const f = 0.5 - 0.5*Math.cos(2*Math.PI*(hour-13)/24);   // 0 в 13:00, 1 в 01:00
+  return 600 + 200*f;
+}
+
+// Крафт: салат, выращенный на балконе, продаётся как ручная работа — дороже обычного салата.
+function craftF(w, crop){
+  return (crop === 'lettuce' && w.profile === 'balcony') ? 1.5 : 1;
+}
 function priceToday(w, crop){
   const C = CROPS[crop||w.crop];
   const m = (w.market && w.market.mult && w.market.mult[C.id]) || 1;
-  return C.price * w.profilePriceF * m;
+  return C.price * w.profilePriceF * m * craftF(w, C.id);
 }
 function marketTrend(w, crop){
   const h = (w.market.hist[crop]||[]);
@@ -1100,7 +1113,7 @@ function sellHarvest(w, crop, kgWant){
     if (left <= 0.01) break;
     const take = Math.min(lot.kg, left);
     const kq = lotQuality(lot);
-    kg += take; eur += take*CROPS[crop].price*w.profilePriceF*((w.market.mult[crop])||1)*kq;
+    kg += take; eur += take*CROPS[crop].price*w.profilePriceF*((w.market.mult[crop])||1)*craftF(w, crop)*kq;
     lot.kg -= take; left -= take;
   }
   w.wh.lots = w.wh.lots.filter(l=>l.kg > 0.05);
@@ -1270,8 +1283,8 @@ function checkContracts(w){
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
    need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (нужно купить LED в магазине)', reward:90,
-   check:w=>w.ctrl.lampEnabled && w.has.led},
+  {id:'m2', text:'«Параметры» → включите досветку (лента или LED из магазина)', reward:90,
+   check:w=>w.ctrl.lampEnabled && (w.has.led || w.has.ledStrip)},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
   {id:'m3b', text:'Панель «Склад» → продайте партию урожая', reward:130,
@@ -1321,7 +1334,7 @@ function makeWorld(opts){
     profilePriceF: P.priceF*D.priceF, diffPriceF: D.priceF, area,
     diffId: D.id, diffFixed: D.fixedF, diffFail: D.failF, diffDrift: D.driftF, diffEvent: D.eventF,
     plantScale: 1, day:1, hour:6, doy:P.startDoy, over:false, seasonDays: opts.campaign ? 210 : CFG.seasonDays,
-    money: P.start, startMoney: P.start, loan: 0, loanRate: 0.06,
+    money: P.start, startMoney: P.start, loan: 0, loanRate: 0.08,
     temp: 16, co2: 520, rh: 75,
     meas:{temp:16, co2:520, rh:75}, drift:{temp:0, rh:0, co2:0}, lastCalib: 1,
     plants: [], events: [], contracts: [], pest:{active:false, level:0},
@@ -1508,7 +1521,7 @@ function newDay(w){
   const maint = w.has.service ? 12*PROFILES[w.profile].upgF : 0;
   if (w.has.service){ w.cost.maint += maint; w.money -= maint; }
   // проценты по займу
-  if (w.loan>0){ const int = w.loan*0.06/90; w.cost.loan += int; w.money -= int; }
+  if (w.loan>0){ const int = w.loan*(w.loanRate||0.08)/90; w.cost.loan += int; w.money -= int; }
   // контракты
   checkContracts(w);
   // задания

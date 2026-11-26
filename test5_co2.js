@@ -5,7 +5,7 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, 'parts', 'core.js'), 'utf8');
 const a = src.indexOf('// === SIM CORE START ==='), b = src.indexOf('// === SIM CORE END ===');
 const M = new Function(src.slice(a, b) + `
-  return {makeWorld, stepWorld, buyItem, SHOP, MISSIONS, riskTick};`)();
+  return {makeWorld, stepWorld, buyItem, SHOP, MISSIONS, riskTick, homeCO2};`)();
 
 let fails = 0;
 const check = (name, ok, extra) => {
@@ -27,18 +27,23 @@ for (const p of ['balcony', 'room', 'farm', 'hobby', 'agro']) {
   check(`старт ${p}: клапана нет`, w.has.co2 === false);
 }
 
-// 2. без клапана CO₂ не растёт выше комнатного уровня, даже при уставке 800
+// 2. без клапана: домашний воздух 600 ppm днём, 800 ppm ночью, и уставка не работает
 {
   const w = world('room'); w.ctrl.co2Set = 800; w.stock.co2Kg = 100;
-  let max = 0, sum = 0, n = 0;
+  const day = [], night = [];
   for (let i = 0; i < 24 * 14 * 2; i++) {              // 14 дней шагами по 0.5 ч
     M.stepWorld(w, 0.5);
-    if (w.hour >= 8 && w.hour <= 18) { max = Math.max(max, w.co2); sum += w.co2; n++; }
+    if (w.hour >= 12 && w.hour <= 14) day.push(w.co2);
+    if (w.hour >= 0 && w.hour <= 1) night.push(w.co2);
   }
-  const avg = sum / n;
-  check('без клапана CO₂ не поднимается до уставки', max < 700, `макс=${max.toFixed(0)} ppm`);
-  check('без клапана CO₂ около комнатного уровня (~480 ppm)', avg > 380 && avg < 600, `среднее днём=${avg.toFixed(0)} ppm`);
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const dMin = Math.min(...day), dMax = Math.max(...day);
+  const nMin = Math.min(...night), nMax = Math.max(...night);
+  check('без клапана днём CO₂ около 600 ppm', dMin > 595 && dMax < 615, `день ${dMin.toFixed(0)}–${dMax.toFixed(0)} ppm`);
+  check('без клапана ночью CO₂ около 800 ppm', nMin > 770 && nMax < 805, `ночь ${nMin.toFixed(0)}–${nMax.toFixed(0)} ppm`);
+  check('уставка 800 без клапана не влияет на воздух', avg(night) < 810 && avg(day) < 650);
   check('газ из баллонов не расходуется без клапана', w.stock.co2Kg === 100, `запас=${w.stock.co2Kg}`);
+  check('домашний уровень плавно меняется по часам', M.homeCO2(13) === 600 && M.homeCO2(1) === 800);
 }
 
 // 3. покупка клапана: один раз, стоит денег
