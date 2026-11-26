@@ -1280,15 +1280,6 @@ function renderSettings(){
   $('settingsBody').innerHTML = `
   <div class="setgrid">
     <div class="card">
-      <div class="h"><b>Климат</b></div>
-      ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
-      ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
-      ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
-        : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет оборудования</span></div>
-           <div class="hint">На балконе и в комнате клапана нет: воздух и так меняется через щели. Появится вместе с теплицей.</div>`}
-      <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
-    </div>
-    <div class="card">
       <div class="h"><b>Система выращивания</b></div>
       <div class="d" style="color:var(--txt)">${sysOf(world).name}</div>
       <div class="hint" style="margin-bottom:8px">${sysOf(world).note}</div>
