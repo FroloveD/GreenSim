@@ -35,28 +35,22 @@ echo.
 echo [2/3] Проверяю порт 8080...
 powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue) { exit 1 }"
 if errorlevel 1 (
-  echo ОШИБКА: порт 8080 уже занят. Возможно, сервер GreenSim уже запущен.
-  echo Проверь открытые окна терминала и останови старый сервер сочетанием Ctrl+C.
+  echo ОШИБКА: порт 8080 уже занят.
+  echo Останови предыдущий сервер GreenSim сочетанием Ctrl+C в его окне.
   pause
   exit /b 1
 )
 
 echo.
-echo [3/3] Запускаю сервер в отдельном окне...
-start "GreenSim preview server" "%ComSpec%" /k "cd /d ""%~dp0"" && node tools\serve.js"
+echo [3/3] Запускаю сервер в этом окне...
+echo Адрес игры: http://localhost:8080/
+echo Для остановки сервера нажми Ctrl+C.
+echo.
+start "" /b powershell -NoProfile -Command "Start-Sleep -Seconds 1; Start-Process 'http://localhost:8080/'"
+node tools\serve.js
 
-echo Жду запуска сервера...
-powershell -NoProfile -Command "$deadline=(Get-Date).AddSeconds(10); do { Start-Sleep -Milliseconds 250; $ready=Test-NetConnection -ComputerName 127.0.0.1 -Port 8080 -InformationLevel Quiet -WarningAction SilentlyContinue } until ($ready -or (Get-Date) -ge $deadline); if (-not $ready) { exit 1 }"
 if errorlevel 1 (
-  echo Сервер не ответил за 10 секунд. Проверь окно GreenSim preview server.
+  echo.
+  echo ОШИБКА: сервер завершился с ошибкой.
   pause
-  exit /b 1
 )
-
-start "" "http://localhost:8080/"
-echo.
-echo GreenSim открыт в браузере.
-echo Сервер продолжает работать в отдельном окне.
-echo Чтобы остановить его, перейди в окно GreenSim preview server и нажми Ctrl+C.
-echo.
-exit /b 0
