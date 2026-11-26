@@ -223,12 +223,17 @@ function buildStart(){
   const ws = [
     {id:'normal', n:'Обычный', d:'переменная облачность, риск похолоданий'},
     {id:'cloudy', n:'Пасмурный', d:'+облачность: мало света, мало перегрева'},
-    {id:'hot', n:'Жаркий', d:'+2.5 °C: перегрев, нужна вентиляция и затенение'}
+    {id:'hot', n:'Жаркий', d:'+2.5 °C: перегрев, нужна вентиляция и затенение'},
+    {id:'real', n:'Как за окном', d:'Архив Open-Meteo: температура и облачность по дням. Без сети игра вернётся к нормам.'}
   ];
   $('seedPick').innerHTML = ws.map(x=>`
     <div class="card" data-weather="${x.id}" style="cursor:pointer;${x.id===pending.weather?'border-color:var(--acc)':''}">
       <div class="h"><b>${x.n}</b></div><div class="d">${x.d}</div>
     </div>`).join('');
+  document.querySelectorAll('[data-weather]').forEach(e=>e.onclick=()=>{
+    pending.weather=e.dataset.weather; buildStart();
+    if (pending.weather==='real') toast('Архив погоды загрузится при старте; при ошибке останутся нормы');
+  });
   $('diffPick').innerHTML = Object.values(DIFFICULTY).map(d=>`
     <div class="card" data-diff="${d.id}" style="cursor:pointer;${d.id===pending.difficulty?'border-color:var(--acc)':''}">
       <div class="h"><b>${d.name}</b></div>
@@ -326,6 +331,7 @@ function startGame(){
                       // в кампании на балконе — только грунт, остальное откроется с главой
                       sys:(pending.campaign && pending.sys && GROW_SYS[pending.sys] && GROW_SYS[pending.sys].ch>0)
                           ? 'soil' : pending.sys });
+  if (pending.weather === 'real') refreshRealWeather(false);
   tutorStep = 0; tutorDone = false; resetTutorFlags();
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
@@ -1103,6 +1109,23 @@ function renderSettings(){
           : D.reachable ? 'до цели ещё '+Math.round(D.hours)+' ч лампы.'
           : 'за 14 ч лампа даст только +'+D.gain14.toFixed(1)+' моль — зимой этого мало: спасают светлая сторона, плёнка на рамы и скороспелые сорта.'}</div>`; })()}
     </div>
+    <div class="card" id="weatherCard">
+      <div class="h"><b>Погода за окном</b></div>
+      ${(()=>{ const rw=world.realWeather;
+        if (!rw) return `<div class="d" style="color:var(--txt)">Считаем по климатическим нормам</div>
+          <div class="hint">Многолетние средние по выбранной точке. Игра работает без подключения к сети.</div>`;
+        if (rw.error) return `<div class="d" style="color:var(--txt)">Архив недоступен</div>
+          <div class="hint">${rw.error}. Используются климатические нормы; игровой процесс не зависит от сети.</div>`;
+        const t=realWeatherAt(world,world.doy);
+        return `<div class="kv"><span>источник</span><b>${rw.source} · ${rw.n||0} дней</b></div>
+          <div class="kv"><span>сегодня по архиву</span><b>${t?(t.t>0?'+':'')+t.t.toFixed(1)+' °C':'—'}</b></div>
+          <div class="kv"><span>облачность</span><b>${t?Math.round(t.cloud*100)+' %':'—'}</b></div>
+          <div class="hint">Архив за последний год заменяет средние нормы фактической температурой и облачностью по дням. Погодные события игры продолжают действовать.</div>`; })()}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn" id="btnWeatherRefresh">Обновить из сети</button>
+        <button class="btn" id="btnWeatherNorms">Вернуться к нормам</button>
+      </div>
+    </div>
     <div class="card" id="autoCard">
       <div class="h"><b>Таймеры и автоматизация</b></div>
       ${AUTO_KEYS.map(k=>{
@@ -1260,6 +1283,13 @@ function renderSettings(){
   $('btnScreenSet').onclick = ()=>{ if (!world.has.screen) return toast('Сначала купите термоэкран'); world.ctrl.screenOn = !world.ctrl.screenOn; renderSettings(); };
   $('btnShadeSet').onclick = ()=>{ if (!world.has.shade) return toast('Сначала купите сетку'); world.ctrl.shadeOn = !world.ctrl.shadeOn; renderSettings(); };
   $('recipeSel').onchange = e => { world.ctrl.recipe = e.target.value; };
+  if ($('btnWeatherRefresh')) $('btnWeatherRefresh').onclick = ()=>{
+    toast('Запрашиваю архив погоды…'); refreshRealWeather(true);
+  };
+  if ($('btnWeatherNorms')) $('btnWeatherNorms').onclick = ()=>{
+    world.realWeather=null; toast('Погода снова по нормам');
+    renderSettings(); renderAll(); saveNow(true);
+  };
   // Рецепт фазы: устанавливаем середину диапазонов EC и pH для текущей культуры.
   if ($('btnRecipeApply')) $('btnRecipeApply').onclick = ()=>{
     const R = stageRecipe(world);
@@ -1875,6 +1905,54 @@ function showEnd(){
   document.body.appendChild(div);
   const nb = div.querySelector('#btnNextSeason');
   if (nb) nb.onclick = ()=>{ div.remove(); startNextSeason(); };
+}
+
+/* ---------------- Реальная погода: архив open-meteo ----------------
+   Берём последний год по точке старта и раскладываем по дням года:
+   температура и облачность вместо средних норм. Нет сети — молча
+   возвращаемся к нормам, потому что погода не должна ломать игру.      */
+function owDate(d){ return d.toISOString().slice(0,10); }
+async function fetchWeatherRows(site){
+  const end = new Date(Date.now() - 6*86400e3);
+  const start = new Date(end.getTime() - 364*86400e3);
+  const url = 'https://archive-api.open-meteo.com/v1/archive?latitude='+site.lat.toFixed(2)+
+    '&longitude='+site.lon.toFixed(2)+'&start_date='+owDate(start)+'&end_date='+owDate(end)+
+    '&daily=temperature_2m_mean,cloud_cover_mean&timezone=auto';
+  const r = await fetch(url, {cache:'no-store'});
+  if (!r.ok) throw new Error('ответ '+r.status);
+  const j = await r.json();
+  const days = (j.daily && j.daily.time) || [];
+  const rows = [];
+  for (let i=0;i<days.length;i++){
+    const d = new Date(days[i]+'T12:00:00');
+    if (isNaN(d.getTime())) continue;
+    const t = j.daily.temperature_2m_mean ? j.daily.temperature_2m_mean[i] : null;
+    const cl = j.daily.cloud_cover_mean ? j.daily.cloud_cover_mean[i] : null;
+    if (t === null || t === undefined) continue;
+    rows.push({doy: doyFromDate(d.getMonth()+1, d.getDate()), t:+t, cloud: cl==null?null:cl/100});
+  }
+  return rows;
+}
+async function refreshRealWeather(showToast){
+  const site = (world && world.site) || siteById(pending.site || 'ekb');
+  try {
+    const rows = await fetchWeatherRows(site);
+    if (!rows.length) throw new Error('пустой ответ');
+    if (!world) return rows;
+    applyWeatherTable(world, rows, {source:'open-meteo'});
+    if (showToast) toast('Погода за окном: '+rows.length+' дней из архива open-meteo');
+    if (page==='settings') renderSettings();
+    renderAll(); saveNow(true);
+    return rows;
+  } catch(e){
+    if (world){
+      world.realWeather = {error:'Не удалось получить архив ('+(e.message||'сеть')+')'};
+      if (showToast) toast('Архив недоступен — считаем по нормам');
+      if (page==='settings') renderSettings();
+      renderAll();
+    } else if (showToast) toast('Архив недоступен — считаем по нормам');
+    return null;
+  }
 }
 
 window.addEventListener('pagehide', ()=>{ if (world && !world.over) saveNow(true); });
