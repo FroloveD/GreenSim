@@ -87,6 +87,17 @@ const CROPS = {
   }
 };
 
+/* Световые ориентиры по культуре: DLI (моль/м²·сут) и фотопериод, ч.
+   [минимум, цель, максимум] — из практики светокультуры: томату и огурцу
+   20–30 моль, салату 12–16; длиннее фотопериод — больше света, но и расход.  */
+const CROP_LIGHT = {
+  tomato:   {dliMin:14, dliTgt:20, dliMax:30, photoMin:14, photoMax:18},
+  cherry:   {dliMin:13, dliTgt:19, dliMax:28, photoMin:14, photoMax:18},
+  cucumber: {dliMin:13, dliTgt:19, dliMax:28, photoMin:14, photoMax:18},
+  lettuce:  {dliMin:9,  dliTgt:13, dliMax:18, photoMin:12, photoMax:16}
+};
+for (const k in CROP_LIGHT) Object.assign(CROPS[k], CROP_LIGHT[k]);
+
 /* ---------------- Профили капитала ---------------- */
 /* Уровни сложности — отдельно от профиля капитала.
    fixedF — множитель постоянных расходов, failF — отказы и инциденты,
@@ -669,7 +680,7 @@ function computeLight(w, dtH){
   };
 
   const K = 5, k = 0.55, step = 0.16, jitter = 0.035;
-  let sum = 0, cnt = 0, laiAboveAll = 0;
+  let sum = 0, sumLamp = 0, cnt = 0, laiAboveAll = 0;
   const lampPPFD = w.has.led ? (w.upg.ledBoost?280:190) : (w.has.lampBase?90:0);
 
   for (const L of leaves){
@@ -698,18 +709,71 @@ function computeLight(w, dtH){
     const lampAbs = (lampOn ? lampPPFD*Math.exp(-0.6*laiAbove)*0.55 : 0)
                   + (stripOn ? (w.has.strip2?90:60)*Math.exp(-0.8*laiAbove)*0.5 : 0);
     const I = 0.86*(dirAbs + difAbs + lampAbs);
+    sumLamp += 0.86*lampAbs;
     L.lf.Iabs = I;
     L.lf.relLight = clamp(I/420, 0.05, 1.2);
     sum += I; cnt++;
   }
 
+  const meanLeaf = cnt? sum/cnt : 0;
+  const meanLamp = cnt? sumLamp/cnt : 0;
+  // DLI считаем по свету над кроной — так его измеряют в теплице.
+  const lampCanopy = (lampOn ? lampPPFD*0.85 : 0) + (stripOn ? (w.has.strip2?90:60)*0.85 : 0);
+  const canopyPPFD = out.ppfd*tauGH*shadeF + lampCanopy;
   w.light = {
     outside: out.ppfd, directIn, diffuseIn, sun,
-    meanLeaf: cnt? sum/cnt : 0,
+    meanLeaf, meanLamp,
     canopyLAI: totalLAI(w),
     lampOn, stripOn, cloud: out.cloud
   };
+  w.dliAcc = (w.dliAcc||0) + canopyPPFD*3600/1e6*(dtH||0);
+  if (canopyPPFD > 20) w.photoHoursDay = (w.photoHoursDay||0) + (dtH||0);
+  w.dliLampAcc = (w.dliLampAcc||0) + lampCanopy*3600/1e6*(dtH||0);
+  if (lampOn || stripOn) w.lampHoursDay = (w.lampHoursDay||0) + (dtH||0);
   return w.light;
+}
+
+/* ---------------- Свет за сутки (DLI) и фотопериод ----------------
+   DLI — сколько молей фотонов упало на квадратный метр за сутки. Это тот же
+   свет, что модель уже считает по листьям, только собранный в понятное число:
+   «12 моль из 20» игроку говорит больше, чем «PAR 180».                     */
+const _dayLenCache = {};
+function dayLength(w, doy){
+  const lat = ((w && w.site && w.site.lat) || CFG.lat);
+  const d = clamp(Math.round(doy==null ? ((w && w.doy) || 172) : doy), 1, 365);
+  const key = lat.toFixed(1)+'|'+d;
+  if (_dayLenCache[key] !== undefined) return _dayLenCache[key];
+  let n = 0;
+  for (let h=0; h<24; h+=0.25) if (sunPosition(d, h+0.125, lat).el > 0) n += 0.25;
+  _dayLenCache[key] = n;
+  return n;
+}
+function dliInfo(w){
+  const C = CROPS[w.crop];
+  const val = w.dliAcc || 0;
+  const yest = w.dliYest || 0;
+  const min = C.dliMin, tgt = C.dliTgt, max = C.dliMax;
+  // вердикт — по целым суткам: сегодняшний день ещё копится, судить по нему рано
+  const ref = (w.hour >= 21 || yest < 0.5) ? val : yest;
+  const pct = clamp(val/Math.max(0.01,tgt), 0, 1.4);
+  const verdict = ref > max ? 'больше нормы'
+                : ref >= min ? 'в норме'
+                : ref >= min*0.75 ? 'чуть меньше нормы'
+                : ref >= min*0.5 ? 'меньше нормы' : 'критически мало света';
+  const need = Math.max(0, tgt - ref);
+  const lampPPFD = w.has.led ? (w.upg.ledBoost?280:190) : (w.has.lampBase?90:0);
+  const stripPPFD = w.has.ledStrip ? (w.has.strip2?90:60) : 0;
+  // один час досветки даёт PPFD×3600/1e6 молей, но до листа доходит ~половина
+  const perHour = Math.max(0.02, (lampPPFD+stripPPFD)*0.85*3600/1e6);
+  const photo = (w.hour >= 21 || !(w.photoHoursYest > 0)) ? (w.photoHoursDay||0) : w.photoHoursYest;
+  const photoVerdict = photo > C.photoMax + 0.5 ? 'длинный день'
+                     : photo < C.photoMin - 0.5 ? 'короткий день' : 'в норме';
+  return {val, yest, ref, min, tgt, max, pct, verdict, need, perHour,
+          hours: need>0 ? need/perHour : 0,
+          gain14: perHour*14, reachable: need <= perHour*14,
+          day: dayLength(w, w.doy), lampHours: w.lampHoursDay || 0,
+          photo, photoVerdict, photoMin: C.photoMin, photoMax: C.photoMax,
+          lampDLI: w.dliLampAcc || 0};
 }
 
 /* ---------------- Фотосинтез листа ---------------- */
@@ -1678,7 +1742,10 @@ function makeWorld(opts){
     out: {temp:12, ppfd:0, rh:78, el:0, az:90, sun:{x:0,y:0.2,z:1}},
     light: {meanLeaf:0, canopyLAI:0, lampOn:false, stripOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
     log: [], history: [], cloudToday: 0.25,
-    useWaterM3: 0, useFertKg: 0
+    useWaterM3: 0, useFertKg: 0,
+    // Суточная световая сумма и фотопериод; сохраняются между сессиями.
+    dliAcc:0, dliLampAcc:0, lampHoursDay:0, photoHoursDay:0,
+    dliYest:0, dliLampYest:0, lampHoursYest:0, photoHoursYest:0
   };
   // абсолютные характеристики теплицы (масштабируются по площади)
   w.env = {
@@ -1930,8 +1997,11 @@ function newDay(w){
   w._costAtDay = Object.assign({}, w.cost);
   const rewardDay = (w.rewardSum||0) - (w._rewardAtDay||0);
   w._rewardAtDay = w.rewardSum||0;
+  w.dliYest = w.dliAcc||0; w.dliLampYest = w.dliLampAcc||0;
+  w.lampHoursYest = w.lampHoursDay||0; w.photoHoursYest = w.photoHoursDay||0;
   w.history.push({
     day:w.day-1, doy:w.doy-1, temp:w.temp, co2:w.co2, rh:w.rh, assim:w.assimDay,
+    dli:w.dliYest, lampH:w.lampHoursYest,
     tempMin:w.tempMin, tempMax:w.tempMax, rhMax:w.rhMaxDay,
     rev, cost, profit, moneyDelta, lai:w.light.canopyLAI, disease:w.disease,
     harvestedKg: w.dayHarvestKg||0, energyKWh: w.energyKWh||0,
@@ -1939,6 +2009,7 @@ function newDay(w){
     co2Kg: w.useCo2Kg||0, costBreak: cb, rewardDay, lampOn: !!w.ctrl.lampEnabled
   });
   w.assimDay = 0; w.dayHarvestKg = 0; w.energyKWh = 0; w.useWaterM3 = 0; w.useFertKg = 0; w.useCo2Kg = 0;
+  w.dliAcc = 0; w.dliLampAcc = 0; w.lampHoursDay = 0; w.photoHoursDay = 0;
   w.tempMin = undefined; w.tempMax = undefined; w.rhMaxDay = undefined;
   for (const p of w.plants){
     p.carbonStatus = 0.65*p.carbonStatus + 0.35*(p.assimToday||0);
@@ -2264,6 +2335,9 @@ function deserializeWorld(text){
   if (!w.drift) w.drift = {temp:0, rh:0, co2:0, soil:0};
   if (w.drift.soil === undefined) w.drift.soil = 0;
   if (w.waterStress === undefined) w.waterStress = 0;
+  // Миграция: старые сохранения не содержали накопители DLI/фотопериода.
+  for (const k of ['dliAcc','dliLampAcc','lampHoursDay','photoHoursDay','dliYest','dliLampYest','lampHoursYest','photoHoursYest'])
+    if (!Number.isFinite(w[k])) w[k] = 0;
   // миграция: таймеров не было — старым сохранениям ставим «всё выключено»
   if (!w.auto || typeof w.auto !== 'object') w.auto = autoDefaults();
   else { const d = autoDefaults(); for (const k in d) if (!w.auto[k]) w.auto[k] = d[k]; }
@@ -2282,7 +2356,7 @@ function diagnose(w){
   const C = CROPS[w.crop];
   const lai = totalLAI(w);
   const items = [];
-  const push = (sev, text) => items.push({sev, text});
+  const push = (sev, text, details) => items.push(Object.assign({sev, text}, details||{}));
   const assim = (w.assimRate||0)*w.plantScale/Math.max(1,w.area);   // г CH₂O / м² / сут
   const nut = fertFactors(w).nutri;
   const fruits = w.plants.reduce((a,p)=>a+p.fruits.filter(f=>!f.harvested).length,0);
@@ -2307,6 +2381,34 @@ function diagnose(w){
   if (nut < 0.9)             push('warn', `Питание ${Math.round(nut*100)}% от нормы: проверьте EC/pH и запас удобрений`);
   if (w.hour > 8 && w.hour < 18 && (w.light.meanLeaf||0) < 120 && (w.out.ppfd||0) > 250)
                              push('warn', 'Мало света в кроне: пасмурно, затенение или слишком плотный полог');
+  // Суточный свет: причина, риск и конкретное действие.
+  const D = dliInfo(w);
+  if (w.hour > 16 && D.ref < D.min){
+    const cause = D.day < 9 ? 'Короткий естественный день' :
+      (w.light.meanLeaf < 120 ? 'Слабый свет в кроне: стекло, затенение или плотная листва' : 'Суммарного света за день пока недостаточно');
+    push('warn', `DLI ${D.ref.toFixed(1)} из ${D.tgt} моль/м² — ${D.verdict}`, {
+      why: `${cause}. Для культуры «${C.name}» минимальный ориентир — ${D.min} моль/м² за сутки; цель — ${D.tgt}.`,
+      risk: 'При повторяющемся дефиците замедляется накопление биомассы, цветение и налив плодов; потенциальный урожай снижается.',
+      action: D.reachable
+        ? `До цели не хватает около ${D.hours.toFixed(1)} ч досветки по текущей мощности. Сверьте фактическое состояние лампы и расписание.`
+        : `Текущая лампа за 14 ч добавит около ${D.gain14.toFixed(1)} моль/м². Проверьте затенение и доступ дневного света; не компенсируйте дефицит бесконечным продлением ночной подсветки.`
+    });
+  }
+  if (w.photoHoursYest > C.photoMax + 1){
+    push('warn', `Фотопериод ${w.photoHoursYest.toFixed(1)} ч — выше ориентира ${C.photoMax} ч`, {
+      why: 'Свет попадал на крону дольше рекомендуемого для выбранной культуры окна.',
+      risk: 'Избыточно длинный световой период повышает расход электричества и может нарушать суточный ритм растения.',
+      action: `Проверьте расписание досветки и оставьте тёмный период; ориентир для этой культуры — ${C.photoMin}–${C.photoMax} ч.`
+    });
+  }
+  if (w.hour > 16 && D.ref > D.max){
+    push('info', `DLI ${D.ref.toFixed(1)} моль/м² — выше ориентира ${D.max}`, {
+      why: 'Суточная сумма фотонов уже превышает верхнюю границу ориентира культуры.',
+      risk: 'Дополнительная досветка почти не помогает урожаю, но продолжает увеличивать счёт за электричество.',
+      action: 'Если включена лампа, сократите её работу и проверьте затенение/расположение растений.'
+    });
+  }
+
   if (!C.leafy && fruits === 0 && w.day > 12) push('info', 'Плодов нет: ждём завязывания — нужны свет, углерод и умеренная температура');
 
   const rank = {bad:0, warn:1, info:2};
