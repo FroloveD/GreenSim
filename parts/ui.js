@@ -739,6 +739,10 @@ function renderClimateControls(){
     }
   });
   const co2=$('ghCo2'), co2Hint=$('ghCo2Hint'), co2Control=$('ghCo2Control');
+  const co2Label=document.querySelector('label[for="ghCo2"]');
+  if(co2Label) co2Label.dataset.tip=world.has.co2
+    ? 'Целевая концентрация CO₂ для обогащения воздуха. Включайте подачу только при достаточном свете.'
+    : 'Оборудования CO₂ пока нет. Уставка станет полезной после покупки клапана и баллона.';
   if (co2){
     co2.disabled=!world.has.co2;
     if(co2Hint) co2Hint.textContent=world.has.co2
