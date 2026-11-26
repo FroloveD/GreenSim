@@ -464,6 +464,21 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 .settings-section[hidden]{display:none!important}
 .settings-section{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px;align-items:start}
 @media(max-width:600px){#mainMenu .menu-sheet{padding:22px 17px}.settings-nav{position:static}.settings-tab{flex:1 1 calc(50% - 7px)}}
+
+  /* Interactive tutorial: soft pulse around the current action target. */
+  .tutor-target{
+    position:relative!important;
+    z-index:30!important;
+    outline:2px solid var(--acc)!important;
+    outline-offset:4px!important;
+    box-shadow:0 0 0 5px rgba(122,216,160,.16),0 0 22px rgba(122,216,160,.34)!important;
+    animation:tutorPulse 1.8s ease-in-out infinite;
+    scroll-margin:90px;
+  }
+  @keyframes tutorPulse{
+    0%,100%{outline-color:rgba(122,216,160,.65);box-shadow:0 0 0 3px rgba(122,216,160,.10),0 0 12px rgba(122,216,160,.20)}
+    50%{outline-color:var(--acc);box-shadow:0 0 0 7px rgba(122,216,160,.22),0 0 25px rgba(122,216,160,.42)}
+  }
 </style>
 </head>
 <body>
