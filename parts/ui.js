@@ -1308,36 +1308,6 @@ function renderSettings(){
 
   // Split the long settings page into focused sections without recreating its controls.
   const settingsGrid = $('settingsBody').querySelector('.setgrid');
-  if (settingsGrid && !settingsGrid.dataset.split) {
-    const cards = [...settingsGrid.children];
-    const groups = [
-      {id:'climate',title:'Климат и место',icon:'☀',test:/^(Климат|Место и дата|Погода за окном)$/},
-      {id:'grow',title:'Выращивание',icon:'🌱',test:/^(Система выращивания|Свет и экраны|Свет за сутки \(DLI\)|Питание \(fertigation\))$/},
-      {id:'auto',title:'Автоматизация',icon:'⏱',test:/^Таймеры и автоматизация$/},
-      {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(Камера|Валюта|Приложение)$/},
-      {id:'help',title:'Обучение и справка',icon:'ⓘ',test:/^(Словарь терминов|Обучение|Модель \(справка\))$/},
-      {id:'save',title:'Сохранение и сезон',icon:'▣',test:/^Сезон$/}
-    ];
-    const nav=document.createElement('div'); nav.className='settings-nav';
-    const panels=document.createElement('div'); panels.className='settings-panels';
-    const buckets=new Map(groups.map(g=>[g.id,[]]));
-    cards.forEach(card=>{ const title=card.querySelector('.h b')?.textContent?.trim()||''; const group=groups.find(g=>g.test.test(title))||groups[4]; buckets.get(group.id).push(card); });
-    groups.forEach(g=>{
-      const panel=document.createElement('section'); panel.className='settings-section'; panel.dataset.settingsSection=g.id;
-      buckets.get(g.id).forEach(card=>panel.appendChild(card)); if(!panel.children.length)return; panels.appendChild(panel);
-      const button=document.createElement('button'); button.type='button'; button.className='settings-tab'; button.dataset.settingsTab=g.id; button.textContent=g.icon+'  '+g.title;
-      button.onclick=()=>{ settingsSection=g.id; paintSettingsSections(); }; nav.appendChild(button);
-    });
-    settingsGrid.replaceWith(nav,panels); settingsBody.dataset.split='1';
-  }
-  function paintSettingsSections(){
-    document.querySelectorAll('[data-settings-section]').forEach(el=>el.hidden=el.dataset.settingsSection!==settingsSection);
-    document.querySelectorAll('[data-settings-tab]').forEach(el=>el.classList.toggle('on',el.dataset.settingsTab===settingsSection));
-  }
-  if (!document.querySelector('[data-settings-section="'+settingsSection+'"]')) settingsSection='climate';
-  paintSettingsSections();
-  // Split the long settings page into focused sections without recreating its controls.
-  const settingsGrid = $('settingsBody').querySelector('.setgrid');
   if (settingsGrid) {
     const cards = [...settingsGrid.children];
     const groups = [
