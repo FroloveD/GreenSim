@@ -565,18 +565,18 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
         <div id="climateControls" class="climate-controls">
           <div class="climate-control">
             <label for="ghHeat">Отопление включать ниже</label>
-            <div class="climate-value"><b id="ghHeatVal">\${world.ctrl.heatSet.toFixed(1)} °C</b></div>
-            <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="\${world.ctrl.heatSet}">
+            <div class="climate-value"><b id="ghHeatVal">—</b></div>
+            <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="0">
           </div>
           <div class="climate-control">
             <label for="ghVent">Проветривание включать выше</label>
-            <div class="climate-value"><b id="ghVentVal">\${world.ctrl.ventSet.toFixed(1)} °C</b></div>
-            <input id="ghVent" type="range" min="14" max="38" step="0.5" value="\${world.ctrl.ventSet}">
+            <div class="climate-value"><b id="ghVentVal">—</b></div>
+            <input id="ghVent" type="range" min="14" max="38" step="0.5" value="0">
           </div>
           <div class="climate-control" id="ghCo2Control">
             <label for="ghCo2">Целевой CO₂</label>
-            <div class="climate-value"><b id="ghCo2Val">\${world.ctrl.co2Set} ppm</b></div>
-            <input id="ghCo2" type="range" min="400" max="1200" step="25" value="\${world.ctrl.co2Set}">
+            <div class="climate-value"><b id="ghCo2Val">—</b></div>
+            <input id="ghCo2" type="range" min="400" max="1200" step="25" value="0">
             <div class="hint" id="ghCo2Hint"></div>
           </div>
           <div class="hint">Ручные уставки оборудования. Автоматические таймеры настраиваются отдельно.</div>
