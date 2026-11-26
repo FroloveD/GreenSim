@@ -424,7 +424,19 @@ function outsideClimate(w, doy, hour){
 }
 
 /* ---------------- Геометрия органов (порт turtle-подхода) ---------------- */
-function nodeY(C, i){ return 0.06 + i*C.internode*0.8; }
+/* Ёмкости: высота горшка/бака по системе и высота, на которой ёмкость стоит.
+   В теплице растения на желобах (0.16 м), в комнате и на балконе — на полу.
+   На эту высоту поднимается только КАРТИНКА (render.js): модель света и роста
+   считает куст от пола, как раньше, — иначе поедет баланс систем.        */
+const POT_H = { soil:0.17, coco:0.12, dwc:0.21, nft:0.18, aero:0.19 };
+function vesselStandY(w){
+  return ((w && w.profile) === 'room' || (w && w.profile) === 'balcony') ? 0 : 0.16;
+}
+function plantBaseY(w){
+  const sys = (w && w.sys) || 'soil';
+  return vesselStandY(w) + (POT_H[sys] || POT_H.soil);
+}
+function nodeY(C, i, base){ return (base||0) + 0.06 + i*C.internode*0.8; }
 
 function leafGeom(lf, C, px, py, pz){
   const tilt = lf.tilt, az = lf.az;

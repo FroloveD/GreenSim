@@ -350,11 +350,6 @@ function closeSheet(){
   document.querySelectorAll('#dashGrid .panel').forEach(p=>p.classList.remove('sel'));
   const dock = $('dock'); if (dock) dock.innerHTML='';
 }
-if ($('btnPanels')) $('btnPanels').onclick = ()=>{
-  const kind = layoutKind();
-  if (kind==='desktop'){ toast('Панели уже на экране'); return; }
-  toggleSheet(sheetTab || SHEET_TABS[kind][0].k);
-};
 let _layT = 0;
 window.addEventListener('resize', ()=>{
   clearTimeout(_layT);

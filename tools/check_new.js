@@ -53,7 +53,20 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   await page.click('#btnLayer');
   await page.waitForTimeout(500);
   await shot(page, '/home/user/shots/51_layer.png');
-  await page.mouse.move(640, 420);
+  // точку наведения считаем по проекции плода: растения теперь стоят в ёмкостях,
+  // и фиксированные координаты попали бы в пустоту
+  const pt = await page.evaluate(()=>{
+    const C = CROPS[world.crop], r = canvas.getBoundingClientRect();
+    for (const p of world.plants) for (const tr of p.trusses) for (let i=0;i<tr.fruits.length;i++){
+      const f = tr.fruits[i]; if (f.harvested) continue;
+      const ang = 0.6+i*1.05;
+      const q = project({x:p.x+Math.cos(ang)*0.06*(1+i*0.1), y:nodeYw(C, tr.i+1)-i*0.03,
+                         z:p.z+Math.sin(ang)*0.06*(1+i*0.1)});
+      return {x:Math.round(r.left+q.x), y:Math.round(r.top+q.y)};
+    }
+    return null;
+  });
+  await page.mouse.move(pt.x, pt.y);
   await page.waitForTimeout(400);
   const hov = await page.evaluate(()=>{ const c=document.getElementById('hoverCard');
     return {shown:c.style.display, text:c.textContent.slice(0,120)}; });
