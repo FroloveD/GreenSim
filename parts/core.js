@@ -925,20 +925,20 @@ function cropStage(w){
   const ps = w.plants || [];
   if (!ps.length) return {key:'start', name:'старт'};
   const age = ps.reduce((s,p)=>s+(p.age||0),0)/ps.length;
+  // Фаза налива не должна откатываться после сбора спелых плодов.
+  // Фиксируем её при первом устойчивом появлении завязей нужной массы.
   if (C.leafy){
     const head = ps.reduce((s,p)=>s+(p.head||0),0)/ps.length;
-    if (age < 16) return {key:'start', name:'сеянцы'};
-    if (head >= C.headTarget*0.6) return {key:'fruit', name:'головка'};
-    return {key:'veg', name:'лист'};
+    if (age < 16 && !w.stageFruitReached) return {key:'start', name:'сеянцы'};
+    if (head >= C.headTarget*0.6) w.stageFruitReached = true;
+    return w.stageFruitReached ? {key:'fruit', name:'головка'} : {key:'veg', name:'лист'};
   }
-  // стадия по массе плодов, а не по их количеству: завязи есть уже в вегетации,
-  // налив начинается, когда плоды реально растут
+  if (age < 14 && !w.stageFruitReached) return {key:'start', name:'рассада'};
   const alive = ps.reduce((a,p)=>a.concat(p.fruits.filter(f=>!f.harvested)), []);
   const mass = alive.reduce((a,f)=>a+(f.mass||0),0);
   const avg = alive.length ? mass/alive.length : 0;
-  if (age < 14) return {key:'start', name:'рассада'};
-  if (alive.length < 3 || avg < C.fruitSink*0.25) return {key:'veg', name:'вегетация'};
-  return {key:'fruit', name:'налив'};
+  if (alive.length >= 3 && avg >= C.fruitSink*0.25) w.stageFruitReached = true;
+  return w.stageFruitReached ? {key:'fruit', name:'налив'} : {key:'veg', name:'вегетация'};
 }
 function stageRecipe(w){
   const st = cropStage(w);
@@ -1874,7 +1874,7 @@ function makeWorld(opts){
     // Суточная световая сумма и фотопериод; сохраняются между сессиями.
     dliAcc:0, dliLampAcc:0, lampHoursDay:0, photoHoursDay:0,
     dliYest:0, dliLampYest:0, lampHoursYest:0, photoHoursYest:0,
-    repF:1, rep:0, seasons:1, carry:null, realWeather:null
+    repF:1, rep:0, seasons:1, carry:null, realWeather:null, stageFruitReached:false
   };
   // абсолютные характеристики теплицы (масштабируются по площади)
   w.env = {
@@ -2469,6 +2469,7 @@ function deserializeWorld(text){
   if (!Number.isFinite(w.repF)) w.repF = 1;
   if (!Number.isFinite(w.seasons)) w.seasons = 1;
   if (w.carry === undefined) w.carry = null;
+  if (w.stageFruitReached === undefined) w.stageFruitReached = false;
   // Миграция: старые сохранения не содержали накопители DLI/фотопериода.
   for (const k of ['dliAcc','dliLampAcc','lampHoursDay','photoHoursDay','dliYest','dliLampYest','lampHoursYest','photoHoursYest'])
     if (!Number.isFinite(w[k])) w[k] = 0;
