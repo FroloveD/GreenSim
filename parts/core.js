@@ -1049,11 +1049,12 @@ function climateSub(w, dtH, C){
   // --- приводы ---
   const stuck = (!w.equip.fan.ok) || (!w.power);
   const vBand = w.has.climatePC ? 4 : 3;          // климат-контроллер держит точнее
-  let ventTarget = stuck ? 0.35 : clamp((w.temp - c.ventSet)/vBand, 0, 1);
-  if (w.temp > c.ventSet + 8) ventTarget = Math.max(ventTarget, stuck ? 0.7 : 1);
+  const climateAuto = !!(w.auto && w.auto.full && w.auto.full.on && autoAllowed(w,"full"));
+  let ventTarget = stuck ? 0.35 : (climateAuto ? clamp((w.temp - c.ventSet)/vBand, 0, 1) : (c.ventManualOn ? 1 : 0));
+  if (climateAuto && w.temp > c.ventSet + 8) ventTarget = Math.max(ventTarget, stuck ? 0.7 : 1);
   // полная автоматизация сушит воздух, когда влажность подходит к пределу культуры:
   // это и есть та работа, за которую раньше отвечал игрок
-  if (w.auto && w.auto.full && w.auto.full.on && autoAllowed(w,'full') && !stuck){
+  if (climateAuto && !stuck){
     const rhMax = (C && C.rhMax) || 90;
     if (w.rh > rhMax - 4) ventTarget = Math.max(ventTarget, 0.6);
   }
@@ -1081,8 +1082,8 @@ function climateSub(w, dtH, C){
   // на балконе штатного котла почти нет (0.08 кВт на 4 м²) — зимой нужен
   // обогреватель: +0.6 кВт, но и счётчик крутится
   const heatCapKW = E.heatKW + (w.has.heatBoost ? 0.6 : 0);
-  if (heaterOK && w.temp < c.heatSet){
-    heatIn = heatCapKW*1000*clamp((c.heatSet - w.temp)/(w.has.climatePC?0.6:1.0), 0, 1);
+  if (heaterOK && (climateAuto ? w.temp < c.heatSet : !!c.heatManualOn)){
+    heatIn = heatCapKW*1000*(climateAuto ? clamp((c.heatSet - w.temp)/(w.has.climatePC?0.6:1.0), 0, 1) : 1);
   }
   w.heatUse = heatIn/1000;
 
@@ -1882,7 +1883,7 @@ function makeWorld(opts){
     disease: 0, stress: 0, power: true, pruned: 0, incidents: 0,
     missionIdx: 0, missionsDone: 0,
     ctrl: {
-      heatSet: 18, ventSet: 24, co2Set: 600,
+      heatSet: 18, ventSet: 24, co2Set: 600, heatManualOn:false, ventManualOn:false,
       lampOn: false, lampEnabled: false, screenOn: false, shadeOn: false,
       alarmOn: false, alarmFrom: 6, alarmTo: 20,
       ecSet: 2.4, phSet: 5.8, recipe: 'std'
