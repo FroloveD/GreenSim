@@ -34,6 +34,158 @@ function toast(msg){
   toastTimer = setTimeout(()=>t.classList.remove('on'), 1700);
 }
 
+/* ---------------- Звук: синтез в браузере, без файлов ----------------
+   Ни одного mp3: всё собирается из осцилляторов и шума на WebAudio.
+   Контекст создаётся только после первого действия игрока (иначе браузер его
+   глушит), настройка «звук и громкость» лежит отдельным ключом и переживает
+   очистку сейва. Где WebAudio нет (старый браузер, jsdom в тестах) — молча ничего. */
+const SND_KEY = 'vg_sound_v1';
+const sndCfg = (()=>{
+  const def = {on:true, vol:0.7};
+  try {
+    const raw = localStorage.getItem(SND_KEY);
+    if (raw){ const o = JSON.parse(raw);
+      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1)}; }
+  } catch(e){}
+  return def;
+})();
+function sndSave(){
+  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol})); } catch(e){}
+}
+const SFX = (()=>{
+  let ctx = null, master = null, noiseBuf = null, armed = false;
+  const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
+  const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
+  function ensure(){
+    if (ctx || !hasAudio()) return ctx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+      master.connect(ctx.destination);
+      const n = Math.floor((ctx.sampleRate||44100)*0.5);
+      noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i=0;i<n;i++) d[i] = Math.random()*2-1;
+    } catch(e){ ctx = null; }
+    return ctx;
+  }
+  /* первое действие игрока: разбудить контекст */
+  function arm(){
+    ensure();
+    if (!ctx) return false;
+    if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch(e){} }
+    armed = true;
+    return true;
+  }
+  function syncGain(){
+    if (master) master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+  }
+  function tone(o){
+    const t0 = ctx.currentTime + (o.at||0);
+    const dur = o.dur || 0.2;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(Math.max(20, o.f0), t0);
+    if (o.f1 && o.f1 !== o.f0)
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.f1), t0 + dur);
+    const peak = Math.max(0.0005, o.gain === undefined ? 0.18 : o.gain);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + (o.attack || 0.008));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    let node = osc;
+    if (o.lp){ const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = o.lp; osc.connect(f); node = f; }
+    node.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + dur + 0.03);
+  }
+  function noise(o){
+    const t0 = ctx.currentTime + (o.at||0);
+    const dur = o.dur || 0.25;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = o.type || 'bandpass';
+    f.frequency.setValueAtTime(o.f0 || 900, t0);
+    f.frequency.exponentialRampToValueAtTime(Math.max(60, o.f1 || o.f0 || 900), t0 + dur);
+    f.Q.value = o.q === undefined ? 1.2 : o.q;
+    const g = ctx.createGain();
+    const peak = Math.max(0.0005, o.gain === undefined ? 0.12 : o.gain);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + dur + 0.03);
+  }
+  /* рисунок каждого звука: короткие, разные по характеру, без мелодий-навязчивостей */
+  const RECIPES = {
+    harvest(o){                                     // сорвали плод: короткий «плук»
+      const k = clamp((o && o.heavy) || 0.5, 0, 1);
+      tone({type:'triangle', f0:540 + 220*k, f1:300 + 120*k, dur:0.12, gain:0.16});
+      noise({f0:2200, f1:900, dur:0.07, gain:0.05, q:0.7});
+    },
+    sell(o){                                        // касса: две монетки
+      tone({f0:1320, dur:0.10, gain:0.10});
+      tone({f0:1760, dur:0.16, gain:0.08, at:0.06});
+      tone({f0:2640, dur:0.09, gain:0.045, at:0.12});
+    },
+    buy(){                                          // покупка: глухой стук и подъём
+      tone({f0:190, f1:90, dur:0.14, gain:0.16, type:'sine'});
+      tone({f0:520, f1:780, dur:0.13, gain:0.07, at:0.05, type:'triangle'});
+    },
+    water(){                                        // вода: шум с падающим фильтром
+      noise({f0:1400, f1:320, dur:0.34, gain:0.10, q:0.6});
+      noise({f0:800, f1:240, dur:0.42, gain:0.06, q:0.5, at:0.05});
+    },
+    lamp(){                                         // щелчок светильника
+      noise({f0:3200, f1:1800, dur:0.04, gain:0.07, q:0.9});
+      tone({f0:900, f1:700, dur:0.05, gain:0.05, type:'square'});
+    },
+    bill(){                                         // пришёл счёт: тусклый колокольчик
+      tone({f0:880, dur:0.5, gain:0.10});
+      tone({f0:1174, dur:0.42, gain:0.07, at:0.05});
+      tone({f0:440, dur:0.6, gain:0.05, at:0.02, type:'triangle'});
+    },
+    court(){                                        // суд: низкое предупреждение
+      tone({f0:160, f1:120, dur:0.5, gain:0.16, type:'sawtooth', lp:700});
+      tone({f0:120, f1:80, dur:0.7, gain:0.10, at:0.25, type:'sawtooth', lp:600});
+    },
+    error(){                                        // отказ
+      tone({f0:220, f1:170, dur:0.13, gain:0.13, type:'square', lp:1200});
+    },
+    warn(){                                         // предупреждение
+      tone({f0:660, dur:0.10, gain:0.08, type:'triangle'});
+      tone({f0:560, dur:0.12, gain:0.08, at:0.11, type:'triangle'});
+    },
+    end(){                                          // сезон закрыт: короткая арпеджио
+      [523, 659, 784, 1047].forEach((f,i)=>tone({f0:f, dur:0.28, gain:0.09, at:i*0.09, type:'triangle'}));
+    },
+    bankrupt(){                                     // банкротство: вниз по минору
+      [440, 349, 262, 196].forEach((f,i)=>tone({f0:f, dur:0.42, gain:0.11, at:i*0.14, type:'sine'}));
+    }
+  };
+  function play(name, opt){
+    if (!sndCfg.on || sndCfg.vol <= 0) return false;
+    if (!ctx) ensure();
+    if (!ctx || ctx.state === 'suspended') return false;      // без действия игрока браузер молчит
+    const r = RECIPES[name];
+    if (!r) return false;
+    const now = (typeof performance!=='undefined' ? performance.now() : Date.now());
+    if (lastAt[name] && now - lastAt[name] < 45) return false;  // пачка плодов = один звук
+    lastAt[name] = now;
+    try { r(opt || {}); return true; } catch(e){ return false; }
+  }
+  return {
+    arm, play,
+    names: ()=>Object.keys(RECIPES),
+    get on(){ return sndCfg.on; },
+    get vol(){ return sndCfg.vol; },
+    setOn(v){ sndCfg.on = !!v; sndSave(); syncGain(); return sndCfg.on; },
+    setVol(v){ sndCfg.vol = clamp(+v || 0, 0, 1); sndSave(); syncGain(); return sndCfg.vol; },
+    state(){ return { on:sndCfg.on, vol:sndCfg.vol, armed, ctx: !!ctx,
+                      running: !!(ctx && ctx.state === 'running') }; }
+  };
+})();
+function playSfx(name, opt){ try { return SFX.play(name, opt); } catch(e){ return false; } }
+
 /* ---------------- сохранение сезона ----------------
    localStorage может быть недоступен (iframe без allow-same-origin, приватный режим),
    поэтому три уровня: localStorage → sessionStorage → память вкладки.
@@ -409,6 +561,7 @@ function startGame(){
   tutorStep = 0; tutorDone = false; resetTutorFlags();
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
+  if (typeof FX !== 'undefined') FX.length = 0;
   seenBills = (world.util && world.util.bills) ? world.util.bills.length : 0;
   $('start').classList.remove('on');
   $('pred').classList.remove('on');
@@ -569,6 +722,29 @@ function gauge(label, val, min, max, unit, cls, digits){
   return `<div class="g"><span>${label}</span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
     <b>${nf(val, digits===undefined?1:digits)}${u}</b></div>`;
 }
+/* звук: вкл/выкл одной функцией на кнопку клавишу и карточку */
+function toggleSound(){
+  SFX.arm();
+  const on = SFX.setOn(!SFX.on);
+  toast(on ? 'Звук включён · клавиша Z глушит' : 'Звук выключен · клавиша Z вернёт');
+  if (page === 'settings') renderSettings();
+  return on;
+}
+
+/* сбор урожая — один путь для кнопки, клавиши и тапа: одинаковый текст, звук и эффект */
+function doHarvest(){
+  if (!world) return null;
+  const r = harvestAll(world);
+  if (r.n){
+    playSfx('harvest', {heavy: clamp(r.kg/Math.max(0.4, world.area*0.02), 0.1, 1)});
+    toast(`Собрано ${r.n} шт · ${num(r.kg)} кг → склад`);
+  } else {
+    toast('Нет спелых плодов');
+  }
+  renderAll(); if (page==='shop') renderShop();
+  return r;
+}
+
 /* когда придёт следующий счёт за свет и тепло */
 function utilNextBillText(w){
   const rests = UTIL.billDoy.map(d=>((d - (((w.doy-1)%365)+1)) + 365) % 365);
@@ -710,6 +886,7 @@ function renderFinance(){
   const pay = $('finance').querySelector('[data-payutil]');
   if (pay) pay.onclick = ()=>{
     const r = payUtil(world);
+    playSfx(r.ok ? 'sell' : 'error');
     toast(r.msg);
     renderAll();
   };
@@ -900,17 +1077,9 @@ function renderDiagnosis(){
   const body = d.items.length
     ? d.items.map(it=>{
         const cls = it.sev==='bad'?'bad':it.sev==='warn'?'warn':'ok';
-        const details = [it.why ? `<div class="hint"><b>Причина:</b> ${it.why}</div>` : '',
-                         it.risk ? `<div class="hint"><b>Последствие:</b> ${it.risk}</div>` : '',
-                         it.action ? `<div class="hint"><b>Действие:</b> ${it.action}</div>` : ''].filter(Boolean).join('');
-        return `<div class="alert ${cls}" style="margin-bottom:5px">
-          <div>${it.text}</div>
-          ${details ? `<details style="margin-top:4px"><summary style="cursor:pointer">Почему это происходит и чем грозит</summary>
-            <div style="margin-top:5px;padding:5px 0 0 8px;display:grid;gap:5px">${details}</div>
-          </details>` : ''}
-        </div>`;
+        return `<div class="alert ${cls}" style="margin-bottom:4px">${it.text}</div>`;
       }).join('')
-    : `<div class="alert ok">Ограничений не выявлено: свет, питание и климат в рабочем диапазоне</div>`;
+    : `<div class="alert ok">Растение у своего предела: свет, питание и климат в норме</div>`;
   $('diagnosis').innerHTML = head + body +
     `<div class="hint" style="margin-top:4px">углерод, усвоенный кроной за прошлые сутки. Ориентир: 15–25 г/м²·сут у томата в апреле</div>`;
 }
@@ -967,6 +1136,7 @@ function renderStock(){
   const sell = $('btnSellAll');
   if (sell) press(sell, ()=>{
     const r = sellHarvest(world, world.crop, null);
+    playSfx(r.ok ? 'sell' : 'error');
     toast(r.ok ? `Продано ${num(r.kg)} кг за ${money(r.eur)}` : 'На складе нет продукции');
     renderAll(); if (page==='shop') renderShop();
   });
@@ -1150,6 +1320,7 @@ function renderShop(){
 
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
     const r = buyItem(world, b.dataset.buy);
+    playSfx(r.ok ? 'buy' : 'error');
     toast(r.msg);
     renderShop(); renderAll();
   });
@@ -1202,6 +1373,15 @@ function renderSettings(){
           <button class="btn ${cur?'good':''}" data-sysset="${S.id}" ${cur||!allowed?'disabled':''}>${label}</button></div>`;
       }).join('')}
       <div class="hint">Переход стоит денег и обнуляет часть гнили: это новый корневой объём, а не пересадка куста.</div>
+    </div>
+    <div class="card">
+      <div class="h"><b>Звук</b></div>
+      <div class="d" style="color:var(--txt)">${SFX.on ? (SFX.vol>0.001 ? 'включён · громкость '+Math.round(SFX.vol*100)+'%' : 'включён, но громкость 0') : 'выключен'}</div>
+      <div class="row"><label>Сбор, продажа, покупка, вода, свет, счёт
+        <div class="hint">Звук синтезируется в браузере: файлов нет, работает офлайн. Клавиша <b>Z</b> глушит и возвращает.</div></label>
+        <button class="btn ${SFX.on?'good':''}" id="btnSndSet">${SFX.on?'вкл':'выкл'}</button></div>
+      <input type="range" id="sndVol" min="0" max="100" step="5" value="${Math.round(SFX.vol*100)}">
+      <div class="hint">${SFX.state().running ? 'браузер разрешил звук' : 'звук включится после первого клика — так требуют браузеры'}</div>
     </div>
     <div class="card">
       <div class="h"><b>Свет и экраны</b></div>
@@ -1423,6 +1603,11 @@ function renderSettings(){
   bind('co2','co2Set', v=>v+' ppm');
   bind('ec','ecSet', v=>nf(v,1));
   bind('ph','phSet', v=>nf(v,1));
+  const bs = $('btnSndSet');
+  if (bs) bs.onclick = ()=>{ toggleSound(); };
+  const vs = $('sndVol');
+  if (vs) vs.oninput = ()=>{ SFX.arm(); SFX.setVol(vs.value/100); const d = vs.parentNode.querySelector('.d'); if (d) d.textContent = SFX.on ? 'включён · громкость '+Math.round(SFX.vol*100)+'%' : 'выключен'; };
+
   $('btnLampSet').onclick = ()=>{
     const r = toggleLamp(world);
     toast(r.msg);
@@ -1844,6 +2029,12 @@ function handleClick(cx, cy){
 document.querySelectorAll('#camBar [data-view]').forEach(b=>b.onclick=()=>setCamMode(b.dataset.view));
 /* Клавиши: камеры и сцена — как раньше, плюс быстрые действия и страницы.
    В полях ввода клавиши не перехватываются, иначе цифры в них не набрать. */
+/* первое действие игрока: только после него браузер разрешает звук */
+['pointerdown','touchstart','keydown'].forEach(ev=>
+  window.addEventListener(ev, ()=>{ if (!SFX.state().armed) SFX.arm(); }, {passive:true}));
+
+/* прогрев: клик по любой кнопке — это звук покупки/сбора, поэтому вешаем на действия */
+
 window.addEventListener('keydown', e=>{
   const tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
@@ -1861,6 +2052,7 @@ window.addEventListener('keydown', e=>{
   if (e.key==='-' || e.key==='_'){ camZoomBy(1/1.12); return; }
   if (k==='r'){ resetCam(); return; }
   if (k==='l'){ toggleLayer(); return; }
+  if (k==='z'){ toggleSound(); return; }
   if (k==='escape'){
     ['help','manual','pred','mailModal'].forEach(id=>{ const el=$(id); if (el) el.classList.remove('on'); });
     if (page!=='greenhouse') setPage('greenhouse');
@@ -1873,10 +2065,10 @@ window.addEventListener('keydown', e=>{
   if (k==='f'){ const p=$('pred'); if (p) p.classList.toggle('on'); return; }
   if (!world || world.over) return;
   // быстрые действия теми же путями, что и кнопки под сценой
-  if (k==='h'){ const r=harvestAll(world); toast(r.n?`Собрано ${r.n} шт · ${num(r.kg)} кг → склад`:'Нет спелых плодов'); renderAll(); if (page==='shop') renderShop(); return; }
-  if (k==='b'){ const n=pruneLower(world,2); toast(n?`Обрезано ${n} листьев`:'Нечего обрезать'); renderAll(); return; }
-  if (k==='w'){ const r=water(world); toast(r.msg); if (r.ok){ syncLightButtons(); renderAll(); saveNow(true); } return; }
-  if (k==='d'){ const r=toggleLamp(world); toast(r.msg); if (r.ok){ syncLightButtons(); renderAll(); saveNow(true); } return; }
+  if (k==='h'){ doHarvest(); return; }
+  if (k==='b'){ const n=pruneLower(world,2); if (n) playSfx('harvest',{heavy:0.2}); toast(n?`Обрезано ${n} листьев`:'Нечего обрезать'); renderAll(); return; }
+  if (k==='w'){ const r=water(world); if (r.ok) playSfx('water'); toast(r.msg); if (r.ok){ syncLightButtons(); renderAll(); saveNow(true); } return; }
+  if (k==='d'){ const r=toggleLamp(world); if (r.ok) playSfx('lamp'); toast(r.msg); if (r.ok){ syncLightButtons(); renderAll(); saveNow(true); } return; }
   if (k==='s'){ if (!world.has.shade) return toast('Сначала купите затеняющую сетку'); world.ctrl.shadeOn=!world.ctrl.shadeOn; toast(world.ctrl.shadeOn?'Сетка опущена':'Сетка поднята'); syncLightButtons(); renderAll(); return; }
 });
 
@@ -1890,14 +2082,7 @@ function togglePause(){
 }
 $('btnPause').onclick = togglePause;
 document.querySelectorAll('.spd').forEach(b=>b.onclick=()=>{
-  const requested = parseFloat(b.dataset.s);
-  if (world && world.camp && requested > 64){
-    speed = 64;
-    document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x.dataset.s==='64'));
-    toast('В кампании максимальное ускорение — 64×');
-    return;
-  }
-  speed = requested;
+  speed = parseFloat(b.dataset.s);
   document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x===b));
   if (paused) togglePause();
 });
@@ -1935,18 +2120,16 @@ obPaint();
 $('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
 
-$('btnHarvest').onclick = ()=>{
-  const r = harvestAll(world);
-  toast(r.n ? `Собрано ${r.n} шт · ${num(r.kg)} кг → склад` : 'Нет спелых плодов');
-  renderAll(); if (page==='shop') renderShop();
-};
+$('btnHarvest').onclick = ()=>doHarvest();
 $('btnPrune').onclick = ()=>{
   const n = pruneLower(world, 2);
+  if (n) playSfx('harvest', {heavy:0.2});
   toast(n? `Обрезано ${n} листьев` : 'Нечего обрезать');
   renderAll();
 };
 $('btnLampQuick').onclick = ()=>{
   const r = toggleLamp(world);
+  if (r.ok) playSfx('lamp');
   toast(r.msg);
   if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
@@ -1958,6 +2141,7 @@ $('btnShadeQuick').onclick = ()=>{
 };
 $('btnWaterQuick').onclick = ()=>{
   const r = water(world);
+  if (r.ok) playSfx('water');
   toast(r.msg);
   if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
@@ -1992,17 +2176,6 @@ function syncLightButtons(){
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
-  // В кампании 480× недоступно: скрываем кнопку и страхуем состояние скорости.
-  const turboButton = document.querySelector('.spd[data-s="480"]');
-  if (turboButton) turboButton.hidden = !!world.camp;
-  if (world.camp && speed > 64){
-    speed = 64;
-    document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
-  }
-  const speed64Button = document.querySelector('.spd[data-s="64"]');
-  if (speed64Button) speed64Button.title = world.camp
-    ? 'Максимальная скорость кампании — 64×'
-    : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
@@ -2122,8 +2295,10 @@ function frame(now){
     if (world.util && Array.isArray(world.util.bills) && world.util.bills.length !== seenBills){
       const nb = world.util.bills[world.util.bills.length-1];
       seenBills = world.util.bills.length;
-      if (nb && !nb.paid && nb.eur > 0)
+      if (nb && !nb.paid && nb.eur > 0){
+        playSfx(nb.kind === 'судебные издержки' ? 'court' : 'bill');
         toast(`Счёт за свет и тепло: ${moneyS(nb.eur)} · «Экономика» → «Оплатить»`);
+      }
     }
     if (now - uiT > 130){
       uiT = now;
@@ -2160,6 +2335,7 @@ function startNextSeason(salvage){
   if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
   document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
   endShown = false; paused = false; speed = 64; acc = 0; lastT = performance.now(); fc = null;
+  if (typeof FX !== 'undefined') FX.length = 0;
   seenBills = (world.util && world.util.bills) ? world.util.bills.length : 0;
   document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
@@ -2188,6 +2364,7 @@ function showBankrupt(w){
       <button class="btn" onclick="location.reload()">Начать заново</button></p>
   </div>`;
   document.body.appendChild(div);
+  playSfx('bankrupt');
   const b = div.querySelector('#btnSalvage');
   if (b) b.onclick = ()=>{ div.remove(); startNextSeason(salvage); };
 }
@@ -2237,6 +2414,7 @@ function showEnd(){
       <button class="btn" onclick="location.reload()">Начать заново</button></p>
   </div>`;
   document.body.appendChild(div);
+  playSfx('end');
   const nb = div.querySelector('#btnNextSeason');
   if (nb) nb.onclick = ()=>{ div.remove(); startNextSeason(); };
 }

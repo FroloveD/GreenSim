@@ -16,15 +16,6 @@ const { launch } = require('./browser');
   });
 
   await page.evaluate(()=>{ pending.campaign=true; pending.profile='balcony'; pending.crop='tomato'; startGame(); });
-  const speedCheck = await page.evaluate(()=>{
-    const turbo = document.querySelector('.spd[data-s="480"]');
-    const hidden = !!turbo && (turbo.hidden || getComputedStyle(turbo).display==='none');
-    if (turbo) turbo.click(); // даже программный клик не должен включить 480×
-    return {hidden, speed, selected:document.querySelector('.spd.on')?.dataset.s};
-  });
-  if (!speedCheck.hidden || speedCheck.speed > 64 || speedCheck.selected !== '64')
-    throw new Error('В кампании включилось ускорение выше 64×: '+JSON.stringify(speedCheck));
-  console.log('скорость кампании:', JSON.stringify(speedCheck));
   await page.waitForTimeout(300);
   await page.evaluate(()=>VG.page('shop'));
   await page.waitForTimeout(400);

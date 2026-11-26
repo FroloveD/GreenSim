@@ -30,6 +30,7 @@ const SUITE = [
   { n:'UX: DLI, рецепт, клавиши, отчёт, PWA', f:'tools/test_ux7.js', browser:true },
   { n:'деньги: копейки и баки',            f:'tools/check_money.js',  browser:true },
   { n:'CO₂ и задания без оборудования',    f:'tools/check_co2gate.js',browser:true },
+  { n:'звук и эффекты сбора',              f:'tools/test_fx.js',      browser:true },
   { n:'кампания целиком',                  f:'tools/check_campaign.js', browser:true, slow:true },
   { n:'сохранение и загрузка',             f:'tools/check_save.js',   browser:true },
   { n:'надёжное сохранение (IndexedDB)',   f:'tools/test_idb.js',     browser:true },

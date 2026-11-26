@@ -557,6 +557,9 @@ function drawScene(){
     ctx.fillText('ПЛАН · площадь сцены 4×3 м · рендер-выборка', q0.x, q0.y+16);
   }
 
+  // эффекты сбора — поверх всей геометрии, но под интерфейсом сцены
+  drawFx();
+
   // индикатор солнца
   const sun = world.light.sun || {x:0,y:1,z:0};
   const el = Math.asin(clamp(sun.y,-1,1));
@@ -698,6 +701,39 @@ function drawVessel(p){
       ctx.arc(c.x + Math.cos(a)*rr*0.45, c.y + Math.sin(a)*rr*0.16, Math.max(1, rr*0.13), 0, 6.2832);
       ctx.fillStyle = '#43301a'; ctx.fill();
     }
+  }
+}
+
+/* ---------- эффекты сбора ----------
+   Плод не исчезает бесследно: он подлетает вверх, уменьшается и тает, рядом
+   всплывает «+12 г». Живёт чуть больше секунды — этого хватает, чтобы глаз
+   поймал, что произошло, и не мешает следующему сбору. */
+function drawFx(){
+  if (typeof FX === 'undefined' || !FX.length) return;
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  for (let i=FX.length-1; i>=0; i--){
+    const f = FX[i];
+    const age = (now - f.born)/1000;
+    if (!(f.dur > 0) || age >= f.dur){ FX.splice(i,1); continue; }
+    const t = clamp(age/f.dur, 0, 1);
+    const rise = 1 - Math.pow(1-t, 2);                 // ease-out: резко вверх, мягко тает
+    const q = project({x:f.pos.x, y:f.pos.y + 0.12*rise, z:f.pos.z});
+    const r = Math.max(2, 0.020*q.s*(1 - 0.45*t));
+    ctx.save();
+    ctx.globalAlpha = 1 - t*t;
+    ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.2832);
+    ctx.fillStyle = f.col || '#e8472a'; ctx.fill();
+    ctx.strokeStyle = '#0a0806'; ctx.lineWidth = 1.6; ctx.stroke();
+    if (f.txt){
+      const fs = Math.max(10, Math.round(0.026*q.s));
+      ctx.font = '700 '+fs+'px "Trebuchet MS", Segoe UI, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const ty = q.y - fs*0.9 - 8*rise;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,6,.85)';
+      ctx.strokeText(f.txt, q.x, ty);
+      ctx.fillStyle = '#f3e7c8'; ctx.fillText(f.txt, q.x, ty);
+    }
+    ctx.restore();
   }
 }
 

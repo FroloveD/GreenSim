@@ -1220,6 +1220,41 @@ function growthTick(w, dtDays, C){
 }
 
 /* ---------------- Уборка урожая ---------------- */
+/* ---------------- Эффекты сцены ----------------
+   «Собрано» — это не только строчка в журнале: плод должен подлететь и растаять.
+   Эффекты держим вне мира (в сейв не идут, прогноз их не рисует), а рендер читает
+   этот список и рисует поверх сцены. */
+const FX = [];
+function fxPush(o){
+  FX.push(o);
+  if (FX.length > 72) FX.splice(0, FX.length - 72);
+  return o;
+}
+/* экранная точка плода: та же формула, что в рендере — иначе «+12 г» улетало бы не оттуда */
+function fruitPos(C, p, tr, fi){
+  const ang = 0.6 + fi*1.05;
+  return {x: p.x + Math.cos(ang)*0.06*(1 + fi*0.1),
+          y: nodeY(C, tr.i+1) - fi*0.03,
+          z: p.z + Math.sin(ang)*0.06*(1 + fi*0.1)};
+}
+/* подпись эффекта: граммы до килограмма, дальше — килограммы с запятой */
+function fxKgText(kg){
+  if (kg >= 1) return '+' + (Math.round(kg*10)/10).toFixed(1).replace('.', ',') + ' кг';
+  return '+' + Math.round(kg*1000) + ' г';
+}
+function fxPick(w, C, p, tr, fi, f){
+  if (w.forecast) return;                       // прогноз не должен сыпать искрами
+  const kg = C.fruitFresh*(w.plantScale||1);
+  fxPush({k:'pick', pos:fruitPos(C, p, tr, fi), txt:fxKgText(kg),
+          col: f.rot ? '#a8823f' : '#e8472a', born: (typeof performance!=='undefined'?performance.now():Date.now()), dur:1.15});
+}
+function fxHead(w, C, p){
+  if (w.forecast) return;
+  const kg = C.fruitFresh*(p.head ? (p.head/C.headTarget) : 1)*(w.plantScale||1);
+  fxPush({k:'pick', pos:{x:p.x, y:nodeY(C, Math.min(p.nPhy, 6)), z:p.z}, txt:fxKgText(kg),
+          col:'#d8ec8e', born:(typeof performance!=='undefined'?performance.now():Date.now()), dur:1.2});
+}
+
 function harvestAll(w){
   const C = CROPS[w.crop];
   const grade = w.disease>0.35 ? 0.7 : 1;
@@ -1229,6 +1264,7 @@ function harvestAll(w){
       if (p.head >= C.headTarget){
         const fresh = C.fruitFresh*(p.head/C.headTarget);
         kg += fresh; n++;
+        fxHead(w, C, p);
         // пересев
         p.head = 0; p.leaves.length = 0; p.organs.length = 0; p.nPhy = 0; p.tt = 0;
         p.root = {id:_oid++, type:'plant', parent:null, children:[], label:'plant#'+p.id};
@@ -1240,12 +1276,13 @@ function harvestAll(w){
       }
     }
   } else {
-    for (const p of w.plants) for (const f of p.fruits){
-      if (f.ripe && !f.harvested){
-        f.harvested = true; n++;
-        if (f.rot){ rotKg += C.fruitFresh; continue; }
-        kg += C.fruitFresh;
-      }
+    for (const p of w.plants) for (const tr of p.trusses) for (let fi=0; fi<tr.fruits.length; fi++){
+      const f = tr.fruits[fi];
+      if (!(f.ripe && !f.harvested)) continue;
+      f.harvested = true; n++;
+      if (f.rot){ rotKg += C.fruitFresh; continue; }
+      kg += C.fruitFresh;
+      fxPick(w, C, p, tr, fi, f);
     }
   }
   if (n>0){
@@ -1263,6 +1300,10 @@ function harvestFruit(w, plant, f){
   if (!f || f.harvested || !f.ripe) return 0;
   f.harvested = true;
   if (f.rot) return 0;
+  for (const tr of plant.trusses){
+    const fi = tr.fruits.indexOf(f);
+    if (fi >= 0){ fxPick(w, C, plant, tr, fi, f); break; }
+  }
   const kg = C.fruitFresh*w.plantScale;
   const grade = w.disease>0.35?0.7:1;
   w.harvested++; w.harvestedKg += kg;
