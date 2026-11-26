@@ -14,6 +14,7 @@ const FAST = args.includes('--fast');
 const SUITE = [
   { n:'сборка синхронна с parts/*',        f:'tools/test_sync.js',    browser:false },
   { n:'ядро: 12 комбинаций, бухгалтерия, прогноз', f:'tools/test_core.js', browser:false },
+  { n:'свет за сутки: DLI и фотопериод', f:'tools/test_dli.js', browser:false },
   { n:'рынок: сезон цен и зимнее снаряжение', f:'tools/test_market.js', browser:false },
   { n:'сюжет: главы, ремонт, задания',     f:'tools/test_plot.js',    browser:true },
   { n:'экономика: долг, свет, копейки',    f:'tools/test_econ.js',    browser:true },
