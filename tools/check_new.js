@@ -1,5 +1,6 @@
 const { launch } = require('./browser');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(true));
   await page.waitForTimeout(100);
   try { await cdpShot(page, path); } catch(e){ console.log('скрин не снялся:', e.message.slice(0,50)); }
@@ -16,7 +17,7 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   await page.waitForTimeout(200);
   await page.click('#startBtn');
   await page.waitForTimeout(1200);
-  await shot(page, '/home/user/shots/50_tutor.png');
+  await shot(page, shotFile('50_tutor.png'));
   const st1 = await page.evaluate(()=>({
     diff: window.VG.world.diffId, fixed: window.VG.world.diffFixed,
     tutor: document.getElementById('tutorStep').textContent,
@@ -51,7 +52,7 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   await page.evaluate(()=>window.VG.cam('plant'));
   await page.click('#btnLayer');
   await page.waitForTimeout(500);
-  await shot(page, '/home/user/shots/51_layer.png');
+  await shot(page, shotFile('51_layer.png'));
   // точку наведения считаем по проекции плода: растения теперь стоят в ёмкостях,
   // и фиксированные координаты попали бы в пустоту
   const pt = await page.evaluate(()=>{
@@ -70,7 +71,7 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   const hov = await page.evaluate(()=>{ const c=document.getElementById('hoverCard');
     return {shown:c.style.display, text:c.textContent.slice(0,120)}; });
   console.log('карточка органа:', JSON.stringify(hov));
-  await shot(page, '/home/user/shots/52_hover.png');
+  await shot(page, shotFile('52_hover.png'));
   console.log('ошибки:', errs.length? errs.slice(0,5).join(' | '):'нет');
   await browser.close();
 })();

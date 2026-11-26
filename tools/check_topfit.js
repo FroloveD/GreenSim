@@ -1,5 +1,6 @@
 const { launch } = require('./browser');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   for (const w of [1440, 1366, 1280, 1180, 1024, 768, 390]){
     const b = await launch();
@@ -18,7 +19,7 @@ const { cdpShot } = require('./shot_cdp.js');
         camBarH: Math.round(cb.height), viewport: window.innerWidth};
     });
     console.log(w, JSON.stringify(r));
-    if (w===390){ await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,'/home/user/shots/105_phone_camnav.png'); await page.evaluate(()=>VG.freeze(false)); }
+    if (w===390){ await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,shotFile('105_phone_camnav.png')); await page.evaluate(()=>VG.freeze(false)); }
     await b.close();
   }
 })();

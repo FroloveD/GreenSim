@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await b.newPage({ viewport:{width:1400, height:940} });
@@ -36,12 +37,12 @@ const { cdpShot } = require('./shot_cdp.js');
     for(let d=0;d<25;d++){ for(let k=0;k<24;k++) VG.sim(1); } renderAll(); });
   await page.waitForTimeout(600);
   console.log('система в мире:', await page.evaluate(()=>world.sys), '| профиль в шапке:', await page.evaluate(()=>document.getElementById('tProfile').textContent));
-  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,'/home/user/shots/102_dwc_room.png'); await page.evaluate(()=>VG.freeze(false));
+  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,shotFile('102_dwc_room.png')); await page.evaluate(()=>VG.freeze(false));
 
   await page.evaluate(()=>{ pending.campaign=false; pending.profile='balcony'; pending.crop='lettuce'; pending.sys='soil'; startGame();
     for(let d=0;d<18;d++){ for(let k=0;k<24;k++) VG.sim(1); } renderAll(); });
   await page.waitForTimeout(500);
-  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,'/home/user/shots/103_soil_balcony.png'); await page.evaluate(()=>VG.freeze(false));
+  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,shotFile('103_soil_balcony.png')); await page.evaluate(()=>VG.freeze(false));
 
   // 4) смена системы в «Параметрах»
   const sw = await page.evaluate(()=>{ const r = setGrowSys(world,'coco'); renderSettings();

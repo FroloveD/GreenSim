@@ -16,6 +16,8 @@ const SUITE = [
   { n:'ядро: 12 комбинаций, бухгалтерия, прогноз', f:'tools/test_core.js', browser:false },
   { n:'рынок: сезон цен и зимнее снаряжение', f:'tools/test_market.js', browser:false },
   { n:'свет, себестоимость, перенос, погода, PWA', f:'tools/test_season2.js', browser:false },
+  { n:'буфер остывания светильника',       f:'tools/test_lampbuffer.js', browser:false },
+  { n:'квартальные счета за свет и тепло',  f:'tools/test_util.js',    browser:false },
   { n:'сюжет: главы, ремонт, задания',     f:'tools/test_plot.js',    browser:true },
   { n:'экономика: долг, свет, копейки',    f:'tools/test_econ.js',    browser:true },
   { n:'интерфейс: 90 дней в заглушках DOM', f:'test3_dom.js',         browser:false, slow:true },
@@ -30,6 +32,7 @@ const SUITE = [
   { n:'CO₂ и задания без оборудования',    f:'tools/check_co2gate.js',browser:true },
   { n:'кампания целиком',                  f:'tools/check_campaign.js', browser:true, slow:true },
   { n:'сохранение и загрузка',             f:'tools/check_save.js',   browser:true },
+  { n:'надёжное сохранение (IndexedDB)',   f:'tools/test_idb.js',     browser:true },
   { n:'новый сезон',                       f:'tools/check_new.js',    browser:true },
   { n:'шапка: влезает в строку',           f:'tools/check_topfit.js', browser:true },
   { n:'раскладки планшет/телефон',         f:'tools/check_layout.js', browser:true, slow:true }

@@ -1,5 +1,6 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
+const { shotFile } = require('./paths');
 (async()=>{
   const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await browser.newPage({ viewport:{width:1280, height:900} });
@@ -10,11 +11,11 @@ const chromium = require('@sparticuz/chromium');
   await page.waitForTimeout(700);
   await page.evaluate(()=>{ for(let d=0;d<22;d++){ for(let k=0;k<24;k++) window.VG.sim(1); window.VG.harvest(); } window.VG.page('settings'); });
   await page.waitForTimeout(600);
-  await page.screenshot({ path:'/home/user/shots/64_settings_final.png' });
+  await page.screenshot({ path:shotFile('64_settings_final.png') });
   const tutorHidden = await page.evaluate(()=>!document.getElementById('tutor').classList.contains('on'));
   await page.evaluate(()=>window.VG.page('greenhouse'));
   await page.waitForTimeout(700);
-  await page.screenshot({ path:'/home/user/shots/65_final.png' });
+  await page.screenshot({ path:shotFile('65_final.png') });
   console.log('обучение скрыто вне теплицы:', tutorHidden ? 'да ✓' : 'нет’');
   await browser.close();
 })();

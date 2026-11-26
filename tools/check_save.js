@@ -1,5 +1,6 @@
 const { launch } = require('./browser');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 // снимок через CDP: page.screenshot ждёт «стабильный кадр» на живой сцене и падает по таймауту
 async function shot(page, file){
   try { await page.evaluate(()=>window.VG && window.VG.freeze && window.VG.freeze(true)); } catch(e){}
@@ -26,7 +27,7 @@ async function shot(page, file){
     return {day:VG.world.day, money:Math.round(VG.world.money), kg:Math.round(VG.world.harvestedKg), crop:VG.world.crop}; });
   await page.waitForTimeout(600);
   console.log('до перезагрузки:', JSON.stringify(before));
-  await shot(page, '/home/user/shots/60_before_reload.png');
+  await shot(page, shotFile('60_before_reload.png'));
 
   // перезагрузка страницы: должен появиться баннер «Продолжить»
   await page.reload({ waitUntil:'domcontentloaded' });
@@ -34,7 +35,7 @@ async function shot(page, file){
   const banner = await page.evaluate(()=>{ const b=document.getElementById('resumeBox');
     return {shown: !!document.getElementById('btnResume'), text: b ? b.textContent.replace(/\s+/g,' ').slice(0,150) : 'нет' }; });
   console.log('баннер:', JSON.stringify(banner));
-  await shot(page, '/home/user/shots/61_resume_banner.png');
+  await shot(page, shotFile('61_resume_banner.png'));
 
   await page.click('#btnResume');
   // сразу замораживаем: иначе за секунду ожидания мир успевает прожить время
@@ -49,7 +50,7 @@ async function shot(page, file){
                && after.plants===8 && after.fruits>0;
   console.log((same?'✅ ':'❌ ')+'состояние совпадает', same ? `день ${after.day}, деньги ±${dMoney} €` : JSON.stringify({before, after}));
   if (!same) process.exitCode = 1;
-  await shot(page, '/home/user/shots/62_after_resume.png');
+  await shot(page, shotFile('62_after_resume.png'));
 
   // продолжаем играть после загрузки — нет ли ошибок
   await page.evaluate(()=>{ window.VG.freeze(false); for(let d=0;d<3;d++){ for(let k=0;k<24;k++) window.VG.sim(1); window.VG.harvest(); } });

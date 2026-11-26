@@ -26,6 +26,8 @@ const moneyNum = v => {
   if (x < 100) return sign + x.toFixed(2).replace('.',',');
   return sign + Math.round(x).toLocaleString('ru-RU');
 };
+/* числа в интерфейсе — по-русски: запятая в дробях, без хвостов вида 0.4999 */
+const nf = (v, d) => (!isFinite(v) ? '—' : (d === undefined ? Math.round(v) : v).toFixed(d || 0).replace('.', ','));
 const moneyS = v => {
   const x = Math.abs(v*cur().rate);
   if (x < 0.005) return '0 ' + cur().sym;
@@ -66,7 +68,7 @@ const CROPS = {
     id:'cherry', name:'Томат черри', icon:'🍒',
     phyllochron:32, maxPhy:32, internode:0.076, leafMax:0.046, vcmax:110, tilt:50,
     leafy:false, trussStart:4, trussEvery:2, fruitsPerTruss:[10,14], fruitSink:4,
-    fruitFresh:0.022, price:4.2, density:2.6, goalKgM2:6.5,
+    fruitFresh:0.022, price:5.5, density:2.6, goalKgM2:6.5,
     tempOpt:24, rhMax:91, coldTol:8, heatTol:31, seedCost:1.4, shelfDays:9, bulkL:1.6,
     note:'Много мелких плодов: чувствителен к нагрузке, дороже на рынке.'
   },
@@ -222,7 +224,7 @@ function water(w){
   const d = waterDose(w), sys = sysOf(w);
   if (w.stock.waterM3 < d.m3)
     return {ok:false, litres:d.litres,
-            msg:`В баке ${w.stock.waterM3.toFixed(1)} м³, на полив нужно ${d.m3.toFixed(2)} м³ — купите воду в магазине`};
+            msg:`В баке ${nf(w.stock.waterM3,1)} м³, на полив нужно ${nf(d.m3,2)} м³ — купите воду в магазине`};
   if (w.moist >= 96)
     return {ok:true, litres:0, moist:w.moist, msg:'Субстрат и так мокрый — поливать нечего'};
   w.stock.waterM3 = Math.max(0, w.stock.waterM3 - d.m3);
@@ -327,6 +329,7 @@ const GEAR = {
   windowFilm: {ch:0, why:'Зимой балкон теряет тепло через рамы быстрее, чем растение успевает расти. Плёнка в два слоя срезает потери почти на треть и стоит копейки.'},
   heaterMini: {ch:0, why:'Штатного «тепла» на балконе 0,08 кВт — это ничто при −10 °C. Обогреватель 0,6 кВт держит ночь, но электричество идёт в расходы.'},
   strip2:     {ch:0, why:'Короткий день зимой не закрывается одной лентой. Вторая добавляет +50% света к полосе — при том же таймере.'},
+  panel:      {ch:0, why:'DLI зимой на балконе — 2 моль вместо 20. Лента и вторая полоса этого не лечат: нужен настоящий свет 420 µmol. Дорого и жрёт 0,6 кВт, зато растение наконец растёт.'},
   water:      {ch:0, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
   fert20:     {ch:0, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
   whSection:  {ch:0, why:'Склад не резиновый: нет места — урожай останется на грядке. Каждая секция тянет содержание, поэтому расширяйте под объём.'},
@@ -588,7 +591,7 @@ function dliInfo(w){
                 : ref >= min*0.75 ? 'чуть меньше нормы'
                 : ref >= min*0.5 ? 'меньше нормы' : 'критически мало света';
   const need = Math.max(0, tgt - ref);
-  const lampPPFD = w.has.led ? (w.upg.ledBoost?280:190) : (w.has.lampBase?90:0);
+  const lampPPFD = lampPPFDOf(w);
   const stripPPFD = w.has.ledStrip ? (w.has.strip2?90:60) : 0;
   // один час досветки даёт PPFD×3600/1e6 молей, но до листа доходит ~половина
   const perHour = Math.max(0.02, (lampPPFD+stripPPFD)*0.85*3600/1e6);
@@ -726,7 +729,7 @@ function computeLight(w, dtH){
   const sun = sunVector(out.el, out.azScene===undefined?out.az:out.azScene);
   // лампа слушается игрока; отказ оборудования и отсутствие питания гасят её
   const wantLamp = !!w.ctrl.lampOn && !!w.power;
-  const lampOn = wantLamp && ((w.has.led && w.equip.lamp.ok) || w.has.lampBase);
+  const lampOn = wantLamp && (((w.has.led || w.has.panel) && w.equip.lamp.ok) || w.has.lampBase);
   const stripOn = wantLamp && w.has.ledStrip;
   const tauGH = CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade);
   const shadeF = (w.has.shade && w.ctrl.shadeOn) ? 0.65 : 1;
@@ -760,7 +763,8 @@ function computeLight(w, dtH){
 
   const K = 5, k = 0.55, step = 0.16, jitter = 0.035;
   let sum = 0, sumLamp = 0, cnt = 0, laiAboveAll = 0;
-  const lampPPFD = w.has.led ? (w.upg.ledBoost?280:190) : (w.has.lampBase?90:0);
+  const glow = lampGlowAvg(w);                     // буфер остывания: свет выходит на режим не сразу
+  const lampPPFD = lampPPFDOf(w) * glow;
 
   for (const L of leaves){
     const c = L.g.cen;
@@ -786,7 +790,7 @@ function computeLight(w, dtH){
     const dirAbs = directIn*T*Math.max(cosSun, 0.03);
     const difAbs = diffuseIn*Math.exp(-0.6*laiAbove)*0.45;
     const lampAbs = (lampOn ? lampPPFD*Math.exp(-0.6*laiAbove)*0.55 : 0)
-                  + (stripOn ? (w.has.strip2?90:60)*Math.exp(-0.8*laiAbove)*0.5 : 0);
+                  + (stripOn ? stripPPFDOf(w)*glow*Math.exp(-0.8*laiAbove)*0.5 : 0);
     const I = 0.86*(dirAbs + difAbs + lampAbs);
     sumLamp += 0.86*lampAbs;
     L.lf.Iabs = I;
@@ -797,7 +801,7 @@ function computeLight(w, dtH){
   const meanLeaf = cnt? sum/cnt : 0;
   const meanLamp = cnt? sumLamp/cnt : 0;
   // DLI считаем по свету НАД кроной — так его и измеряют в теплице
-  const lampCanopy = (lampOn ? lampPPFD*0.85 : 0) + (stripOn ? (w.has.strip2?90:60)*0.85 : 0);
+  const lampCanopy = (lampOn ? lampPPFD*0.85 : 0) + (stripOn ? stripPPFDOf(w)*glow*0.85 : 0);
   const canopyPPFD = out.ppfd*tauGH*shadeF + lampCanopy;
   w.light = {
     outside: out.ppfd, directIn, diffuseIn, sun,
@@ -882,8 +886,8 @@ function makePlant(w, x, z, id){
   for (const lf of p.leaves){ lf.age = 13-lf.i*1.0; lf.area = lf.maxA*(0.82-0.05*lf.i); }
   if (!C.leafy){
     for (const tr of p.trusses){
-      const nf = 2 + Math.floor(rnd(w)*2);
-      for (let k=0;k<nf;k++) addFruit(w, p, tr, C.fruitSink*(0.55 + 0.30*rnd(w)));
+      const nFruits = 2 + Math.floor(rnd(w)*2);          // не nf: nf — формат числа
+      for (let k=0;k<nFruits;k++) addFruit(w, p, tr, C.fruitSink*(0.55 + 0.30*rnd(w)));
     }
   } else {
     p.head = 6 + rnd(w)*4;
@@ -1024,7 +1028,8 @@ function climateSub(w, dtH, C){
   // --- приход тепла ---
   const shadeF = (w.has.shade && c.shadeOn) ? 0.55 : 1;
   const solarGain = out.ppfd*0.48*w.area*CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade)*0.85*shadeF;
-  const lampHeat = ((w.light.lampOn ? E.lampKW : 0) + (w.light.stripOn ? (w.has.strip2?0.15:0.1) : 0))*1000*0.9;
+  // тепло идёт от корпуса: пока он горячий, греет и после выключения (буфер остывания)
+  const lampHeat = lampHeatKW(w)*1000*0.9;
   const heaterOK = w.equip.heater.ok && (w.power || w.has.ups);
   let heatIn = 0;
   // на балконе штатного котла почти нет (0.08 кВт на 4 м²) — зимой нужен
@@ -1038,7 +1043,7 @@ function climateSub(w, dtH, C){
   // --- температура: релаксация к равновесию (устойчива при любом шаге) ---
   const Q = solarGain + heatIn + lampHeat - latent;
   const Teq = out.temp + Q/Math.max(1, ua);
-  const tauT = E.cap/Math.max(1,(ua+60));
+  const tauT = E.cap/Math.max(1,(ua+60));   // воздух тоже не остывает мгновенно
   w.temp = clamp(Teq + (w.temp-Teq)*Math.exp(-sec/tauT), -8, 50);
 
   // --- суточные экстремумы ---
@@ -1103,13 +1108,18 @@ function climateSub(w, dtH, C){
 
   // --- деньги ---
   const eurHeat = w.heatUse*dtH*CFG.energyPrice;
-  const eurLamp = ((w.light.lampOn? E.lampKW:0) + (w.light.stripOn? (w.has.strip2?0.15:0.1):0))*dtH*CFG.energyPrice;
+  const eurLamp = lightPowerNowKW(w)*dtH*CFG.energyPrice;
   const co2Kg = injG*dtH/1000;
   const eurCO2 = co2Kg*CFG.co2Price;
   w.useCo2Kg = (w.useCo2Kg||0) + co2Kg;
+  // свет и тепло начисляются в счётчик, деньги уходят раз в квартал по счёту (payUtil);
+  // газ CO₂ по-прежнему покупается на месте — это расходник, а не коммунальная услуга
+  const uu = utilInit(w);
+  uu.qKwhHeat += w.heatUse*dtH;
+  uu.qKwhLamp += lightPowerNowKW(w)*dtH;
   w.cost.energy += eurHeat; w.cost.lamp += eurLamp; w.cost.co2 += eurCO2;
-  w.money -= (eurHeat+eurLamp+eurCO2);
-  const kwhNow = (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? (w.has.strip2?0.15:0.1):0))*dtH;
+  w.money -= eurCO2;
+  const kwhNow = (w.heatUse + lightPowerNowKW(w))*dtH;
   w.energyKWh += kwhNow;
   w.energyTotal = (w.energyTotal||0) + kwhNow;   // счётчик за сезон: суточный обнуляется каждый день
   return w;
@@ -1300,7 +1310,29 @@ const WARRANTY = { fromDay:180, toDay:364, payDays:7 };
 /* Есть ли это оборудование в мире: клапан CO₂ не может сломаться там, где его нет. */
 /* есть ли вообще чем светить: лампа-лента (в стартовом наборе), LED-лента, ЛЕД */
 function hasLight(w){
-  return !!(w && w.has && (w.has.led || w.has.ledStrip || w.has.lampBase));
+  return !!(w && w.has && (w.has.panel || w.has.led || w.has.ledStrip || w.has.lampBase));
+}
+/* Сколько света даёт то, что стоит над грядкой, и сколько это стоит по счёту.
+   Панель — самая мощная и самая дорогая в работе: 420 µmol/м²·с при
+   ~0,15 кВт на м². Это единственный способ добрать DLI зимой на балконе. */
+function lampPPFDOf(w){
+  if (w && w.has && w.has.panel) return 420;
+  if (w && w.has && w.has.led) return w.upg && w.upg.ledBoost ? 280 : 190;
+  if (w && w.has && w.has.lampBase) return 90;
+  return 0;
+}
+function lampPowerKW(w){
+  const base = (w && w.env && w.env.lampKW) || 0;
+  // панель не может быть «дешевле» своего света: 420 µmol при ~2,8 µmol/Вт — это ≥0,15 кВт на м²
+  if (w && w.has && w.has.panel) return Math.max(base, 0.15*(w.area || 4));
+  return base;
+}
+/* лента — отдельная полоса, она может гореть вместе с панелью */
+function stripPPFDOf(w){ return (w && w.has && w.has.ledStrip) ? (w.has.strip2 ? 90 : 60) : 0; }
+function stripPowerKW(w){ return (w && w.has && w.has.ledStrip) ? (w.has.strip2 ? 0.15 : 0.10) : 0; }
+function lightPowerNowKW(w){
+  if (!w || !w.light) return 0;
+  return (w.light.lampOn ? lampPowerKW(w) : 0) + (w.light.stripOn ? stripPowerKW(w) : 0);
 }
 /* горит ли свет прямо сейчас. Лампа и лента — два разных флага (лента дешевле
    и слабее), а игроку важно одно: свет есть или нет. Раньше сцена смотрела
@@ -1310,10 +1342,80 @@ function lightLit(w){
 }
 function lightName(w){
   if (!w) return 'нет';
+  if (w.has.panel) return 'LED-панель 420';
   if (w.has.led) return 'LED-досветка';
   if (w.has.ledStrip) return 'LED-лента';
   if (w.has.lampBase) return 'лампа-лента';
   return 'нет';
+}
+
+/* ---------------- Буфер остывания светильника ----------------
+   Лампа не гаснет и не разгорается мгновенно. Свет выходит на режим быстро
+   (десятки секунд), а корпус отдаёт тепло медленно: у ленты тонкий радиатор
+   (5 минут), у панели — тяжёлая плита (40 минут). Поэтому после выключения
+   панель ещё греет теплицу, а при включении первые минуты света меньше нормы.
+   Электричество при этом списывается сразу — счётчик не ждёт остывания,
+   а тепло приходит в воздух с задержкой: сколько ушло в корпус, столько
+   потом и вернётся. */
+const LAMP_TAU = { strip:5, strip2:6, lampBase:15, led:20, ledBoost:22, panel:40 };   // минуты
+function lampTauMin(w){
+  if (!w || !w.has) return 0;
+  if (w.has.panel) return LAMP_TAU.panel;
+  if (w.has.led) return (w.upg && w.upg.ledBoost) ? LAMP_TAU.ledBoost : LAMP_TAU.led;
+  if (w.has.lampBase) return LAMP_TAU.lampBase;
+  if (w.has.ledStrip) return w.has.strip2 ? LAMP_TAU.strip2 : LAMP_TAU.strip;
+  return 0;
+}
+/* доля света и доля тепла от номинала (0..1) */
+const lampWanted = (w)=> !!(w && w.ctrl && w.ctrl.lampOn && w.power);
+function lampGlow(w){ return (w && w.lampGlow !== undefined) ? w.lampGlow : (lampWanted(w) ? 1 : 0); }
+function lampWarm(w){ return (w && w.lampWarm !== undefined) ? w.lampWarm : (lampWanted(w) ? 1 : 0); }
+/* горит ли светильник с учётом отказа оборудования и электричества */
+function lampOnNow(w){
+  if (!w || !w.power || !(w.ctrl && w.ctrl.lampOn)) return false;
+  const lampPart = (w.has.led || w.has.panel) ? !!(w.equip && w.equip.lamp && w.equip.lamp.ok) : !!w.has.lampBase;
+  return lampPart || !!w.has.ledStrip;
+}
+/* сколько кВт стоит всё, что висит над грядкой, если включить на полную */
+function installedLightKW(w){
+  if (!hasLight(w)) return 0;
+  return (lampPPFDOf(w) > 0 ? lampPowerKW(w) : 0) + stripPowerKW(w);
+}
+/* сколько тепла корпус отдаёт прямо сейчас: пока он горячий — греет, даже если света нет */
+function lampHeatKW(w){ return installedLightKW(w) * lampWarm(w); }
+/* шаг буфера на dtH часов: считаем средние за шаг, чтобы свет и климат
+   видели одно и то же число, а не скачок в конце часа */
+function lampBufferTick(w, dtH){
+  const tau = lampTauMin(w)*60;                       // секунды
+  const on = lampOnNow(w);
+  if (!(tau > 0)){
+    w.lampGlow = 0; w.lampWarm = 0; w.lampGlowAvg = 0; w.lampWarmAvg = 0;
+    return w;
+  }
+  const n = Math.max(1, Math.ceil(dtH/0.0833));
+  const sec = dtH*3600/n;
+  const tauGOn = Math.max(20, tau/8),  tauGOff = Math.max(12, tau/24);
+  const tauHOn = Math.max(60, tau/2),  tauHOff = tau;
+  let g = lampGlow(w), hm = lampWarm(w), gs = 0, ws = 0;
+  for (let i=0;i<n;i++){
+    g  += ((on?1:0)-g ) * (1-Math.exp(-sec/(on?tauGOn:tauGOff)));
+    hm += ((on?1:0)-hm) * (1-Math.exp(-sec/(on?tauHOn:tauHOff)));
+    gs += g; ws += hm;
+  }
+  w.lampGlow = g; w.lampWarm = hm;
+  w.lampGlowAvg = gs/n; w.lampWarmAvg = ws/n;
+  return w;
+}
+/* средние за текущий шаг — их читают свет и климат */
+function lampGlowAvg(w){ return (w && w.lampGlowAvg !== undefined) ? w.lampGlowAvg : lampGlow(w); }
+function lampWarmAvg(w){ return (w && w.lampWarmAvg !== undefined) ? w.lampWarmAvg : lampWarm(w); }
+/* короткая фраза для интерфейса: что сейчас происходит с корпусом */
+function lampBodyWord(w){
+  const lit = lightLit(w), glow = lampGlow(w), warm = lampWarm(w);
+  if (lit && glow < 0.9) return 'разогревается ' + Math.round(glow*100) + '%';
+  if (lit) return 'горячий, в режиме';
+  if (warm > 0.03) return 'остывает ' + Math.round(warm*100) + '%';
+  return 'остыл';
 }
 /* Включить/выключить досветку. Одна функция на все входы: кнопка «Досветка»
    в панели под сценой, клик по светильнику в сцене и переключатель в
@@ -1597,7 +1699,7 @@ function sellHarvest(w, crop, kgWant){
   if (kg <= 0.05) return {kg:0, eur:0, ok:false};
   w.money += eur; w.revenue += eur; w.soldKg = (w.soldKg||0) + kg; w.soldEur = (w.soldEur||0) + eur;
   w.cost.labor += CFG.laborHour*0.03; w.money -= CFG.laborHour*0.03;
-  w.log.unshift({t:'Д'+w.day, m:`Продано ${Math.round(kg)} кг по ${money2((priceToday(w,crop)).toFixed(2))}/кг: +${money(Math.round(eur))}`, k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:`Продано ${Math.round(kg)} кг по ${money2(priceToday(w,crop))}/кг: +${money(Math.round(eur))}`, k:'hl'});
   return {kg, eur, ok:true};
 }
 
@@ -1843,7 +1945,7 @@ function makeWorld(opts){
     // его нет (в кампании он появляется вместе с теплицей), иначе игрок получал
     // «отказ клапана CO₂» на 4 м², где никакого клапана не покупали
     has: { led:false, lampBase:true, screen:false, shade:false,
-           windowFilm:false, heatBoost:false, strip2:false,
+           windowFilm:false, heatBoost:false, strip2:false, panel:false,
            co2: opts.campaign ? false : (P.id!=='balcony' && P.id!=='room'),
            dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
@@ -1878,6 +1980,8 @@ function makeWorld(opts){
     useWaterM3: 0, useFertKg: 0,
     // свет за сутки: DLI накапливается каждый шаг, вечером уходит в историю
     dliAcc: 0, dliLampAcc: 0, lampHoursDay: 0, dliYest: 0, dliLampYest: 0, lampHoursYest: 0,
+    // буфер остывания светильника: свет и тепло выходят на режим не мгновенно
+    lampGlow: 0, lampWarm: 0, lampGlowAvg: 0, lampWarmAvg: 0,
     // реальная погода (таблица из open-meteo) и репутация хозяйства
     realWeather: null, repF: 1, rep: 0, seasons: 1,
     // что перенесено из прошлого сезона — для отчёта и подсказок
@@ -1918,7 +2022,8 @@ function stepWorld(w, dtH){
   // досветка — ВРУЧНУЮ: лампа горит ровно тогда, когда её включил игрок.
   // Автоматики нет; «будильник» (ctrl.alarm*) только напоминает алертами.
   autoTick(w, dtH);                 // таймеры ставят уставки до расчёта света
-  w.ctrl.lampOn = !!w.ctrl.lampEnabled && !!w.power && (!!w.has.led || !!w.has.ledStrip || !!w.has.lampBase);
+  w.ctrl.lampOn = !!w.ctrl.lampEnabled && !!w.power && hasLight(w);
+  lampBufferTick(w, dtH);           // корпус разогревается и остывает не мгновенно
   computeLight(w, dtH);
   climateTick(w, dtH, C);
   soilTick(w, dtH);
@@ -2103,6 +2208,129 @@ function fertTick(w, dtH){
   return f;
 }
 
+
+/* ---------------- Коммунальные счета: свет и тепло раз в квартал ----------------
+   Электричество и тепло больше не списываются каждый час: они копятся в счётчик,
+   а раз в квартал (1 января, 1 апреля, 1 июля, 1 октября) приходит счёт.
+   Пока счёт не оплачен, растут пени 0,1% в день. Через четыре квартала просрочки —
+   суд: предупреждение плюс судебные издержки, но ничего не отключают и не описывают.
+   Восемь кварталов — банкротство: сезон заканчивается, хозяйство распродаётся,
+   и можно начать новый сезон с остатком. */
+const UTIL = {
+  billDoy: [1, 91, 182, 274],      // 1 января, 1 апреля, 1 июля, 1 октября
+  penaltyDay: 0.001,               // пени, 0,1% в день от суммы счёта
+  courtAfterDays: 360,             // 4 квартала просрочки
+  bankruptAfterDays: 720,          // 8 кварталов
+  courtFineMin: 40,
+  courtFineF: 0.15,
+  minBill: 0.5                     // счета меньше этого не выставляем — не смешим людей
+};
+function utilInit(w){
+  if (!w.util) w.util = {};
+  const u = w.util;
+  if (u.qKwhHeat === undefined) u.qKwhHeat = 0;
+  if (u.qKwhLamp === undefined) u.qKwhLamp = 0;
+  if (!Array.isArray(u.bills)) u.bills = [];
+  if (u.paidEur === undefined) u.paidEur = 0;
+  if (u.billedEur === undefined) u.billedEur = 0;
+  if (u.penaltyEur === undefined) u.penaltyEur = 0;
+  if (u.courtFines === undefined) u.courtFines = 0;
+  if (u.courts === undefined) u.courts = 0;
+  if (u.bankrupt === undefined) u.bankrupt = false;
+  if (u.lastBillDay === undefined) u.lastBillDay = 0;
+  return u;
+}
+/* набежало с прошлого счёта, но ещё не выставлено */
+function utilAccrued(w){ const u = utilInit(w); return (u.qKwhHeat + u.qKwhLamp)*CFG.energyPrice; }
+function utilAccruedKWh(w){ const u = utilInit(w); return u.qKwhHeat + u.qKwhLamp; }
+/* неоплаченные счета с пенями */
+function utilDebt(w){
+  const u = utilInit(w);
+  return u.bills.reduce((s,b)=> s + (b.paid ? 0 : b.eur + (b.penalty||0)), 0);
+}
+function utilPenaltyRate(w){
+  const u = utilInit(w);
+  return u.bills.reduce((s,b)=> s + (b.paid ? 0 : b.eur*UTIL.penaltyDay), 0);
+}
+/* самый старый неоплаченный счёт: его возраст решает, когда придёт суд */
+function utilOldest(w){
+  const u = utilInit(w);
+  let best = null;
+  for (const b of u.bills) if (!b.paid && (!best || (b.ageDays||0) > (best.ageDays||0))) best = b;
+  return best;
+}
+function utilOverdueDays(w){ const b = utilOldest(w); return b ? (b.ageDays||0) : 0; }
+function utilQuartersOverdue(w){ return Math.floor(utilOverdueDays(w)/90); }
+/* выставить счёт за накопленное */
+function utilBill(w, kind){
+  const u = utilInit(w);
+  const kwh = u.qKwhHeat + u.qKwhLamp;
+  const eur = kwh*CFG.energyPrice;
+  u.qKwhHeat = 0; u.qKwhLamp = 0;
+  u.lastBillDay = w.day;
+  if (eur < UTIL.minBill) return null;
+  const bill = {day:w.day, doy:w.doy, kwh:+kwh.toFixed(2), eur:+eur.toFixed(2),
+                penalty:0, paid:false, court:false, ageDays:0, kind:kind||'за квартал'};
+  u.bills.push(bill);
+  if (u.bills.length > 24) u.bills = u.bills.slice(-24);
+  u.billedEur += bill.eur;
+  w.log.unshift({t:'Д'+w.day, m:`Счёт за свет и тепло: ${moneyS(bill.eur)} (${Math.round(kwh)} кВт·ч). Оплатить — в «Экономике»`, k:'bad'});
+  return bill;
+}
+/* сутки прошли: счета стареют, капают пени, на четвёртом квартале приходит суд */
+function utilTickDay(w){
+  const u = utilInit(w);
+  let penaltyToday = 0;
+  for (const b of u.bills){
+    if (b.paid) continue;
+    b.ageDays = (b.ageDays||0) + 1;
+    const pen = b.eur*UTIL.penaltyDay;
+    b.penalty = (b.penalty||0) + pen;
+    penaltyToday += pen;
+    // суд: один раз на счёт, на четвёртом квартале просрочки
+    if (!b.court && b.ageDays >= UTIL.courtAfterDays){
+      b.court = true;
+      const fine = Math.max(UTIL.courtFineMin*PROFILES[w.profile].upgF, (b.eur + (b.penalty||0))*UTIL.courtFineF);
+      u.courts++;
+      u.courtFines += fine;
+      u.bills.push({day:w.day, doy:w.doy, kwh:0, eur:+fine.toFixed(2), penalty:0, paid:false,
+                    court:true, ageDays:0, kind:'судебные издержки'});
+      w.cost.penalty += fine;
+      w.log.unshift({t:'Д'+w.day, m:`Суд за неуплату: счёт висит ${Math.round(b.ageDays/90)} кв. Судебные издержки ${moneyS(fine)}`, k:'bad'});
+    }
+    // банкротство: восемь кварталов
+    if (b.ageDays >= UTIL.bankruptAfterDays && !u.bankrupt){
+      u.bankrupt = true;
+      w.over = true;
+      w.log.unshift({t:'Д'+w.day, m:`Банкротство: долг за свет и тепло не платили ${Math.round(b.ageDays/90)} кв.`, k:'bad'});
+    }
+  }
+  if (penaltyToday > 0){
+    u.penaltyEur += penaltyToday;
+    w.cost.penalty += penaltyToday;
+  }
+  return u;
+}
+/* оплатить все счета разом */
+function payUtil(w){
+  const u = utilInit(w);
+  const debt = utilDebt(w);
+  if (debt <= 0.005) return {ok:false, msg:'Счетов к оплате нет'};
+  if (w.money < debt - 0.005) return {ok:false, msg:`Не хватает ${moneyS(debt - Math.max(0,w.money))}: счёт ${moneyS(debt)}`};
+  w.money -= debt;
+  u.paidEur += debt;
+  u.penaltyEur = 0;
+  for (const b of u.bills) if (!b.paid){ b.paid = true; b.paidDay = w.day; }
+  w.log.unshift({t:'Д'+w.day, m:`Свет и тепло оплачены: ${moneyS(debt)}`, k:'hl'});
+  return {ok:true, msg:`Оплачено ${moneyS(debt)}`};
+}
+/* распродажа при банкротстве: деньги + половина склада + треть вложений в оборудование */
+function bankruptSalvage(w){
+  const stock = ((w.wh && w.wh.lots) || []).reduce((s,l)=> s + l.kg*priceToday(w, l.crop), 0);
+  const gear = (w.cost && w.cost.upgrade || 0)*0.3;
+  return Math.max(0, Math.round(Math.max(0, w.money) + stock*0.5 + gear));
+}
+
 function newDay(w){
   const rev = w.revenue - (w.revenueYesterday||0);
   const costTotal = Object.values(w.cost).reduce((s,x)=>s+x,0);
@@ -2183,8 +2411,14 @@ function newDay(w){
   missionsTick(w);
   // фиксируем вчерашнее усвоение (г CH₂O на м²) и обнуляем счётчик
   w.assimYesterday = w.assimAcc||0; w.assimAcc = 0;
-  // конец сезона
-  if (w.day > (w.seasonDays || CFG.seasonDays)) w.over = true;
+  // коммунальные: счёт по календарному кварталу, пени и суд по просрочке
+  if (UTIL.billDoy.indexOf(((w.doy-1)%365)+1) >= 0) utilBill(w, 'за квартал');
+  utilTickDay(w);
+  // конец сезона: закрывающий счёт за неполный квартал — иначе игрок уйдёт, не заплатив ни разу
+  if (w.day > (w.seasonDays || CFG.seasonDays)){
+    utilBill(w, 'закрывающий');
+    w.over = true;
+  }
   // автосбор/автообрезка при найме работника
   if (w.upg.worker){
     const r = harvestAll(w);
@@ -2225,6 +2459,9 @@ const SHOP_ITEMS = () => ([
     {id:'heaterMini', noScale:true, name:'Обогреватель 0,6 кВт', base:190,
      desc:'+0,6 кВт тепла: держит ночную температуру у порога культуры (ест электричество)',
      buy:w=>{ w.has.heatBoost = true; }},
+    {id:'panel', noScale:true, name:'LED-панель 420 µmol', base:760,
+     desc:'420 µmol/м²·с вместо 90: зима перестаёт быть приговором · 0,6 кВт на 4 м²',
+     buy:w=>{ w.has.panel = true; w.has.led = true; }},
     {id:'strip2', noScale:true, name:'Вторая LED-лента (+50% света)', base:160,
      desc:'+30 µmol к ленте: короткий зимний день перестаёт быть приговором',
      req:w=>!!w.has.ledStrip, buy:w=>{ w.has.strip2 = true; }},
@@ -2370,7 +2607,7 @@ function buyItem(w, id){
     // если покупка — это оборудование из списка отказов, запоминаем дату и цену:
     // по ним считается гарантия (180–364 дня с покупки)
     const EQUIP_OF_ITEM = {
-      led:['lamp'], ledStrip:['lamp'], ledBoost:['lamp'], film:['heater'], screen:['heater'],
+      led:['lamp'], ledStrip:['lamp'], ledBoost:['lamp'], panel:['lamp'], film:['heater'], screen:['heater'],
       climatePC:['heater','fan'], secondSensor:['sensor'], dosing:['dosing'],
       co2_50:['co2'], co2_200:['co2'], reliability:['heater','fan','lamp','co2','dosing','sensor']
     };
@@ -2472,7 +2709,14 @@ function deserializeWorld(text){
   if (w.seasons === undefined) w.seasons = 1;
   if (w.realWeather === undefined) w.realWeather = null;
   // миграция: зимнее снаряжение появилось позже
-  for (const k of ['windowFilm','heatBoost','strip2']) if (w.has && w.has[k] === undefined) w.has[k] = false;
+  for (const k of ['windowFilm','heatBoost','strip2','panel']) if (w.has && w.has[k] === undefined) w.has[k] = false;
+  // миграция: коммунальные счета появились позже; в старом сейве энергия уже была оплачена
+  utilInit(w);
+  // миграция: буфер остывания лампы — старым сейвам ставим «как было» (мгновенно)
+  if (w.lampGlow === undefined) w.lampGlow = lampWanted(w) ? 1 : 0;
+  if (w.lampWarm === undefined) w.lampWarm = w.lampGlow;
+  if (w.lampGlowAvg === undefined) w.lampGlowAvg = w.lampGlow;
+  if (w.lampWarmAvg === undefined) w.lampWarmAvg = w.lampWarm;
   for (const k in (w.equip||{})){
     const eq = w.equip[k];
     if (eq.since === undefined) eq.since = 1;
@@ -2519,6 +2763,10 @@ function carrySnapshot(w){
     camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice()} : null,
     houses: ((w.net&&w.net.houses)||[]).map(h=>({crop:h.crop, price:h.price})),
     rep,
+    util: (()=>{ const u = utilInit(w);
+      return { bills: u.bills.filter(b=>!b.paid).map(b=>({...b})),
+               billedEur: u.billedEur, paidEur: u.paidEur,
+               courtFines: u.courtFines, courts: u.courts }; })(),
     prev: {harvestedKg: Math.round(w.harvestedKg||0), revenue: Math.round(w.revenue||0),
            cost: Math.round(seasonCost(w)), profit: Math.round((w.money||0)-(w.startMoney||0)),
            days: w.day, priceF: w.profilePriceF, diffId: w.diffId}
@@ -2538,6 +2786,15 @@ function applyCarry(w, c){
   if (c.camp && w.camp){ w.camp.ch = Math.min(3, c.camp.ch|0); w.camp.seen = (c.camp.seen||[]).slice(); }
   if (c.houses && c.houses.length && w.net)
     w.net.houses = c.houses.map(h=>({crop:h.crop, price:h.price, day:1}));
+  // неоплаченные счета за свет и тепло переезжают вместе с хозяйством: долг не сгорает
+  if (c.util && Array.isArray(c.util.bills) && c.util.bills.length){
+    const u = utilInit(w);
+    u.bills = c.util.bills.map(b=>({...b, paid:false}));
+    u.billedEur = c.util.billedEur||0;
+    u.paidEur = c.util.paidEur||0;
+    u.courtFines = c.util.courtFines||0;
+    u.courts = c.util.courts||0;
+  }
   w.rep = c.rep|0;
   w.repF = 1 + Math.min(0.06, (w.rep||0)*0.0015);
   w.seasons = c.seasons|0 || 2;
@@ -2567,7 +2824,7 @@ function diagnose(w){
   if (w.disease > 0.18)      push('bad', `Серая гниль ${Math.round(w.disease*100)}%: −${Math.round(w.disease*35)}% фотосинтеза и качества`);
   if (w.pest.active)         push('bad', `Клещ ${Math.round(w.pest.level*100)}%: −${Math.round(35*w.pest.level)}% ассимиляции`);
   if (w.stress > 0.08)       push('warn', `Стресс климата ${Math.round(w.stress*100)}%: ${w.temp > C.tempOpt ? 'жарко' : 'холодно'} для этой культуры`);
-  if (lai < 0.55)            push('warn', `Мало листвы (LAI ${lai.toFixed(2)}): нечему ловить свет — дайте кусту дорасти`);
+  if (lai < 0.55)            push('warn', `Мало листвы (LAI ${nf(lai,2)}): нечему ловить свет — дайте кусту дорасти`);
   // зима на балконе: без утепления и обогрева куст просто стоит
   if (w.profile === 'balcony' && (w.out.temp||0) < 8 && !w.has.windowFilm)
     push('warn', 'Холод снаружи: рамы теряют тепло — «Плёнка на рамы» в магазине срезает потери на 28%');
@@ -2580,17 +2837,17 @@ function diagnose(w){
   // свет за сутки: понятнее мгновенного PAR — «12 моль из 20»
   const D = dliInfo(w);
   if (w.hour > 16 && D.ref < D.min)
-    push('warn', `Свет за сутки ${D.ref.toFixed(1)} моль/м² из ${D.tgt} — ` +
+    push('warn', `Свет за сутки ${nf(D.ref,1)} моль/м² из ${D.tgt} — ` +
       (D.reachable ? `досветка ещё ${Math.round(D.hours)} ч поднимет до нормы`
-                   : `лампой столько не добрать: 14 ч дадут +${D.gain14.toFixed(1)} моль, остальное — только солнце`));
+                   : `лампой столько не добрать: 14 ч дадут +${nf(D.gain14,1)} моль, остальное — только солнце`));
   if (w.photoHoursYest > C.photoMax + 1)
-    push('warn', `Свет горел ${w.photoHoursYest.toFixed(0)} ч в сутки: для этой культуры предел ${C.photoMax} ч — ночью лампа жжёт электричество и сбивает ритм`);
+    push('warn', `Свет горел ${nf(w.photoHoursYest,0)} ч в сутки: для этой культуры предел ${C.photoMax} ч — ночью лампа жжёт электричество и сбивает ритм`);
   if (w.hour > 16 && D.ref > D.max)
-    push('info', `Свет за сутки ${D.ref.toFixed(1)} моль/м²: больше нормы — лампа ест электричество впустую`);
+    push('info', `Свет за сутки ${nf(D.ref,1)} моль/м²: больше нормы — лампа ест электричество впустую`);
   // питание не под фазу
   const R = stageRecipe(w);
   if (Math.abs(w.ctrl.ecSet - (R.ec[0]+R.ec[1])/2) > (R.ec[1]-R.ec[0])/2 + 0.15)
-    push('warn', `EC ${w.ctrl.ecSet.toFixed(1)} не под стадию «${R.name}»: нужен ${R.ec[0]}–${R.ec[1]} — ${R.why}`);
+    push('warn', `EC ${nf(w.ctrl.ecSet,1)} не под стадию «${R.name}»: нужен ${nf(R.ec[0],1)}–${nf(R.ec[1],1)} — ${R.why}`);
   if (!C.leafy && fruits === 0 && w.day > 12) push('info', 'Плодов нет: ждём завязывания — нужны свет, углерод и умеренная температура');
 
   const rank = {bad:0, warn:1, info:2};

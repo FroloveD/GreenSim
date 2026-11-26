@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await b.newPage({ viewport:{width:1280, height:800} });
@@ -51,7 +52,7 @@ const { cdpShot } = require('./shot_cdp.js');
     return {hours:(h1.h-h0.h).toFixed(3), perMin:(60*(h1.h-h0.h)/3).toFixed(2)};
   });
   console.log('1× за 3 с:', JSON.stringify(timeTest), '(ожидается ~0.05 ч, ~1 ч/мин)');
-  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page, '/home/user/shots/101_camnav.png'); await page.evaluate(()=>VG.freeze(false));
+  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page, shotFile('101_camnav.png')); await page.evaluate(()=>VG.freeze(false));
   console.log('ошибки:', errs.length?errs.slice(0,3).join(' | '):'нет');
   await b.close();
 })();

@@ -65,10 +65,12 @@ const ok = (cond, name, extra)=> { if (!cond) fails++; console.log((cond?'✅ ':
     // сравниваем с состоянием на прошлую полночь: текущие сутки ещё не закрыты
     const atMidnight = world._costAtDay || {};
     for (const k in sums) breakDiff = Math.max(breakDiff, Math.abs(sums[k]-(atMidnight[k]||0)));
-    return { dMoney:+dMoney.toFixed(2), dProfit:+dProfit.toFixed(2), revOk:+revOk.toFixed(3),
+    const unpaid = utilAccrued(world) + utilDebt(world);
+    return { unpaid:+unpaid.toFixed(2), dMoney:+dMoney.toFixed(2), dProfit:+dProfit.toFixed(2), revOk:+revOk.toFixed(3),
              breakDiff:+breakDiff.toFixed(3), cost:+cost.toFixed(2), profit:+profit.toFixed(2) };
   });
-  ok(Math.abs(r3.dMoney - r3.dProfit) < 1.0, 'движение денег = бухгалтерская прибыль', `${r3.dMoney} против ${r3.dProfit}`);
+  ok(Math.abs(r3.dMoney - (r3.dProfit + r3.unpaid)) < 1.0, 'движение денег = бухгалтерская прибыль + счёт за свет и тепло',
+     `${r3.dMoney} против ${(r3.dProfit + r3.unpaid).toFixed(2)} (в счёте ${r3.unpaid.toFixed(2)})`);
   ok(r3.revOk < 0.01, 'выручка = продажи + награды', r3.revOk);
   ok(r3.breakDiff < 0.02, 'разбивка «за сутки» сходится с накопленными статьями', r3.breakDiff);
 

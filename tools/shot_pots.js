@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 const run = async (tag, profile, sys, pitch, vw=1280, vh=800)=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await b.newPage({ viewport:{width:vw, height:vh} });
@@ -13,7 +14,7 @@ const run = async (tag, profile, sys, pitch, vw=1280, vh=800)=>{
   await page.evaluate(pp=>{ cam.pitch=pp; camTween=null; cam.mode='free'; renderAll(); }, pitch);
   await page.waitForTimeout(250);
   await page.evaluate(()=>VG.freeze(true));
-  await cdpShot(page, '/home/user/shots/'+tag+'.png');
+  await cdpShot(page, shotFile('')+tag+'.png');
   await page.evaluate(()=>VG.freeze(false));
   console.log(tag, 'ok');
   await b.close();

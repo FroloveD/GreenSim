@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   // телефон
@@ -13,7 +14,7 @@ const { cdpShot } = require('./shot_cdp.js');
     cam.pitch=-0.45; camTween=null; cam.mode='free'; renderAll(); });
   await page.waitForTimeout(400);
   await page.evaluate(()=>VG.freeze(true));
-  await cdpShot(page, '/home/user/shots/111_phone_look_up.png');
+  await cdpShot(page, shotFile('111_phone_look_up.png'));
   await page.evaluate(()=>VG.freeze(false));
   console.log('телефон вверх:', JSON.stringify(await page.evaluate(()=>{const v=buildView();
     return {pitch:+v.pitch.toFixed(2), camY:+(v.target.y+v.dist*Math.sin(v.pitch)).toFixed(2), W, H};})));
@@ -28,7 +29,7 @@ const { cdpShot } = require('./shot_cdp.js');
   await page.waitForTimeout(400);
   await page.evaluate(()=>{ const c=document.querySelector('#btnCamInv').closest('.card'); c.scrollIntoView({block:'center'}); });
   await page.waitForTimeout(200);
-  await cdpShot(page, '/home/user/shots/112_settings_cam.png');
+  await cdpShot(page, shotFile('112_settings_cam.png'));
   console.log('ошибки:', errs.length?errs.slice(0,3).join(' | '):'нет');
   await b.close();
 })();

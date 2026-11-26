@@ -6,7 +6,7 @@ const a = src.indexOf('// === SIM CORE START ==='), b = src.indexOf('// === SIM 
 const M = new Function(src.slice(a,b) + `
   return {CFG,CROPS,PROFILES,makeWorld,stepWorld,harvestAll,sellHarvest,whUsedL,whCap,storeKg,
           cloneWorld,startForecast,stepForecast,forecastSummary,buyItem,
-          toggleLamp,hasLight,lightName,lightLit,
+          toggleLamp,hasLight,lightName,lightLit,utilAccrued,utilDebt,
           water,soilState,waterDose,SOIL,
           setAuto,setAutoTime,autoAllowed,autoWhy,autoTick,alarmTick,inWindow,AUTO_KEYS,
           climateTick,CROPS,
@@ -46,7 +46,12 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
   const cost = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const profit = w.revenue - cost;
   const dMoney = w.money - start;
-  ok(Math.abs(dMoney - profit) < 1, 'деньги = выручка − расходы', `${dMoney.toFixed(2)} против ${profit.toFixed(2)}`);
+  // свет и тепло с раунда «квартальных счетов» не списываются каждый час: они начислены
+  // в расходы, но деньги за них уйдут только по счёту
+  const unpaid = M.utilAccrued(w) + M.utilDebt(w);
+  // расходы начислены, но за свет и тепло деньги ещё не ушли — поэтому в кошельке их на unpaid больше
+  ok(Math.abs(dMoney - (profit + unpaid)) < 1, 'деньги = выручка − расходы (свет и тепло ещё в счёте)',
+     `${dMoney.toFixed(2)} против ${(profit + unpaid).toFixed(2)} (в счёте ${unpaid.toFixed(2)})`);
   ok(Math.abs(w.revenue - ((w.soldEur||0)+(w.rewardSum||0))) < 0.01, 'выручка = продажи + награды');
   ok(w.wh.lots.every(l=>l.kg >= 0), 'на складе нет отрицательных партий');
 }

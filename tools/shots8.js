@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const sizes = [{n:'phone',w:390,h:844},{n:'tablet',w:1024,h:768}];
   for (const sz of sizes){
@@ -22,7 +23,7 @@ const { cdpShot } = require('./shot_cdp.js');
     await page.evaluate(()=>{ const el=document.querySelector('#dashGrid .panel[data-p="net"]'); if (el) el.scrollIntoView({block:'start'}); });
     await page.waitForTimeout(300);
     await page.evaluate(()=>VG.freeze(true));
-    await cdpShot(page, `/home/user/shots/99_${sz.n}_net.png`);
+    await cdpShot(page, shotFile(`99_${sz.n}_net.png`));
     await page.evaluate(()=>VG.freeze(false));
     console.log(sz.n, 'вкладка:', tab, 'ошибки:', errs.length?errs[0]:'нет');
     await b.close();

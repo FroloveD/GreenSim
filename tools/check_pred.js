@@ -1,5 +1,6 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
+const { shotFile } = require('./paths');
 (async()=>{
   const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await browser.newPage({ viewport:{width:1280, height:900} });
@@ -13,7 +14,7 @@ const chromium = require('@sparticuz/chromium');
     for(let d=0; d<40; d++) for(let k=0;k<24;k++) window.VG.sim(1); });
   await page.click('#btnPred'); await page.click('[data-pred="30"]');
   await page.waitForTimeout(3500);
-  await page.screenshot({ path:'/home/user/shots/34_pred_warnings.png' });
+  await page.screenshot({ path:shotFile('34_pred_warnings.png') });
   const geo = await page.evaluate(()=>{
     const al=[...document.querySelectorAll('#predBody .alert')].map(e=>{const r=e.getBoundingClientRect();
       return {t:Math.round(r.top), b:Math.round(r.bottom), h:Math.round(r.height), s:getComputedStyle(e).whiteSpace};});

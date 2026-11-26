@@ -40,6 +40,7 @@ function toast(msg){
    Файл сохранения (.json) работает всегда и не зависит от ограничений браузера.   */
 const SAVE_KEY = 'vg_save_v1', SAVE_META = 'vg_save_meta_v1';
 let memSave = null, memMeta = null, lastSaveTs = 0, lastSavedDay = 0;
+let seenBills = 0;                      // сколько счетов за свет и тепло уже показано игроку
 
 const store = (()=>{
   const probe = (s) => { s.setItem('__vg','1'); s.removeItem('__vg'); return s; };
@@ -55,15 +56,86 @@ const store = (()=>{
           getM:()=>memMeta, setM:v=>{memMeta=v;}, del:()=>{memSave=null; memMeta=null;}};
 })();
 
+/* ---------------- Надёжное сохранение: IndexedDB ----------------
+   localStorage быстрый и синхронный, но его стирает «очистить данные сайта»,
+   а в приватном режиме он может быть недоступен вовсе. Поэтому тот же сейв
+   дополнительно уходит в IndexedDB: если в localStorage пусто, а в базе есть —
+   восстанавливаем. Всё необязательно: нет IndexedDB — игра работает как раньше. */
+const IDB_DB = 'greenhouse', IDB_STORE = 'saves', IDB_KEY = 'current';
+let idbDB = null, idbTried = false, idbState = 'проверяю…';
+function idbOpen(){
+  if (idbTried) return Promise.resolve(idbDB);
+  idbTried = true;
+  return new Promise(res=>{
+    if (typeof indexedDB === 'undefined' || !indexedDB || !indexedDB.open){ idbState = 'недоступна'; return res(null); }
+    let req;
+    try { req = indexedDB.open(IDB_DB, 1); } catch(e){ idbState = 'недоступна'; return res(null); }
+    req.onupgradeneeded = ()=>{ try { const db = req.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); } catch(_){} };
+    req.onsuccess = ()=>{ idbDB = req.result; idbState = 'работает'; res(idbDB); };
+    req.onerror = ()=>{ idbState = 'недоступна'; res(null); };
+    req.onblocked = ()=>{ idbState = 'заблокирована'; res(null); };
+  });
+}
+async function idbPut(val){
+  const db = await idbOpen();
+  if (!db) return false;
+  return new Promise(res=>{
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(val, IDB_KEY);
+      tx.oncomplete = ()=>res(true); tx.onerror = ()=>res(false);
+    } catch(e){ res(false); }
+  });
+}
+async function idbRead(){
+  const db = await idbOpen();
+  if (!db) return null;
+  return new Promise(res=>{
+    try {
+      const rq = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY);
+      rq.onsuccess = ()=>res(rq.result || null); rq.onerror = ()=>res(null);
+    } catch(e){ res(null); }
+  });
+}
+async function idbClear(){
+  const db = await idbOpen();
+  if (!db) return false;
+  return new Promise(res=>{
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(IDB_KEY);
+      tx.oncomplete = ()=>res(true); tx.onerror = ()=>res(false);
+    } catch(e){ res(false); }
+  });
+}
+/* если localStorage пуст, а в IndexedDB есть сейв — поднимаем его */
+async function restoreFromIdb(){
+  let cur = null;
+  try { cur = store.get(); } catch(_){}
+  if (cur) return false;
+  const rec = await idbRead();
+  if (!rec || !rec.text) return false;
+  try {
+    store.set(rec.text);
+    if (rec.meta) store.setM(JSON.stringify(rec.meta));
+  } catch(e){ return false; }
+  if (typeof renderResumeBox === 'function') renderResumeBox();
+  return true;
+}
+
 function peekSaveMeta(){
   try { const m = store.getM(); return m ? JSON.parse(m) : null; } catch(e){ return null; }
 }
 function saveNow(silent){
   if (!world) return false;
   try {
-    store.set(serializeWorld(world));
-    store.setM(JSON.stringify({ day:world.day, doy:world.doy, money:Math.round(world.money),
-      crop:world.crop, profile:world.profile, diff:world.diffId, kg:Math.round(world.harvestedKg), ts:Date.now() }));
+    const text = serializeWorld(world);
+    const meta = { day:world.day, doy:world.doy, money:Math.round(world.money),
+      crop:world.crop, profile:world.profile, diff:world.diffId, kg:Math.round(world.harvestedKg), ts:Date.now() };
+    store.set(text);
+    store.setM(JSON.stringify(meta));
+    // копия в IndexedDB: переживёт «очистить данные сайта» и переполнение localStorage
+    idbPut({ text, meta, ts:meta.ts });
     lastSaveTs = Date.now(); lastSavedDay = world.day;
     if (!silent) toast('Сохранено: день '+world.day);
     return true;
@@ -73,9 +145,11 @@ function saveNow(silent){
   }
 }
 function clearSave(){
-  store.del(); lastSavedDay = 0;
+  store.del(); idbClear(); lastSavedDay = 0;
   toast('Сохранение удалено');
   if (page==='settings') renderSettings();
+  // стартовый экран не должен предлагать «продолжить» удалённый сезон
+  if (typeof renderResumeBox === 'function') renderResumeBox();
 }
 function applyLoadedWorld(pack, silent){
   world = pack.world;
@@ -197,7 +271,7 @@ function buildStart(){
   } else $('profilePick').innerHTML = Object.values(PROFILES).filter(p=>p.id!=='balcony'&&p.id!=='room').map(p=>`
     <div class="card" data-profile="${p.id}" style="cursor:pointer;${p.id===pending.profile?'border-color:var(--acc)':''}">
       <div class="h"><b>${p.name}</b><span class="price" style="font-size:12px">${money(p.start)}</span></div>
-      <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${money(p.fixedDay)}/сут · цена ${p.priceF.toFixed(2)}×</div>
+      <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${money(p.fixedDay)}/сут · цена ${nf(p.priceF,2)}×</div>
     </div>`).join('');
   // система выращивания
   const sysLock = S => pending.campaign && S.ch > 0;
@@ -206,7 +280,7 @@ function buildStart(){
     return `<div class="card" data-sys="${S.id}" style="cursor:pointer;${locked?'opacity:.55;':''}${S.id===pending.sys?'border-color:var(--acc)':''}">
       <div class="h"><b>${S.name}</b>${locked?`<span class="lock">глава ${S.ch+1}</span>`:''}</div>
       <div class="d">${S.note}</div>
-      <div class="hint">вода ×${S.waterF.toFixed(2)} · питание ×${S.fertF.toFixed(2)} · рост ×${S.yieldF.toFixed(2)} · риск гнили ×${S.rotF.toFixed(1)}</div>
+      <div class="hint">вода ×${nf(S.waterF,2)} · питание ×${nf(S.fertF,2)} · рост ×${nf(S.yieldF,2)} · риск гнили ×${nf(S.rotF,1)}</div>
     </div>`;
   }).join('');
   document.querySelectorAll('[data-sys]').forEach(el=>el.onclick = ()=>{
@@ -238,7 +312,7 @@ function buildStart(){
   $('diffPick').innerHTML = Object.values(DIFFICULTY).map(d=>`
     <div class="card" data-diff="${d.id}" style="cursor:pointer;${d.id===pending.difficulty?'border-color:var(--acc)':''}">
       <div class="h"><b>${d.name}</b></div>
-      <div class="d">${d.note}<br>постоянные ×${d.fixedF.toFixed(2)} · аварии ×${d.failF.toFixed(1)} · цена ×${d.priceF.toFixed(2)}</div>
+      <div class="d">${d.note}<br>постоянные ×${nf(d.fixedF,2)} · аварии ×${nf(d.failF,1)} · цена ×${nf(d.priceF,2)}</div>
     </div>`).join('');
   // 5. локация старта: климат берём из норм по точке (открытые данные)
   if ($('sitePick')) $('sitePick').innerHTML = SITE_LIST.map(x=>{
@@ -247,7 +321,7 @@ function buildStart(){
     return `<div class="card" data-site="${x.id}" style="cursor:pointer;${x.id===pending.site?'border-color:var(--acc)':''}">
       <div class="h"><b>${x.name}</b><span class="price" style="font-size:11px">${summer>0?'+':''}${summer}° / ${winter>0?'+':''}${winter}°</span></div>
       <div class="d">${x.note}</div>
-      <div class="hint">широта ${x.lat.toFixed(1)}° · солнце ${Math.round(N.sun[6]*100)} % летом, ${Math.round(N.sun[0]*100)} % зимой · регион: ${N.region}</div>
+      <div class="hint">· широта ${nf(x.lat,1)}° · солнце ${Math.round(N.sun[6]*100)} % летом, ${Math.round(N.sun[0]*100)} % зимой · регион: ${N.region}</div>
     </div>`;
   }).join('');
   document.querySelectorAll('[data-site]').forEach(e=>e.onclick=()=>{ pending.site=e.dataset.site; buildStart(); });
@@ -335,6 +409,7 @@ function startGame(){
   tutorStep = 0; tutorDone = false; resetTutorFlags();
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 64;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
+  seenBills = (world.util && world.util.bills) ? world.util.bills.length : 0;
   $('start').classList.remove('on');
   $('pred').classList.remove('on');
   document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
@@ -489,9 +564,20 @@ function renderTop(){
 /* ---------------- дашборд: датчики ---------------- */
 function gauge(label, val, min, max, unit, cls, digits){
   const pct = clamp((val-min)/(max-min),0,1)*100;
+  // единица: проценты и градусы липнут к числу так, как их пишут в отчётах
+  const u = unit ? (unit.trim()==='%' ? '%' : ' '+unit.trim()) : '';
   return `<div class="g"><span>${label}</span><div class="bar"><i class="${cls||''}" style="width:${pct}%"></i></div>
-    <b>${val.toFixed(digits===undefined?1:digits)}${unit}</b></div>`;
+    <b>${nf(val, digits===undefined?1:digits)}${u}</b></div>`;
 }
+/* когда придёт следующий счёт за свет и тепло */
+function utilNextBillText(w){
+  const rests = UTIL.billDoy.map(d=>((d - (((w.doy-1)%365)+1)) + 365) % 365);
+  const days = Math.min(...rests);
+  const when = days===0 ? 'сегодня' : `через ${days} дн`;
+  return `Счёт ${when}: 1 янв, апр, июл, окт. «Сутки» — прошлые полные сутки, «сезон» — с начала.`;
+}
+/* что происходит с корпусом лампы — словами, для подсказки в панели климата */
+function litWord(warm){ return warm > 0.9 ? 'в режиме' : (warm > 0.35 ? 'остывает' : 'почти остыл'); }
 /* цвет шкалы влаги: сухо и перелив — красным, норма — спокойным */
 function soilCls(w){
   const st = soilState(w);
@@ -507,24 +593,31 @@ function renderGauges(){
     gauge('PAR', world.light.meanLeaf, 0, 600, '', '', 0) +
     (()=>{ const D = dliInfo(world);
       const cls = D.ref < D.min ? 'cold' : (D.ref > D.max ? 'hot' : '');
-      return `<div class="g" title="Свет за сутки (DLI): сегодня ${D.val.toFixed(1)}, вчера ${D.yest.toFixed(1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Световой день ${D.day.toFixed(1)} ч, лампа ${D.lampHours.toFixed(1)} ч.">
+      return `<div class="g" title="Свет за сутки (DLI): сегодня ${nf(D.val,1)}, вчера ${nf(D.yest,1)} из ${D.tgt} моль/м². Норма ${D.min}–${D.max}. Световой день ${nf(D.day,1)} ч, лампа ${nf(D.lampHours,1)} ч.">
         <span>DLI</span><div class="bar"><i class="${cls}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div>
-        <b>${D.val.toFixed(1)}</b></div>`; })() +
+        <b>${nf(D.val,1)}</b></div>`; })() +
     gauge('влага', (m.moist===undefined?world.moist:m.moist), 0, 100, '%', soilCls(world), 0) +
-    gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0);
+    gauge('болезнь', world.disease*100, 0, 100, '%', world.disease>0.4?'hot':'', 0) +
+    // корпус лампы остывает не мгновенно: пока он горячий, он греет и после выключения
+    (()=>{ const warm = lampWarm(world), kw = lampHeatKW(world);
+      if (warm < 0.03) return '';
+      const litres = Math.round(warm*100);
+      return `<div class="g" title="Корпус светильника ещё отдаёт тепло: ${litWord(warm)}. Это влияет на температуру и на счёт за отопление.">
+        <span>лампа</span><div class="bar"><i class="hot" style="width:${Math.round(warm*100)}%"></i></div>
+        <b>${nf(kw, kw>=10?0:2)} кВт</b></div>`; })();
   // подсказка о дрейфе датчиков
   const drift = Math.abs(world.drift.temp)+Math.abs(world.drift.rh)/10;
   const days = world.day - world.lastCalib;
   let hint = '';
   if (world.has.secondSensor){
-    hint = `Расхождение датчиков: ΔT ${world.drift.temp>=0?'+':''}${world.drift.temp.toFixed(1)} K, `+
-           `ΔRH ${world.drift.rh>=0?'+':''}${world.drift.rh.toFixed(1)}%, `+
-           `Δвлага ${world.drift.soil>=0?'+':''}${world.drift.soil.toFixed(1)}%`;
+    hint = `Расхождение датчиков: ΔT ${world.drift.temp>=0?'+':''}${nf(world.drift.temp,1)} K, `+
+           `ΔRH ${world.drift.rh>=0?'+':''}${nf(world.drift.rh,1)}%, `+
+           `Δвлага ${world.drift.soil>=0?'+':''}${nf(world.drift.soil,1)}%`;
   } else if (world.has.alarm){
     const dT = world.meas.temp - world.temp, dR = world.meas.rh - world.rh;
     const dS = (world.meas.moist||0) - (world.moist||0);
-    hint = `Контрольный прибор: ΔT ${dT>=0?'+':''}${dT.toFixed(1)} K, ΔRH ${dR>=0?'+':''}${dR.toFixed(1)}%, `+
-           `Δвлага ${dS>=0?'+':''}${dS.toFixed(1)}%`;
+    hint = `Контрольный прибор: ΔT ${dT>=0?'+':''}${nf(dT,1)} K, ΔRH ${dR>=0?'+':''}${nf(dR,1)}%, `+
+           `Δвлага ${dS>=0?'+':''}${nf(dS,1)}%`;
   } else if (drift > 0.6 || days > 25){
     hint = `Датчики не калибровались ${days} дн. — показания могут врать`;
   }
@@ -574,7 +667,27 @@ function renderFinance(){
   const recon = (w.money - w.startMoney) - profit;
   const cell = v => (v===null || v===undefined) ? '<span class="dim">—</span>'
     : `<b class="${v>0.004?'pos':(v<-0.004?'neg':'')}">${v>0.004?'+':''}${moneyNum(v)}</b>`;
-  $('finance').innerHTML = `
+  // свет и тепло: счёт раз в квартал. Строка и кнопка стоят в самом верху карточки,
+  // иначе «Оплатить» уезжает под прокрутку и по ней не попасть с первого клика
+  const utilBar = (()=>{
+    const debt = utilDebt(w), acc = utilAccrued(w), od = utilOverdueDays(w);
+    const q = Math.floor(od/90), rate = utilPenaltyRate(w);
+    if (debt > 0.005){
+      return `<div class="utilBar" style="display:flex;flex-direction:column;gap:4px;padding:6px 7px;margin-bottom:6px;
+        border:1px solid rgba(255,123,114,.55);border-radius:6px;background:rgba(255,123,114,.10)">
+        <div style="display:flex;justify-content:space-between;gap:6px;font-size:10px;align-items:baseline">
+          <span style="color:var(--bad);font-weight:700">счёт: свет, тепло</span>
+          <b style="font-variant-numeric:tabular-nums">${moneyNum(debt)}</b></div>
+        <div style="display:flex;justify-content:space-between;gap:6px;font-size:10px;color:var(--dim)">
+          <span>просрочен${q>0?` ${q} кв.`:''}</span><span>${od} дн${rate>0.001?` · пени ${moneyS(rate)}/сут`:''}</span></div>
+        <button class="btn" data-payutil="1" style="width:100%">Оплатить ${moneyS(debt)}</button>
+      </div>`;
+    }
+    return `<div style="display:flex;justify-content:space-between;gap:6px;font-size:10px;color:var(--dim);margin-bottom:5px"
+        title="Электричество и тепло выставляются счётом раз в квартал: 1 января, 1 апреля, 1 июля, 1 октября.">
+        <span>в счёт: свет, тепло</span><b style="font-variant-numeric:tabular-nums;opacity:.9">${moneyNum(acc)}</b></div>`;
+  })();
+  $('finance').innerHTML = utilBar + `
     <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
     ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
     ${(()=>{ const m = marginInfo(w);
@@ -587,13 +700,19 @@ function renderFinance(){
     ${Math.abs(recon)>1 ? `<div class="finRow"><span>кредит и прочее</span><span class="dim">—</span>${cell(recon)}</div>`:''}
     ${w.money < -0.01 ? `<div class="finRow"><span>долг, ${(CFG.debtRate*100).toFixed(0)}%/сут</span><span class="dim">—</span><b class="neg">${moneyNum(-w.money)}</b></div>`:''}
     <div class="hint" style="margin-top:6px">${w.ctrl.lampEnabled
-      ? `Досветка горит: ${(((w.light&&w.light.stripOn)?0.1:0)+(((w.light&&w.light.lampOn)?(w.env.lampKW||0):0))).toFixed(2)} кВт·ч в час.`
-      : 'Досветка выключена — за свет не платите.'} «Сутки» — прошлые полные сутки, «сезон» — с начала.</div>
+      ? `Досветка горит: ${nf(lightPowerNowKW(w), lightPowerNowKW(w)>=10?1:2)} кВт — это ${moneyS(lightPowerNowKW(w)*CFG.energyPrice)} в час.`
+      : 'Досветка выключена — счётчик света стоит.'} ${utilNextBillText(w)}</div>
     <div class="spark">${h.slice(-40).map(x=>{
       const mx = Math.max(2, ...h.slice(-40).map(y=>Math.abs(y.profit||0)));
       const hp = Math.max(2, Math.abs(x.profit||0)/mx*34);
       return `<i style="height:${hp}px;background:${(x.profit||0)>=0?'#7ad8a0':'#ff7b72'}"></i>`;
     }).join('')}</div>`;
+  const pay = $('finance').querySelector('[data-payutil]');
+  if (pay) pay.onclick = ()=>{
+    const r = payUtil(world);
+    toast(r.msg);
+    renderAll();
+  };
 }
 
 /* ---------------- баки и возможности ---------------- */
@@ -603,18 +722,19 @@ function renderTanks(){
   const daysHint = (what)=>{
     const d = tankDays(w, what);
     if (d===null || !isFinite(d) || d<=0) return '';
-    return ' · хватит ' + (d>999 ? '>999' : '≈'+(d<10?d.toFixed(1):Math.round(d))) + ' дн';
+    return ' · хватит ' + (d>999 ? '>999' : '≈'+(d<10?nf(d,1):Math.round(d))) + ' дн';
   };
   const row = (label, val, what, cls)=>`<div class="kv"><span>${label}</span><b class="${cls||''}">${val}<span style="font-weight:400;color:var(--dim)">${daysHint(what)}</span></b></div>`;
   const tankRows = [
-    row('Вода в баке', `${S.waterM3.toFixed(0)} м³`, 'water', Math.floor(S.waterM3)<1?'bad':''),
-    row('Удобрения', `${S.fertKg.toFixed(S.fertKg<10?1:0)} кг`, 'fert', S.fertKg<5?'bad':''),
-    ...(w.has.co2 ? [row('CO₂ в баллоне', `${S.co2Kg.toFixed(0)} кг`, 'co2', S.co2Kg<5?'bad':'')] : []),
+    row('Вода в баке', `${nf(S.waterM3,0)} м³`, 'water', Math.floor(S.waterM3)<1?'bad':''),
+    row('Удобрения', `${nf(S.fertKg, S.fertKg<10?1:0)} кг`, 'fert', S.fertKg<5?'bad':''),
+    ...(w.has.co2 ? [row('CO₂ в баллоне', `${nf(S.co2Kg,0)} кг`, 'co2', S.co2Kg<5?'bad':'')] : []),
     row('Семена', `${num(S.seeds)} шт`, null, S.seeds<5?'bad':''),
     row('Склад свободно', `${num(whFreeL(w)/WH.bulkHarvest)} кг`, null, '')
   ];
   const featList = [
     ['Свет: '+lightName(w), hasLight(w)],
+    ['LED-панель 420', !!w.has.panel],
     ['Клапан CO₂', w.has.co2],
     ['Термоэкран', w.has.screen],
     ['Затеняющая сетка', w.has.shade],
@@ -697,11 +817,21 @@ function renderAlerts(){
     }
   }
   // климат по датчикам
-  if (w.meas.temp > C.heatTol) out.push(['warn', `Перегрев ${w.meas.temp.toFixed(1)} °C — аборт завязей, откройте форточки или затенение`]);
-  if (w.meas.temp < C.coldTol) out.push(['warn', `Холод ${w.meas.temp.toFixed(1)} °C — рост останавливается`]);
-  if (w.meas.rh > C.rhMax) out.push(['warn', `Влажность ${w.meas.rh.toFixed(0)}% — риск серой гнили, нужна вентиляция`]);
+  if (w.meas.temp > C.heatTol) out.push(['warn', `Перегрев ${nf(w.meas.temp,1)} °C — аборт завязей, откройте форточки или затенение`]);
+  if (w.meas.temp < C.coldTol) out.push(['warn', `Холод ${nf(w.meas.temp,1)} °C — рост останавливается`]);
+  if (w.meas.rh > C.rhMax) out.push(['warn', `Влажность ${nf(w.meas.rh,0)}% — риск серой гнили, нужна вентиляция`]);
   if (w.disease > 0.25) out.push(['bad', `Серая гниль ${(w.disease*100)|0}% — обработка в магазине`]);
   if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
+  // коммунальные счета: неоплаченный счёт — это пени, а с четвёртого квартала суд
+  {
+    const debt = utilDebt(w);
+    if (debt > 0.01){
+      const od = utilOverdueDays(w), q = Math.floor(od/90);
+      const tail = q >= 4 ? ' — суд уже был, издержки в счёте' : (q >= 3 ? ' — следующий квартал и суд' : '');
+      out.push([q >= 2 ? 'bad' : 'warn',
+        `Счёт за свет и тепло ${moneyS(debt)} не оплачен${od>0?`, просрочен ${od} дн`:''}: пени ${moneyS(utilPenaltyRate(w))} в сутки${tail}`]);
+    }
+  }
   // долг
   if (w.money < -0.01){
     const rate = (typeof CFG!=='undefined' && CFG.debtRate) ? CFG.debtRate : 0.02;
@@ -766,7 +896,7 @@ function renderGoals(){
 function renderDiagnosis(){
   if (!world) return;
   const d = diagnose(world);
-  const head = `<div class="kv"><span>усвоено за сутки</span><b>${world.day>1?d.assimDay.toFixed(1)+' г/м²':'— (первый день)'}</b></div>`;
+  const head = `<div class="kv"><span>усвоено за сутки</span><b>${world.day>1?nf(d.assimDay,1)+' г/м²':'— (первый день)'}</b></div>`;
   const body = d.items.length
     ? d.items.map(it=>{
         const cls = it.sev==='bad'?'bad':it.sev==='warn'?'warn':'ok';
@@ -808,7 +938,7 @@ function renderStock(){
     const left = Math.max(0, l.shelf - l.age);
     const q = Math.round(lotQuality(l)*100);
     return `<div class="kv"><span>${ic(C)} ${C.name.split(' ')[0]} · ${l.age} дн</span>
-      <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}% · −${(100/l.shelf).toFixed(0)}%/сут</b></div>`;
+      <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}% · −${nf(100/l.shelf,0)}%/сут</b></div>`;
   }).join('');
   const freeKg = whFreeL(world)/WH.bulkHarvest;
   const stockHtml = `
@@ -826,7 +956,7 @@ function renderStock(){
     <div class="hint" style="margin-top:6px">${wh.sections} секц. · содержание ${money2(whRentDay(world))}/сут ·
       свободно ${num(freeKg)} кг</div>
     <div class="hint">Лёжкость ${CROPS[world.crop].name.split(' ')[0].toLowerCase()}: ${CROPS[world.crop].shelfDays} дн →
-      теряется <b>${(100/CROPS[world.crop].shelfDays).toFixed(0)} % массы</b> и <b>${(0.55/1.4*100/CROPS[world.crop].shelfDays).toFixed(0)} % цены</b> в сутки;
+      теряется <b>${nf(100/CROPS[world.crop].shelfDays,0)} % массы</b> и <b>${nf(0.55/1.4*100/CROPS[world.crop].shelfDays,0)} % цены</b> в сутки;
       после ${CROPS[world.crop].shelfDays*2} дн партия списывается целиком.</div>
     ${wh.wasteKg>1 ? `<div class="hint" style="color:var(--warn)">испорчено за сезон: ${num(wh.wasteKg)} кг (${money(wh.wasteEur)})</div>`:''}
     <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
@@ -867,7 +997,7 @@ function marketBlock(w){
   const arrow = ahead.pct > 0.02 ? '▲ дорожает' : ahead.pct < -0.02 ? '▼ дешевеет' : '→ ровно';
   const cls = ahead.pct > 0.02 ? 'ok' : ahead.pct < -0.02 ? 'warn' : '';
   return `<div class="kv"><span>Цена ${C.name.split(' ')[0].toLowerCase()}</span><b>${money2(price)}/кг</b></div>
-    <div class="kv"><span>сезон ×${season.toFixed(2)} · спрос дня ×${noise.toFixed(2)}</span><b class="${cls}">${arrow}</b></div>
+    <div class="kv"><span>сезон ×${nf(season,2)} · спрос дня ×${nf(noise,2)}</span><b class="${cls}">${arrow}</b></div>
     ${bars ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:22px;margin:3px 0 1px">
       <polyline points="${bars}" fill="none" stroke="var(--acc)" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
     </svg>` : `<div class="hint" style="margin:2px 0 1px">график цены появится через пару дней</div>`}
@@ -970,7 +1100,8 @@ function renderShop(){
   if (!world) return;
   const groups = SHOP();
   let html = `<div class="hint" id="shopBalance" style="margin-bottom:12px;color:var(--txt)">${shopTopLine()}
-    · профиль ${PROFILES[world.profile].name} (коэффициент цен ×${PROFILES[world.profile].upgF})</div>`;
+    · профиль ${PROFILES[world.profile].name} (цена реализации ×${nf(PROFILES[world.profile].priceF,1)} к базовой,
+    апгрейды ×${nf(PROFILES[world.profile].upgF,2)})</div>`;
   for (const g of groups){
     html += `<div class="sect"><h3>${g.group}</h3><div class="grid">`;
     for (const it of g.items){
@@ -1040,8 +1171,8 @@ function renderSettings(){
   <div class="setgrid">
     <div class="card">
       <div class="h"><b>Климат</b></div>
-      ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
-      ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
+      ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>nf(v,1)+' °C')}
+      ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>nf(v,1)+' °C')}
       ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
         : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет оборудования</span></div>
            <div class="hint">На балконе и в комнате клапана нет: воздух и так меняется через щели. Появится вместе с теплицей.</div>`}
@@ -1067,7 +1198,7 @@ function renderSettings(){
         const allowed = sysAllowed(world, S.id);
         const cost = Math.round((S.cost||0)*P.upgF);
         const label = cur ? 'сейчас' : (!allowed ? 'глава '+(S.ch+1) : (cost? money(cost) : 'бесплатно'));
-        return `<div class="row"><label>${S.name}<div class="hint">вода ×${S.waterF.toFixed(2)} · рост ×${S.yieldF.toFixed(2)} · гниль ×${S.rotF.toFixed(1)}</div></label>
+        return `<div class="row"><label>${S.name}<div class="hint">вода ×${nf(S.waterF,2)} · рост ×${nf(S.yieldF,2)} · гниль ×${nf(S.rotF,1)}</div></label>
           <button class="btn ${cur?'good':''}" data-sysset="${S.id}" ${cur||!allowed?'disabled':''}>${label}</button></div>`;
       }).join('')}
       <div class="hint">Переход стоит денег и обнуляет часть гнили: это новый корневой объём, а не пересадка куста.</div>
@@ -1076,6 +1207,7 @@ function renderSettings(){
       <div class="h"><b>Свет и экраны</b></div>
       <div class="row"><label>Досветка: <b>${lightName(world)}</b>
         ${hasLight(world)?'':'<span style="color:var(--bad)">(не куплена)</span>'}
+        <div class="hint">${lampPPFDOf(world)} µmol/м²·с · ${nf(lampPowerKW(world),2)} кВт${world.has.panel?' · панель':' '}</div>
         <div class="hint">${hasLight(world)
           ? (c.lampEnabled ? `горит${world.power?'':' — <span style="color:var(--bad)">нет электричества</span>'}` : 'выключена')
           : 'Купите лампу в магазине — «Бюджетный старт» или «Оборудование».'}</div></label>
@@ -1123,16 +1255,16 @@ function renderSettings(){
       <div class="h"><b>Питание по стадии (fertigation)</b></div>
       ${(()=>{ const R = stageRecipe(world);
         const inEC = c.ecSet >= R.ec[0] && c.ecSet <= R.ec[1];
-        const mid = ((R.ec[0]+R.ec[1])/2).toFixed(1), phMid = ((R.ph[0]+R.ph[1])/2).toFixed(1);
+        const mid = nf((R.ec[0]+R.ec[1])/2,1), phMid = nf((R.ph[0]+R.ph[1])/2,1);
         return `<div class="kv"><span>стадия</span><b>${R.name}</b></div>
         <div class="hint" style="margin-bottom:7px">${R.why}</div>
         <div class="row"><label>Рецепт фазы
-            <div class="hint">EC ${R.ec[0]}–${R.ec[1]} · pH ${R.ph[0]}–${R.ph[1]}${
+            <div class="hint">EC ${nf(R.ec[0],1)}–${nf(R.ec[1],1)} · pH ${nf(R.ph[0],1)}–${nf(R.ph[1],1)}${
               inEC ? ' · <span style="color:var(--acc)">EC в коридоре</span>'
                    : ' · <span style="color:var(--warn)">EC вне коридора фазы</span>'}</div></label>
           <button class="btn ${inEC?'':'good'}" id="btnRecipeApply">поставить ${mid} / ${phMid}</button></div>`; })()}
-      ${slider('ec','EC, мСм/см',1.0,3.6,0.1,c.ecSet,v=>v.toFixed(1))}
-      ${slider('ph','pH',5.0,6.8,0.1,c.phSet,v=>v.toFixed(1))}
+      ${slider('ec','EC, мСм/см',1.0,3.6,0.1,c.ecSet,v=>nf(v,1))}
+      ${slider('ph','pH',5.0,6.8,0.1,c.phSet,v=>nf(v,1))}
       <div class="row"><label>Рецепт</label>
         <select id="recipeSel">
           <option value="std" ${c.recipe==='std'?'selected':''}>Стандартный</option>
@@ -1197,7 +1329,8 @@ function renderSettings(){
       <div class="hint" style="margin-top:6px">Одинаковый seed + одинаковые действия = одинаковый сезон (детерминированный PRNG).</div>
       <div class="hint" style="margin-top:8px;border-top:1px solid var(--line2);padding-top:8px">
         <b>Сохранение</b><br>${store.kind}<br>
-        ${lastSaveTs ? 'последнее: '+new Date(lastSaveTs).toLocaleTimeString('ru-RU') : 'ещё не сохраняли'}
+        ${lastSaveTs ? 'последнее: '+new Date(lastSaveTs).toLocaleTimeString('ru-RU') : 'ещё не сохраняли'}<br>
+        <b>Надёжная копия</b>: IndexedDB ${idbState}${idbState==='работает' ? ' — переживёт очистку данных сайта' : ''}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         <button class="btn good" id="btnSaveNow">Сохранить</button>
@@ -1212,19 +1345,19 @@ function renderSettings(){
       <div class="h"><b>Свет за сутки (DLI)</b></div>
       ${(()=>{ const D = dliInfo(world);
         const cls = D.val < D.min ? 'var(--warn)' : (D.val > D.max ? 'var(--bad)' : 'var(--acc)');
-        return `<div class="kv"><span>набрано сегодня</span><b style="color:${cls}">${D.val.toFixed(1)} из ${D.tgt} моль/м²</b></div>
-        <div class="kv"><span>вчера за день</span><b>${D.yest.toFixed(1)} моль/м² · ${D.verdict}</b></div>
+        return `<div class="kv"><span>набрано сегодня</span><b style="color:${cls}">${nf(D.val,1)} из ${D.tgt} моль/м²</b></div>
+        <div class="kv"><span>вчера за день</span><b>${nf(D.yest,1)} моль/м² · ${D.verdict}</b></div>
         <div class="g" style="grid-template-columns:1fr 96px"><span>${D.verdict}</span>
           <div class="bar"><i class="${D.ref<D.min?'cold':''}" style="width:${clamp(D.val/Math.max(1,D.tgt),0,1)*100}%"></i></div></div>
-        <div class="kv"><span>световой день</span><b>${D.day.toFixed(1)} ч</b></div>
-        <div class="kv"><span>лампа сегодня</span><b>${D.lampHours.toFixed(1)} ч · ${D.lampDLI.toFixed(1)} моль</b></div>
-        <div class="kv"><span>фотопериод</span><b>${D.photo.toFixed(1)} ч <span style="color:var(--dim)">из ${D.photoMin}–${D.photoMax}</span>
+        <div class="kv"><span>световой день</span><b>${nf(D.day,1)} ч</b></div>
+        <div class="kv"><span>лампа сегодня</span><b>${nf(D.lampHours,1)} ч · ${nf(D.lampDLI,1)} моль</b></div>
+        <div class="kv"><span>фотопериод</span><b>${nf(D.photo,1)} ч <span style="color:var(--dim)">из ${D.photoMin}–${D.photoMax}</span>
           <span style="color:${D.photoVerdict==='в норме'?'var(--acc)':'var(--warn)'}">${D.photoVerdict}</span></b></div>
         <div class="hint" style="margin-top:6px">DLI — это весь свет за сутки, а не мгновенный PAR: у ${C.name.toLowerCase()}
-        норма ${D.min}–${D.max} моль/м², цель ${D.tgt}. Один час досветки даёт около ${D.perHour.toFixed(2)} моль/м²: ${
+        норма ${D.min}–${D.max} моль/м², цель ${D.tgt}. Один час досветки даёт около ${nf(D.perHour,2)} моль/м²: ${
           D.need <= 0.2 ? 'цель взята, лампа не нужна.'
           : D.reachable ? 'до цели ещё '+Math.round(D.hours)+' ч лампы.'
-          : 'за 14 ч лампа даст только +'+D.gain14.toFixed(1)+' моль — зимой этого мало: спасают светлая сторона, плёнка на рамы и скороспелые сорта.'}</div>`; })()}
+          : 'за 14 ч лампа даст только +'+nf(D.gain14,1)+' моль — зимой этого мало: спасают светлая сторона, плёнка на рамы и скороспелые сорта.'}</div>`; })()}
     </div>
     <div class="card" id="weatherCard">
       <div class="h"><b>Погода за окном</b></div>
@@ -1235,7 +1368,7 @@ function renderSettings(){
           <div class="hint">${rw.error}. Считаем по нормам — на сезон это не влияет.</div>`;
         const t = realWeatherAt(world, world.doy);
         return `<div class="kv"><span>источник</span><b>${rw.source} · ${rw.n||0} дн.</b></div>
-        <div class="kv"><span>сегодня по факту</span><b>${t?((t.t>0?'+':'')+t.t.toFixed(1)+' °C'):'—'}</b></div>
+        <div class="kv"><span>сегодня по факту</span><b>${t?((t.t>0?'+':'')+nf(t.t,1)+' °C'):'—'}</b></div>
         <div class="kv"><span>облачность</span><b>${t?Math.round(t.cloud*100)+' %':'—'}</b></div>
         <div class="hint">Архив за последний год по дням года: температура и облачность вместо средних норм.
         Прогноз погодных событий (холодный фронт, оттепель) работает как раньше.</div>`; })()}
@@ -1285,11 +1418,11 @@ function renderSettings(){
       $('v_'+id).textContent = fmt(v);
     };
   };
-  bind('heat','heatSet', v=>v.toFixed(1)+' °C');
-  bind('vent','ventSet', v=>v.toFixed(1)+' °C');
+  bind('heat','heatSet', v=>nf(v,1)+' °C');
+  bind('vent','ventSet', v=>nf(v,1)+' °C');
   bind('co2','co2Set', v=>v+' ppm');
-  bind('ec','ecSet', v=>v.toFixed(1));
-  bind('ph','phSet', v=>v.toFixed(1));
+  bind('ec','ecSet', v=>nf(v,1));
+  bind('ph','phSet', v=>nf(v,1));
   $('btnLampSet').onclick = ()=>{
     const r = toggleLamp(world);
     toast(r.msg);
@@ -1406,8 +1539,8 @@ function renderPred(){
   }).join('');
   const rows = fc.results.map(r=>`<tr>
       <td>D${r.day}</td><td>${fmtDate(r.doy)}</td>
-      <td>${r.temp.toFixed(0)}/${r.tempMin.toFixed(0)}</td>
-      <td>${r.rh.toFixed(0)}%</td>
+      <td>${nf(r.temp,0)}/${nf(r.tempMin,0)}</td>
+      <td>${nf(r.rh,0)}%</td>
       <td>${num(r.harvest)} кг</td>
       <td style="color:${r.profit>=0?'var(--acc)':'var(--bad)'}">${money(r.profit)}</td></tr>`).join('');
   const evs = w.has.weatherSrv
@@ -1416,8 +1549,8 @@ function renderPred(){
   $('predBody').innerHTML = `
     <div class="kv"><span>Урожай за ${s.days} дн.</span><b>${num(s.kg)} кг</b></div>
     <div class="kv"><span>Прибыль за период</span><b class="${s.profit>=0?'pos':'neg'}">${money(s.profit)}</b></div>
-    <div class="kv"><span>Макс. влажность</span><b>${s.rhMax.toFixed(0)}%</b></div>
-    <div class="kv"><span>Макс. температура</span><b>${s.tMax.toFixed(0)} °C</b></div>
+    <div class="kv"><span>Макс. влажность</span><b>${nf(s.rhMax,0)}%</b></div>
+    <div class="kv"><span>Макс. температура</span><b>${nf(s.tMax,0)} °C</b></div>
     <div class="spark">${bars}</div>
     ${s.warnings.map(x=>`<div class="alert warn">${x}</div>`).join('')}
     ${evs}
@@ -1985,6 +2118,13 @@ function frame(now){
       if (world.day !== lastSavedDay) lastSavedDay = world.day;
     }
     if (fc && !fc.finished) stepPred();
+    // новый счёт за свет и тепло: сказать вслух, иначе его никто не заметит
+    if (world.util && Array.isArray(world.util.bills) && world.util.bills.length !== seenBills){
+      const nb = world.util.bills[world.util.bills.length-1];
+      seenBills = world.util.bills.length;
+      if (nb && !nb.paid && nb.eur > 0)
+        toast(`Счёт за свет и тепло: ${moneyS(nb.eur)} · «Экономика» → «Оплатить»`);
+    }
     if (now - uiT > 130){
       uiT = now;
       renderTop();                                  // часы и баланс идут на любой вкладке
@@ -2000,10 +2140,17 @@ function frame(now){
 
 /* Следующий сезон: хозяйство (деньги, оборудование, склад, глава, репутация)
    переезжает, куст и история начинаются заново. */
-function startNextSeason(){
+function startNextSeason(salvage){
   if (!world) return;
   const prev = world;
   const carry = carrySnapshot(prev);
+  // банкротство: счета и долг закрыты распродажей, на руках только остаток
+  if (salvage !== undefined && salvage !== null){
+    carry.money = Math.max(0, Math.round(salvage));
+    carry.startMoney = Math.max(1, carry.money);
+    carry.util = null;
+    carry.prev = null;
+  }
   const opts = { profile: prev.profile, crop: prev.crop, sys: prev.sys,
     seed: (prev.seed + 7919) >>> 0, difficulty: prev.diffId, campaign: !!prev.camp,
     site: (prev.site && prev.site.id) || 'ekb', orient: (prev.site && prev.site.orient) || 'S',
@@ -2013,15 +2160,42 @@ function startNextSeason(){
   if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
   document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
   endShown = false; paused = false; speed = 64; acc = 0; lastT = performance.now(); fc = null;
+  seenBills = (world.util && world.util.bills) ? world.util.bills.length : 0;
   document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
   setPage('greenhouse'); renderAll(); saveNow(true);
   toast(`Сезон ${world.seasons}: хозяйство перенесено · репутация ${world.rep} · баланс ${money(world.money)}`);
 }
 
+function showBankrupt(w){
+  const u = utilInit(w);
+  const debt = utilDebt(w);
+  const days = utilOverdueDays(w);
+  const salvage = bankruptSalvage(w);
+  const div = document.createElement('div');
+  div.className = 'modal on';
+  div.innerHTML = `<div class="sheet">
+    <h1>Банкротство · ${PROFILES[w.profile].name}</h1>
+    <div class="kv"><span>Сезон</span><b>${w.seasons||1} · день ${w.day}</b></div>
+    <div class="kv"><span>Долг за свет и тепло</span><b class="neg">${money(debt)}</b></div>
+    <div class="kv"><span>Просрочка</span><b>${days} дн · ${Math.floor(days/90)} кв. · судов ${u.courts}</b></div>
+    <div class="kv"><span>Распродажа</span><b>склад и оборудование в счёт долга</b></div>
+    <div class="kv"><span>Остаток на руки</span><b class="pos">${money(salvage)}</b></div>
+    <div class="hint" style="margin-top:10px">Восемь кварталов счёт не оплачивался: суд признал хозяйство банкротом.
+      Оборудование и склад ушли в зачёт, счета закрыты. Дальше — только новый сезон с тем, что осталось.</div>
+    <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn good" id="btnSalvage">Новый сезон с остатком ${money(salvage)}</button>
+      <button class="btn" onclick="location.reload()">Начать заново</button></p>
+  </div>`;
+  document.body.appendChild(div);
+  const b = div.querySelector('#btnSalvage');
+  if (b) b.onclick = ()=>{ div.remove(); startNextSeason(salvage); };
+}
+
 function showEnd(){
   endShown = true;
   const w = world;
+  if (w.util && w.util.bankrupt) return showBankrupt(w);
   const cost = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const profit = w.money - w.startMoney;
   const kgm2 = w.harvestedKg/w.area;
@@ -2039,15 +2213,20 @@ function showEnd(){
   div.innerHTML = `<div class="sheet">
     <h1>Сезон закрыт · ${PROFILES[w.profile].name}</h1>
     <div class="kv"><span>Культура</span><b>${ic(CROPS[w.crop])} ${CROPS[w.crop].name}</b></div>
-    <div class="kv"><span>Урожай</span><b>${num(w.harvestedKg)} кг · ${kgm2.toFixed(1)} кг/м²</b></div>
+    <div class="kv"><span>Урожай</span><b>${num(w.harvestedKg)} кг · ${nf(kgm2,1)} кг/м²</b></div>
     <div class="kv"><span>Выручка</span><b>${money(w.revenue)}</b></div>
     <div class="kv"><span>Затраты всего</span><b>−${money(cost)}</b></div>
-    <div class="kv"><span>Энергия за сезон</span><b>${num(Math.round(kwhSum))} кВт·ч · ${kwhm2.toFixed(0)} кВт·ч/м²</b></div>
+    <div class="kv"><span>Энергия за сезон</span><b>${num(Math.round(kwhSum))} кВт·ч · ${nf(kwhm2,0)} кВт·ч/м²</b></div>
     <div class="kv"><span>Инцидентов</span><b>${w.incidents||0}</b></div>
     <div class="kv"><span>Заданий выполнено</span><b>${w.missionsDone}</b></div>
     <div class="kv"><span>Себестоимость 1 кг</span><b>${costPerKg(w)==null?'—':money2(costPerKg(w))} · цена дня ${money2(priceToday(w,w.crop))}</b></div>
-    <div class="kv"><span>Свет за сутки</span><b>${(()=>{ const hs=(w.history||[]).filter(h=>h.dli>0); return hs.length?'в среднем '+ (hs.reduce((a,b)=>a+b.dli,0)/hs.length).toFixed(1)+' моль/м²':'—'; })()}</b></div>
+    <div class="kv"><span>Свет за сутки</span><b>${(()=>{ const hs=(w.history||[]).filter(h=>h.dli>0); return hs.length?'в среднем '+ nf(hs.reduce((a,b)=>a+b.dli,0)/hs.length,1)+' моль/м²':'—'; })()}</b></div>
     <div class="kv"><span>Репутация</span><b>${w.rep||0}${w.carry?' · перенесена':''}</b></div>
+    ${(()=>{ const debt = utilDebt(w), od = utilOverdueDays(w);
+      if (debt <= 0.005) return `<div class="kv"><span>Счёт за свет и тепло</span><b class="pos">оплачен</b></div>`;
+      const q = Math.floor(od/90);
+      return `<div class="kv"><span>Счёт за свет и тепло</span><b class="neg">${money(debt)}${od?` · просрочен ${od} дн (${q} кв.)`:''}</b></div>`;
+    })()}
     <div class="kv"><span>Итог</span><b class="${profit>=0?'pos':'neg'}">${money(profit)}</b></div>
     <div class="hint" style="margin-top:10px">${verdict}</div>
     <div class="hint" style="margin-top:8px">Следующий сезон: деньги (и долг), оборудование, склад, глава кампании и репутация
@@ -2072,6 +2251,10 @@ resize();
 buildStart();
 renderResumeBox();
 requestAnimationFrame(frame);
+/* надёжная копия: если браузер вычистил localStorage, сейв поднимется из IndexedDB.
+   Проверяем хранилище заранее — карточка «Сохранение» показывает статус. */
+idbOpen();
+restoreFromIdb().then(ok=>{ if (ok) toast('Сейв восстановлен из надёжного хранилища (IndexedDB)'); }).catch(()=>{});
 
 /* Отладочный API (консоль браузера / автотесты): window.VG.* */
 window.VG = {

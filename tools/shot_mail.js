@@ -2,6 +2,7 @@ const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
 const fs = require('fs');
+const { shotFile } = require('./paths');
 (async()=>{
   const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await browser.newPage({ viewport:{width:1440, height:900} });
@@ -14,7 +15,7 @@ const fs = require('fs');
   const cdp = await page.context().newCDPSession(page);
   const r0 = await page.evaluate(()=>{ const r=document.getElementById('mailPanel').getBoundingClientRect(); return {x:r.x-8,y:r.y-8,width:r.width+16,height:r.height+16}; });
   const r = await cdp.send('Page.captureScreenshot', { format:'png', clip:{...r0, scale:2} });
-  fs.writeFileSync('/home/user/shots/83_mail_panel.png', Buffer.from(r.data,'base64'));
+  fs.writeFileSync(shotFile('83_mail_panel.png'), Buffer.from(r.data,'base64'));
   await cdp.detach();
   await page.evaluate(()=>VG.freeze(false));
   console.log('ок', await page.evaluate(()=>document.getElementById('mail').innerText.replace(/\s+/g,' ').slice(0,160)));

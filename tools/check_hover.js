@@ -1,5 +1,6 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
+const { shotFile } = require('./paths');
 (async()=>{
   const browser = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await browser.newPage({ viewport:{width:1280, height:900} });
@@ -16,12 +17,12 @@ const chromium = require('@sparticuz/chromium');
       await page.mouse.move(x, y);
       await page.waitForTimeout(20);
       const t = await page.evaluate(()=>{ const c=document.getElementById('hoverCard'); return c.style.display==='none' ? null : c.textContent; });
-      if (t){ found++; console.log('наведение ('+x+','+y+'):', t.slice(0,110)); await page.screenshot({path:'/home/user/shots/53_hover.png'}); break; }
+      if (t){ found++; console.log('наведение ('+x+','+y+'):', t.slice(0,110)); await page.screenshot({path:shotFile('53_hover.png')}); break; }
     }
   }
   if (!found) console.log('карточка не появилась');
   const tb = await page.evaluate(()=>{ const d=document.getElementById('tDate').getBoundingClientRect(); const m=document.getElementById('tMoney').getBoundingClientRect(); return {dateH:Math.round(d.height), moneyH:Math.round(m.height)}; });
   console.log('высота метрик (одна строка ≈16):', JSON.stringify(tb));
-  await page.screenshot({ path:'/home/user/shots/54_topbar.png' });
+  await page.screenshot({ path:shotFile('54_topbar.png') });
   await browser.close();
 })();

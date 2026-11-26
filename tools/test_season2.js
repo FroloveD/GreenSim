@@ -13,6 +13,7 @@ const M = new Function(src.slice(a,b) + `
   return {CFG,CROPS,PROFILES,makeWorld,stepWorld,harvestAll,water,sellHarvest,buyItem,SHOP,
           dliInfo,dayLength,realWeatherAt,applyWeatherTable,outsideClimate,
           costPerKg,costPerKgDay,seasonCost,marginInfo,priceToday,
+          lampPPFDOf,lampPowerKW,lightPowerNowKW,hasLight,lightName,SHOP,buyItem,nf,serializeWorld,
           cropStage,stageRecipe,stageFit,fertFactors,STAGE_RECIPES,CROP_LIGHT,
           carrySnapshot,applyCarry,diagnose,newDay,serializeWorld,deserializeWorld,
           fmtDate,doyFromDate,siteById,SITES};`)();
@@ -192,7 +193,59 @@ const near = (x,y,t)=>Math.abs(x-y) <= t;
      'таблица погоды сохраняется в сейв');
 }
 
-/* ---------- 7. PWA ---------- */
+/* ---------- 7. LED-панель: единственный способ добрать свет зимой ---------- */
+{
+  const item = M.SHOP().flatMap(g=>g.items).find(i=>i.id==='panel');
+  ok(!!item, 'LED-панель есть в магазине', item && item.name+' · '+item.base+' €');
+  ok(item && item.ch === 0, 'панель доступна с первой главы (балкон)');
+
+  const mk = (panel)=>{
+    const w = M.makeWorld({profile:'balcony', crop:'tomato', seed:15, site:'ekb', startDoy:15});
+    w.has.ledStrip = true;
+    if (panel) w.has.panel = true;
+    for (let d=0; d<3; d++) for (let h=0; h<24; h++){
+      w.ctrl.lampEnabled = (w.hour>=6 && w.hour<20);      // 14 часов досветки
+      M.stepWorld(w,1);
+    }
+    return w;
+  };
+  const off = mk(false), on = mk(true);
+  ok(M.lampPPFDOf(on) === 420 && M.lampPPFDOf(off) === 90, 'панель даёт 420 µmol вместо 90',
+     `${M.lampPPFDOf(on)} против ${M.lampPPFDOf(off)}`);
+  ok(M.lampPowerKW(on) > M.lampPowerKW(off)*1.1, 'и ест больше: счёт растёт',
+     `${M.lampPowerKW(on).toFixed(2)} кВт против ${M.lampPowerKW(off).toFixed(2)}`);
+  ok(on.dliYest > off.dliYest*2, 'зимой панель добирает DLI до нормы',
+     `${on.dliYest.toFixed(1)} против ${off.dliYest.toFixed(1)} моль/м²`);
+  ok(M.dliInfo(on).ref >= M.CROPS.tomato.dliMin, 'с панелью свет выходит в норму',
+     `${M.dliInfo(on).verdict}`);
+  ok(M.dliInfo(off).ref < M.CROPS.tomato.dliMin, 'без панели — нет', M.dliInfo(off).verdict);
+  ok(on.bio > off.bio, 'и растение растёт быстрее', `${off.bio.toFixed(1)} → ${on.bio.toFixed(1)} г`);
+  ok(M.lightName(on) === 'LED-панель 420' && M.hasLight(on), 'в интерфейсе она называется панелью');
+
+  // покупка: деньги списываются, флаг ставится, лампа горит
+  const w2 = M.makeWorld({profile:'balcony', crop:'tomato', seed:16, startDoy:15});
+  w2.money = 2000;
+  const before = w2.money;
+  const r = M.buyItem(w2, 'panel');
+  ok(r.ok && w2.has.panel && w2.has.led, 'покупка работает и включает панель', r.msg);
+  ok(Math.abs((before - w2.money) - 760) < 1, 'цена списана ровно', `${Math.round(before-w2.money)} €`);
+  w2.ctrl.lampEnabled = true; M.stepWorld(w2, 1);
+  ok(M.lightPowerNowKW(w2) > 0.5, 'после покупки свет действительно горит', `${M.lightPowerNowKW(w2).toFixed(2)} кВт`);
+
+  // старый сейв без флага не падает
+  const saved = JSON.parse(M.serializeWorld(w2));   // как настоящий сейв: граф не сохраняется
+  delete saved.world.has.panel;
+  const back = M.deserializeWorld(JSON.stringify(saved));
+  ok(back.world.has.panel === false, 'старый сейв мигрирует: панели просто нет');
+}
+
+/* ---------- 8. Числа в интерфейсе — по-русски ---------- */
+{
+  ok(M.nf(26.24, 1) === '26,2' && M.nf(5, 0) === '5' && M.nf(NaN, 1) === '—',
+     'дроби с запятой, а не с точкой', `${M.nf(26.24,1)} · ${M.nf(5,0)}`);
+}
+
+/* ---------- 9. PWA ---------- */
 {
   const man = path.join(ROOT, 'manifest.webmanifest');
   const sw  = path.join(ROOT, 'sw.js');

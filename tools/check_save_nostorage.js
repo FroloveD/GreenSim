@@ -1,3 +1,4 @@
+const { shotFile } = require('./paths');
 // Проверка: браузер блокирует localStorage (как в sandbox-iframe) — игра не должна падать
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
@@ -27,7 +28,7 @@ const chromium = require('@sparticuz/chromium');
     return t.slice(i, i+110).replace(/\s+/g,' ');
   });
   console.log('игра жива на дне', st.day, '| хранилище:', kind);
-  await page.screenshot({ path:'/home/user/shots/63_settings_nostorage.png' });
+  await page.screenshot({ path:shotFile('63_settings_nostorage.png') });
   console.log('ошибки:', errs.length? errs.slice(0,4).join(' | '):'нет');
   await browser.close();
 })();

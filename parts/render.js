@@ -379,7 +379,26 @@ function drawScene(){
   // лампе некуда щёлкнуть. Горит — тёплый блик, выключена — серый корпус.
   if (hasLight(world)){
     const lit = lightLit(world);
-    for (let i=0;i<4;i++){
+    if (world.has.panel){
+      // панель — одна широкая плита под коньком, а не четыре точечных светильника:
+      // её видно сразу, по ней же и кликается (lampSpots разнесены вдоль плиты)
+      const y = CFG.ridgeY-0.34, x0 = 0.35, x1 = 3.45, z0 = 1.15, z1 = 1.95;
+      items.push({z: depthOf({x:1.9, y, z:1.55}), draw(){
+        poly([{x:x0,y,z:z0},{x:x1,y,z:z0},{x:x1,y,z:z1},{x:x0,y,z:z1}],
+             lit ? 'rgba(255,241,200,.9)' : 'rgba(70,64,54,.95)');
+        const a = project({x:x0,y,z:z0}), b = project({x:x1,y,z:z0});
+        ctx.strokeStyle = lit ? 'rgba(120,100,60,.55)' : 'rgba(210,198,170,.5)';
+        ctx.lineWidth = 1.2; ctx.stroke();
+        if (!lit) return;
+        // световой конус вниз — чтобы панель читалась как источник, а не как полка
+        const q0 = project({x:1.9, y, z:z0}), q1 = project({x:1.9, y, z:z1});
+        const g = ctx.createRadialGradient((a.x+b.x)/2, (q0.y+q1.y)/2, 8, (a.x+b.x)/2, (q0.y+q1.y)/2, 260);
+        g.addColorStop(0,'rgba(255,236,170,.16)'); g.addColorStop(1,'rgba(255,236,170,0)');
+        ctx.fillStyle = g; ctx.beginPath();
+        ctx.ellipse((a.x+b.x)/2, (q0.y+q1.y)/2, 250, 170, 0, 0, 6.2832); ctx.fill();
+      }});
+    }
+    for (let i=0;i<4 && !world.has.panel;i++){
       const x = 0.6+i*0.94;
       items.push({z: depthOf({x, y:CFG.ridgeY-0.42, z:1.5}), draw(){
         poly([{x:x-0.1,y:CFG.ridgeY-0.42,z:1.28},{x:x+0.1,y:CFG.ridgeY-0.42,z:1.28},
@@ -753,13 +772,21 @@ function organInfo(hit){
     ]};
   }
   if (hit.kind==='lamp'){
-    const lit = lightLit(world);
-    return {title:'Досветка', rows:[
+    const lit = lightLit(world), glow = lampGlow(world), warm = lampWarm(world);
+    const rows = [
       ['лампа', lightName(world)],
       ['состояние', lit ? 'горит' : (world.ctrl.lampEnabled ? 'включена, но нет электричества' : 'выключена')],
-      ['свет', lit ? '+'+(world.has.led?(world.upg.ledBoost?280:190):(world.has.ledStrip?60:90))+' µmol/м²·с' : '0 µmol/м²·с'],
+      ['свет', lit ? '+' + Math.round(lampPPFDOf(world)*glow) + ' µmol/м²·с' : '0 µmol/м²·с'],
+      ['корпус', lampBodyWord(world)],
       ['клик', lit ? 'выключить лампу' : 'включить лампу']
-    ]};
+    ];
+    // корпус остывает: он уже не светит, но ещё греет — это стоит показать числом
+    if (warm > 0.03){
+      // сколько минут до «остыл»: экспонента с постоянной tau, ниже 5% считаем холодным
+      const minutesLeft = Math.max(1, Math.round(lampTauMin(world)*Math.log(Math.max(0.0501, warm)/0.05)));
+      rows.splice(4, 0, ['тепло от корпуса', '+' + nf(lampHeatKW(world),2) + ' кВт, остынет за ~' + minutesLeft + ' мин']);
+    }
+    return {title:'Досветка', rows};
   }
   if (hit.kind==='fruit'){
     const f = hit.fruit;

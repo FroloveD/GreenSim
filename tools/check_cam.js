@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await b.newPage({ viewport:{width:1200, height:800} });
@@ -26,7 +27,7 @@ const { cdpShot } = require('./shot_cdp.js');
   for (let i=1;i<=8;i++){ await page.mouse.move(cx+i*14, cy+i*2); await page.waitForTimeout(16); }
   await page.mouse.up();
   console.log('после драга из грядки:', JSON.stringify(await st()));
-  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,'/home/user/shots/93_cam_drag.png'); await page.evaluate(()=>VG.freeze(false));
+  await page.evaluate(()=>VG.freeze(true)); await cdpShot(page,shotFile('93_cam_drag.png')); await page.evaluate(()=>VG.freeze(false));
 
   // 3) панорама правой кнопкой
   await page.mouse.move(cx, cy); await page.mouse.down({button:'right'});

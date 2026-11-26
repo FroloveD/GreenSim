@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await b.newPage({ viewport:{width:1280, height:800} });
@@ -53,7 +54,7 @@ const { cdpShot } = require('./shot_cdp.js');
   // 3. кадр «смотрим вверх» — вернуть наклон и снять
   await drag(0,-300,16);
   await page.evaluate(()=>VG.freeze(true));
-  await cdpShot(page, '/home/user/shots/107_look_up.png');
+  await cdpShot(page, shotFile('107_look_up.png'));
   await page.evaluate(()=>VG.freeze(false));
   console.log('кадр вверх:', JSON.stringify(await st()));
 
@@ -86,7 +87,7 @@ const { cdpShot } = require('./shot_cdp.js');
   // 6. кадр вниз для сравнения
   await page.evaluate(()=>resetCam()); await page.waitForTimeout(500);
   await page.evaluate(()=>VG.freeze(true));
-  await cdpShot(page, '/home/user/shots/108_home.png');
+  await cdpShot(page, shotFile('108_home.png'));
   await page.evaluate(()=>VG.freeze(false));
 
   console.log('ошибки:', errs.length?errs.slice(0,3).join(' | '):'нет');

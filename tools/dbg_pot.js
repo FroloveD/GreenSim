@@ -1,6 +1,7 @@
 const { chromium: pw } = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const { cdpShot } = require('./shot_cdp.js');
+const { shotFile } = require('./paths');
 (async()=>{
   const b = await pw.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   const page = await b.newPage({ viewport:{width:900, height:700} });
@@ -16,7 +17,7 @@ const { cdpShot } = require('./shot_cdp.js');
   await page.waitForTimeout(400);
   console.log('base', await page.evaluate(()=>({base:plantBaseY(world), potH:POT_H[world.sys], stand:vesselStandY(world)})));
   await page.evaluate(()=>VG.freeze(true));
-  await cdpShot(page, '/home/user/shots/dbg_pot.png');
+  await cdpShot(page, shotFile('dbg_pot.png'));
   await page.evaluate(()=>VG.freeze(false));
   await b.close();
 })();
