@@ -361,6 +361,39 @@
   .camNav button:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
   body{user-select:none;-webkit-user-select:none}
   input,select,textarea{user-select:text;-webkit-user-select:text}
+
+/* ---- онбординг ---- */
+.obTop{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.obStep{font-size:12px;color:var(--dim);white-space:nowrap}
+.obDots{display:flex;gap:5px;margin:8px 0 10px}
+.obDots i{width:100%;max-width:34px;height:4px;border-radius:2px;background:var(--line2,#333);cursor:pointer;display:block}
+.obDots i.on{background:var(--good,#7ec86a)}
+.obSlide{display:none}
+.obSlide.on{display:block}
+.obSlide h3{margin:2px 0 6px}
+.obSlider p,.obSlide p{margin:0 0 8px;line-height:1.45}
+.obList{margin:0 0 6px;padding-left:18px;line-height:1.5}
+.obList li{margin-bottom:6px}
+.obNav{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.obNav .btn{flex:1 1 auto}
+
+/* ---- экономика: две колонки «за сутки / за сезон» ---- */
+.finHead,.finRow{display:grid;grid-template-columns:minmax(0,1fr) 54px 58px;gap:2px;align-items:baseline;font-size:10.5px;line-height:1.3;padding:1px 0;white-space:nowrap}
+.finHead{color:var(--dim);text-transform:uppercase;font-size:9px;letter-spacing:.03em;border-bottom:1px solid var(--line2);margin-bottom:3px}
+.finRow span:first-child{overflow:hidden;text-overflow:ellipsis}
+.finHead span:not(:first-child),.finRow span:not(:first-child),.finRow b{text-align:right}
+.finRow span:first-child{color:var(--txt);opacity:.92}
+.finRow b{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.finRow b.pos{color:#a8e05a}.finRow b.neg{color:#ff7b72}
+.finRow.total{border-top:1px solid var(--line2);margin-top:3px;padding-top:3px;font-weight:700}
+.finRow .dim{color:var(--dim)}
+
+/* ---- список возможностей ---- */
+.featGrid{display:grid;grid-template-columns:1fr;gap:2px}
+.feat{display:flex;gap:4px;align-items:baseline;font-size:11px;color:var(--dim);line-height:1.25}
+.feat i{font-style:normal;width:9px;display:inline-block;text-align:center}
+.feat.on{color:var(--txt)}
+.feat.on i{color:#a8e05a}
 </style>
 </head>
 <body>
@@ -375,7 +408,7 @@
     <button data-tab="settings">Параметры</button>
   </div>
   <div class="metrics">
-    <div class="metric"><b id="tDay">Д 1</b><span id="tSeason">из '+world.seasonDays</span></div>
+    <div class="metric"><b id="tDay">Д 1</b><span id="tSeason">из 90</span></div>
     <div class="metric"><b id="tDate">1 апр</b><span id="tHour">06:00</span></div>
     <div class="metric money"><b id="tMoney">10 000 €</b><span>баланс</span></div>
     <div class="metric"><b id="tProfit">0 €</b><span>прибыль/сут</span></div>
@@ -388,7 +421,6 @@
       <button class="spd" data-s="32">32×</button>
       <button class="spd on" data-s="64">64×</button>
       <button class="spd" data-s="480">480×</button>
-      <button id="btnPanels" title="Панели данных">Панели</button>
       <button id="btnPred">Прогноз</button>
       <button id="btnSave" title="Сохранить сезон (Ctrl+S)"><svg width="13" height="13" viewBox="0 0 16 16" style="vertical-align:-2px" aria-hidden="true"><path d="M2 2h9l3 3v9H2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5 2v4h6V2M5 10h6v4H5z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
       <button id="btnHelp">?</button>
@@ -465,6 +497,10 @@
         <h2>Склад</h2>
         <div id="stock"></div>
       </div>
+      <div class="panel" data-p="tanks">
+        <h2>Баки и возможности</h2>
+        <div id="tanks"></div>
+      </div>
       <div class="panel" data-p="net" style="display:none">
         <h2>Сеть теплиц</h2>
         <div id="netBox"></div>
@@ -509,7 +545,72 @@
 <!-- ============ МОДАЛЬНЫЕ ОКНА ============ -->
 <div id="help" class="modal">
   <div class="sheet">
-    <h1>Как играть</h1>
+    <div class="obTop"><h1 style="margin:0">Как играть</h1><span class="obStep" id="obStepNo">шаг 1 из 5</span></div>
+    <div class="obDots" id="obDots"></div>
+
+    <div class="obSlide on">
+      <h3>Вы растите урожай и продаёте его</h3>
+      <p>Вы агроном-самоучка: начинаете на балконе 4 м² и доходите до сети теплиц. Деньги — это топливо, но зарабатывают их растения.</p>
+      <ul class="obList">
+        <li>Растение живое: ему нужны свет, тепло, вода, питание и CO₂. Чего-то не хватает — оно просто растёт медленнее, а не «ломается кнопкой».</li>
+        <li>Цель — <b>прибыль</b>: урожай и контракты минус энергия, удобрения, труд, склад и штрафы.</li>
+        <li>Приборы показывают <b>свои показания</b>, а не истину: они «плывут», их калибруют.</li>
+      </ul>
+    </div>
+
+    <div class="obSlide">
+      <h3>Три страницы, ничего больше</h3>
+      <ul class="obList">
+        <li><b>Теплица</b> — сцена и дашборд: что растёт, что мешает, «Почему так», алерты, сбор урожая.</li>
+        <li><b>Магазин</b> — траты: оборудование, удобрения, склад, услуги. У каждой покупки написано «зачем».</li>
+        <li><b>Параметры</b> — климат и питание: отопление, вентиляция, CO₂, досветка, EC/pH. Плюс валюта и словарь.</li>
+      </ul>
+      <p class="hint">На планшете и телефоне справа внизу — док с этими панелями, сцена занимает весь экран.</p>
+    </div>
+
+    <div class="obSlide">
+      <h3>День первый — четыре шага</h3>
+      <ol class="obList">
+        <li><b>Соберите спелое.</b> Клик по плоду на сцене или по строке в алертах. Недозревшее не срывается.</li>
+        <li><b>Возьмите дешёвый старт</b> в магазине: термометр-гигрометр, клейкие ловушки, бочка воды. Это дешевле мешка удобрений и сразу снимает часть рисков.</li>
+        <li><b>Поднимите CO₂</b> до 800 ppm в «Параметрах» — при нормальном свете это до +30 % фотосинтеза.</li>
+        <li><b>Посмотрите «Почему так»</b>: панель назовёт, что сейчас ограничивает рост, — и вы не будете угадывать.</li>
+      </ol>
+    </div>
+
+    <div class="obSlide">
+      <h3>Время и скорость</h3>
+      <ul class="obList">
+        <li><b>1× — один игровой час за реальную минуту</b> (сутки за 24 минуты). Дальше 4×, 16×, 32×, 64×, 480× — до суток за 3 секунды.</li>
+        <li>Кнопка паузы подписана <b>1:1</b>: время не встаёт, просто идёт секунда за секунду, микроклимат продолжает жить.</li>
+        <li><b>«Прогноз»</b> прогоняет 7/14/30 дней на копии мира и не портит ваш сезон.</li>
+      </ul>
+    </div>
+
+    <div class="obSlide">
+      <h3>Деньги и склад — и что дальше</h3>
+      <ul class="obList">
+        <li>Урожай сам не превращается в деньги: он ложится на <b>склад</b>, где у каждой культуры свой срок лёжкости. Дольше лежит — ниже качество и цена.</li>
+        <li>Продажа — по <b>цене дня</b>; склад расширяется секциями и добавляет постоянных расходов.</li>
+        <li>В панели <b>«Экономика»</b> видно: продажи урожая, награды за задания, статьи расходов, ИТОГО и сверку с балансом.</li>
+        <li>Письмо от тёти Розы = новая глава: переезд, кредит или остаться. Выбор меняет стартовые условия.</li>
+      </ul>
+    </div>
+
+    <div class="obNav">
+      <button class="btn" id="obPrev">Назад</button>
+      <button class="btn" id="obGloss">Словарь терминов</button>
+      <button class="btn good" id="obNext">Далее</button>
+      <button class="btn" id="helpClose" style="display:none">Играть</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Подробности — кнопка <b>«Справочник»</b> и карточка «Словарь» в «Параметрах».</p>
+  </div>
+</div>
+
+<div id="manual" class="modal">
+  <div class="sheet" style="max-height:86vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1 style="margin:0">Справочник</h1><button class="btn" id="manualClose" style="padding:2px 8px">✕</button></div>
+
     <p>Три страницы: <b>Теплица</b> — дашборд (наблюдение), <b>Магазин</b> — траты, <b>Параметры</b> — настройки климата и питания.</p>
     <p style="margin-bottom:8px">Скорость считается от реального времени: <b>1× — один игровой час за реальную минуту</b>
     (сутки за 24 минуты). Дальше по кнопкам: 4× — сутки за 6 минут, 16× — за 90 секунд, 32× — за 45 секунд,
@@ -517,7 +618,7 @@
     подстраивается под скорость, поэтому на медленных скоростях климат живёт плавно, а на быстрых не «звенит».</p>
     <h3>С чего начать</h3>
     <p style="margin-bottom:8px">1) Соберите урожай — плоды на сцене и в алертах; 2) в магазине откройте
-    <b>«Бюджетный старт»</b>: термометр-гигрометр (28 €), клейкие ловушки (45 €), бочка воды (90 €) —
+    <b>«Бюджетный старт»</b>: термометр-гигрометр (<span data-eur="28"></span>), клейкие ловушки (<span data-eur="45"></span>), бочка воды (<span data-eur="90"></span>) —
     это дешевле одного мешка удобрений и сразу снимает часть рисков; 3) в «Параметрах» поднимите
     целевой CO₂ до 800 ppm; 4) перед тратами загляните в «Прогноз» — он покажет, окупится ли решение.</p>
     <h3>Склад и деньги</h3>
@@ -533,7 +634,7 @@
     вас. Если закрыть вкладку, растения продолжат расти по реальным часам — при возврате вы увидите, что
     изменилось, но не больше трёх суток за раз.</p>
     <h3>Кампания</h3>
-    <p style="margin-bottom:8px">Режим «со 100 €»: балкон 4 м² → комната 20 м² → теплица 400 м² → <b>сеть филиалов</b>.
+    <p style="margin-bottom:8px">Режим «со <span data-eur="100"></span>»: балкон 4 м² → комната 20 м² → теплица 400 м² → <b>сеть филиалов</b>.
     Цель главы — продажи, а не баланс (кредит не считается заработком). Когда цель взята, в «Почте» появляется
     письмо от тёти Розы: переезд, кредит или остаться. Выбор меняет стартовые условия следующей главы.</p>
     <p style="margin-bottom:8px">В кампании магазин работает как обучение: вещи открываются <b>по главам</b>, и у каждой
@@ -543,7 +644,7 @@
     <h3>Сеть теплиц</h3>
     <p style="margin-bottom:8px">Финальная цель кампании — не одна теплица, а сеть. Филиал — 400 м² под наёмным
     агрономом: он приносит урожай и продаёт его оптом, но берёт за это управляющего, энергию и расходники
-    (около 48 € в сутки). Каждый следующий филиал дороже на 25%. Филиал моделируется <b>укрупнённо</b>
+    (около <span data-eur="48"></span> в сутки). Каждый следующий филиал дороже на 25%. Филиал моделируется <b>укрупнённо</b>
     (кг с м² в сутки, оптовая цена, содержание) — покамерный климат и органы считаются только в вашей теплице.
     Панель «Сеть» показывает доход, содержание и чистую прибыль по каждому филиалу.</p>
     <h3>Что вы управляете</h3>
@@ -556,7 +657,7 @@
       <tr><td>EC / pH / рецепт</td><td>усвоение питания, кальций, качество плодов</td><td>кг удобрений, вода</td></tr>
       <tr><td>Обрезка, сбор</td><td>светопроницаемость полога, урожай</td><td>труд</td></tr>
       <tr><td>Сервис, страховка, метеосервис</td><td>риски: отказы, инциденты, прогноз погоды</td><td>деньги</td></tr>
-      <tr><td>Дешёвая мелочь: контрольный термометр, ловушки, обдув, ИБП, плёнка</td><td>дрейф датчиков, вредители, гнили, отключения света</td><td>25–500 €</td></tr>
+      <tr><td>Дешёвая мелочь: контрольный термометр, ловушки, обдув, ИБП, плёнка</td><td>дрейф датчиков, вредители, гнили, отключения света</td><td><span data-eur="25"></span>–<span data-eur="500"></span></td></tr>
     </table>
     <h3>Подсказки на экране</h3>
     <p style="margin-bottom:8px">Панель <b>«Почему так»</b> объясняет, что сейчас ограничивает рост (свет, CO₂, питание, болезнь).
@@ -576,9 +677,10 @@
     внизу — док с кнопками «Климат», «Почему», «Деньги», «Дела», «Склад», «Почта»; сцена занимает весь экран,
     панель открывается поверх и закрывается повторным нажатием. Всё управление — пальцем.</p>
     <h3>Цель</h3>
-    <p>Сезон 90 дней. Считается итоговая прибыль: урожай + контракты − энергия − CO₂ − вода и удобрения − труд − фиксированные расходы − штрафы. Профиль «Хобби» стартует с 1 000 €, «Ферма» — 10 000 €, «Агрокомплекс» — 100 000 €.</p>
+    <p>Сезон 90 дней. Считается итоговая прибыль: урожай + контракты − энергия − CO₂ − вода и удобрения − труд − фиксированные расходы − штрафы. Профиль «Хобби» стартует с <span data-eur="1000"></span>, «Ферма» — <span data-eur="10000"></span>, «Агрокомплекс» — <span data-eur="100000"></span>.</p>
     <p class="hint">Модель: граф органов + воксельная трассировка света + Фаркуар + энергобаланс теплицы. Подробности — в readme.md и GDD.md.</p>
-    <p style="margin-top:14px"><button class="btn good" id="helpClose">Понятно</button></p>
+    
+  
   </div>
 </div>
 
@@ -628,6 +730,35 @@
    Всё состояние мира — сериализуемые данные (для прогноза мир клонируется). */
 
 const D2R = Math.PI/180;
+
+/* Валюта: экономика считается в евро, показываем в выбранной валюте.
+   Курс условный и одинаковый для всех цен — это пересчёт витрины, а не новая экономика. */
+const CURS = {
+  eur: {id:'eur', sym:'€',  rate:1,   label:'евро',  note:'как в игре изначально'},
+  rub: {id:'rub', sym:'₽',  rate:100, label:'рубли', note:'курс 1 € = 100 ₽, цены пересчитаны'}
+};
+let curId = 'eur';
+try { const v = localStorage.getItem('vgCur'); if (CURS[v]) curId = v; } catch(_){}
+const cur = ()=> CURS[curId] || CURS.eur;
+const moneySym = ()=> cur().sym;
+const money = v => (v>=0?'':'−') + Math.abs(Math.round(v*cur().rate)).toLocaleString('ru-RU') + ' ' + cur().sym;
+const money2 = v => (v>=0?'':'−') + Math.abs(v*cur().rate).toFixed(2).replace('.',',') + ' ' + cur().sym;
+/* «умная» сумма: мелкие значения — с копейками, чтобы расход 0.35 € не превращался в «−0 €» */
+/* число без символа валюты — для узких таблиц, где символ стоит в заголовке */
+const moneyNum = v => {
+  const x = Math.abs(v*cur().rate);
+  if (x < 0.005) return '0';
+  const sign = v < 0 ? '−' : '';
+  if (x < 100) return sign + x.toFixed(2).replace('.',',');
+  return sign + Math.round(x).toLocaleString('ru-RU');
+};
+const moneyS = v => {
+  const x = Math.abs(v*cur().rate);
+  if (x < 0.005) return '0 ' + cur().sym;
+  const sign = v < 0 ? '−' : '';
+  if (x < 100) return sign + x.toFixed(2).replace('.',',') + ' ' + cur().sym;
+  return sign + Math.round(x).toLocaleString('ru-RU') + ' ' + cur().sym;
+};
 
 const CFG = {
   lat: 52.0,
@@ -781,12 +912,12 @@ function setGrowSys(w, id){
   if (w.sys === id) return {ok:false, msg:'Уже используется'};
   if (!sysAllowed(w, id)) return {ok:false, msg:'Откроется в главе '+(S.ch+1)+' · '+CHAPTERS[S.ch].name};
   const cost = Math.round((S.cost||0)*PROFILES[w.profile].upgF);
-  if (w.money < cost) return {ok:false, msg:'Переход стоит '+Math.round(cost)+' € — не хватает'};
+  if (w.money < cost) return {ok:false, msg:'Переход стоит '+money(cost)+' — не хватает'};
   w.money -= cost; if (cost) w.cost.upgrade += cost;
   w.sys = id;
   // смена системы — это новая корневая зона: гнили и вредители начинают с чистого листа
   w.disease = Math.max(0, w.disease-0.35);
-  w.log.unshift({t:'Д'+w.day, m:'Система выращивания: '+S.name+(cost?' (−'+Math.round(cost)+' €)':''), k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:'Система выращивания: '+S.name+(cost?' (−'+money(cost)+')':''), k:'hl'});
   return {ok:true, msg:S.name+' — готово'};
 }
 
@@ -821,19 +952,19 @@ function netTotal(w){
 function netBuy(w, crop){
   if (!w.net) w.net = {houses:[], cum:{gross:0, opex:0}, netDay:0, won:false};
   const cost = netCost(w);
-  if (w.money < cost) return {ok:false, msg:`Филиал стоит ${Math.round(cost)} € — не хватает`};
+  if (w.money < cost) return {ok:false, msg:`Филиал стоит ${money(Math.round(cost))} — не хватает`};
   const cr = crop || w.crop;
   if (!NET.kgM2Day[cr]) return {ok:false, msg:'Для этой культуры нет контракта на объём'};
   w.money -= cost; w.cost.upgrade += cost;
   w.net.houses.push({crop:cr, day:w.day, price:cost});
   w.log.unshift({t:'Д'+w.day, m:`Открыт филиал №${w.net.houses.length}: ${CROPS[cr].name}, 400 м²`, k:'hl'});
-  return {ok:true, msg:`Филиал №${w.net.houses.length} открыт · −${Math.round(cost)} €`};
+  return {ok:true, msg:`Филиал №${w.net.houses.length} открыт · −${money(Math.round(cost))}`};
 }
 function netSell(w, i){
   const h = w.net.houses[i]; if (!h) return false;
   const back = Math.round(h.price*NET.refund);
   w.money += back; w.net.houses.splice(i,1);
-  w.log.unshift({t:'Д'+w.day, m:`Филиал продан за ${back} €`, k:''});
+  w.log.unshift({t:'Д'+w.day, m:`Филиал продан за ${money(back)}`, k:''});
   return back;
 }
 /* ежедневное начисление по филиалам — вызывается в newDay */
@@ -854,7 +985,7 @@ function netTick(w){
 const GEAR = {
   thermo:     {ch:0, why:'Датчик врёт — вы об этом не знаете. Второй прибор рядом покажет расхождение, и будет видно, когда пора калибровать.'},
   sticky:     {ch:0, why:'Клещ заводится в сухом тёплом воздухе и сначала незаметен. Ловушки ловят его до того, как он съест листья.'},
-  ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку и работает по расписанию досветки.'},
+  ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку; включается вручную в «Параметрах», будильник напомнит.'},
   water:      {ch:0, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
   fert20:     {ch:0, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
   whSection:  {ch:0, why:'Склад не резиновый: нет места — урожай останется на грядке. Каждая секция тянет содержание, поэтому расширяйте под объём.'},
@@ -911,32 +1042,32 @@ const MAILBOX = [
         'Деньги есть только эти сто евро. Хочешь — займу триста до конца сезона под восемь процентов, '+
         'но тогда придётся продавать быстрее, чем хочется.',
    opts:[
-     {label:'Взять 300 € в долг', desc:'+300 € сейчас, долг с процентами', apply:w=>{ w.money+=300; w.loan+=300;
-        w.log.unshift({t:'Д'+w.day,m:'Тётя Роза одолжила 300 €',k:'hl'}); }},
-     {label:'Обойтись своими', desc:'без долга: только 100 € и смекалка', apply:w=>{
+     {label:'Взять '+money(300)+' в долг', desc:'+'+money(300)+' сейчас, долг с процентами', apply:w=>{ w.money+=300; w.loan+=300;
+        w.log.unshift({t:'Д'+w.day,m:'Тётя Роза одолжила '+money(300),k:'hl'}); }},
+     {label:'Обойтись своими', desc:'без долга: только '+money(100)+' и смекалка', apply:w=>{
         w.log.unshift({t:'Д'+w.day,m:'Решено: без долгов',k:''}); }}
    ]},
   {id:'goal1', subj:'«Пора выбираться с балкона»',
    when:w=>w.camp && w.camp.ch===0 && chapterSales(w)>=CHAPTERS[0].goal && !w.camp.seen.includes('goal1'),
-   body:'Ты продал на '+CHAPTERS[0].goal+' € — на балконе это предел: света мало, места нет. '+
-        'Есть комната за 380 € в месяц с окном на юг. Переезжаем?',
+   body:'Ты продал на '+money(CHAPTERS[0].goal)+' — на балконе это предел: света мало, места нет. '+
+        'Есть комната за '+money(380)+' в месяц с окном на юг. Переезжаем?',
    opts:[
-     {label:`Переехать в комнату (−${CHAPTERS[1].moveCost} €)`, desc:'20 м², стеллажи и вытяжка', apply:w=>moveChapter(w,1)},
+     {label:`Переехать в комнату (−${money(CHAPTERS[1].moveCost)})`, desc:'20 м², стеллажи и вытяжка', apply:w=>moveChapter(w,1)},
      {label:'Ещё пожить на балконе', desc:'подкопить денег и опыта', apply:w=>{ w.camp.wait=(w.camp.wait||0)+1; }}
    ]},
   {id:'goal2', subj:'«Время теплицы»',
    when:w=>w.camp && w.camp.ch===1 && chapterSales(w)>=CHAPTERS[1].goal && !w.camp.seen.includes('goal2'),
-   body:'Полторы тысячи продаж — это уже не хобби. Знакомый сдаёт теплицу на 400 м² за 1 000 € первого взноса. '+
+   body:'Полторы тысячи продаж — это уже не хобби. Знакомый сдаёт теплицу на 400 м² за '+money(1000)+' первого взноса. '+
         'Там настоящий климат-контроль и опт, но и расходы другие.',
    opts:[
-     {label:`Взять теплицу (−${CHAPTERS[2].moveCost} €)`, desc:'400 м² и полный климат-контроль', apply:w=>moveChapter(w,2)},
-     {label:'Взять теплицу с кредитом 3 000 €', desc:'−'+CHAPTERS[2].moveCost+' € за въезд, долг 3 000 € под 8 %: хватит на топливо и удобрения',
+     {label:`Взять теплицу (−${money(CHAPTERS[2].moveCost)})`, desc:'400 м² и полный климат-контроль', apply:w=>moveChapter(w,2)},
+     {label:'Взять теплицу с кредитом '+money(3000), desc:'−'+money(CHAPTERS[2].moveCost)+' за въезд, долг '+money(3000)+' под 8 %: хватит на топливо и удобрения',
       apply:w=>{ w.money += 3000; w.loan += 3000; moveChapter(w,2); }},
      {label:'Остаться в комнате', desc:'стабильно, но потолок близко', apply:w=>{ w.camp.wait=(w.camp.wait||0)+1; }}
    ]},
   {id:'gear0', subj:'«Что купить на первые деньги» — тётя Роза',
    when:w=>w.camp && w.camp.ch===0 && w.day>=3 && !w.camp.seen.includes('gear0'),
-   body:'Слушай главное: на балконе не покупают «всё сразу». Сначала — термометр-гигрометр за 28 €: он нужен не для красоты, '+
+   body:'Слушай главное: на балконе не покупают «всё сразу». Сначала — термометр-гигрометр за '+money(28)+': он нужен не для красоты, '+
         'а чтобы знать, врёт ли датчик (он врёт всегда, вопрос только когда). Потом клейкие ловушки: клещ любит сухой тёплый воздух '+
         'и появляется тихо. Лампа-лента — если день пасмурный, растение просто не наберёт сахар. '+
         'Остальное в магазине закрыто до следующей главы: на 4 м² оно не окупится.',
@@ -964,7 +1095,7 @@ const MAILBOX = [
         'а тёплый раствор без кислорода даёт корневую гниль. Грунт прощает, вода — нет. Переключиться можно в «Параметрах», '+
         'раздел «Система выращивания».',
    opts:[
-     {label:'Перейти на DWC (180 €)', desc:'глубинная культура: вода ×0.55, рост +8%, риск гнили ×1.5',
+     {label:'Перейти на DWC ('+money(180)+')', desc:'глубинная культура: вода ×0.55, рост +8%, риск гнили ×1.5',
       apply:w=>{ const r = setGrowSys(w,'dwc');
         if (!r.ok) w.log.unshift({t:'Д'+w.day, m:'Гидропоника: '+r.msg+' — вернуться можно в «Параметрах»', k:''}); }},
      {label:'Остаться на грунте', desc:'надёжнее, зато медленнее', apply:w=>{}}
@@ -973,7 +1104,7 @@ const MAILBOX = [
   {id:'goal3', subj:'«Пора строить сеть» — тётя Роза',
    when:w=>w.camp && w.camp.ch===2 && chapterSales(w)>=3000 && !w.camp.seen.includes('goal3'),
    body:'Одна теплица — это работа. Пять — это бизнес. Филиал — 400 м² под наёмным агрономом: он не сделает лучше вас, '+
-        'но делает сам. Управляющий, энергия и расходники — за ваш счёт, около 48 € в сутки; с томата выходит около 55–60 € чистыми в день. '+
+        'но делает сам. Управляющий, энергия и расходники — за ваш счёт, около '+money(48)+' в сутки; с томата выходит около '+money(55)+'–'+money(60)+' чистыми в день. '+
         'Хотите — начинайте сеть прямо сейчас, хотите — докопите на нормальный первый филиал.',
    opts:[
      {label:'Начать сеть', desc:'открывается раздел «Сеть» и цель главы',
@@ -1048,7 +1179,19 @@ function outsideClimate(w, doy, hour){
 }
 
 /* ---------------- Геометрия органов (порт turtle-подхода) ---------------- */
-function nodeY(C, i){ return 0.06 + i*C.internode*0.8; }
+/* Ёмкости: высота горшка/бака по системе и высота, на которой ёмкость стоит.
+   В теплице растения на желобах (0.16 м), в комнате и на балконе — на полу.
+   На эту высоту поднимается только КАРТИНКА (render.js): модель света и роста
+   считает куст от пола, как раньше, — иначе поедет баланс систем.        */
+const POT_H = { soil:0.17, coco:0.12, dwc:0.21, nft:0.18, aero:0.19 };
+function vesselStandY(w){
+  return ((w && w.profile) === 'room' || (w && w.profile) === 'balcony') ? 0 : 0.16;
+}
+function plantBaseY(w){
+  const sys = (w && w.sys) || 'soil';
+  return vesselStandY(w) + (POT_H[sys] || POT_H.soil);
+}
+function nodeY(C, i, base){ return (base||0) + 0.06 + i*C.internode*0.8; }
 
 function leafGeom(lf, C, px, py, pz){
   const tilt = lf.tilt, az = lf.az;
@@ -1091,8 +1234,10 @@ function computeLight(w, dtH){
   const out = outsideClimate(w, w.doy, w.hour + (dtH||0)*0.5);
   w.out = out;
   const sun = sunVector(out.el, out.az);
-  const lampOn = w.ctrl.lampOn && w.has.led && w.equip.lamp.ok && w.power;
-  const stripOn = w.ctrl.lampOn && w.has.ledStrip && w.power;
+  // лампа слушается игрока; отказ оборудования и отсутствие питания гасят её
+  const wantLamp = !!w.ctrl.lampOn && !!w.power;
+  const lampOn = wantLamp && ((w.has.led && w.equip.lamp.ok) || w.has.lampBase);
+  const stripOn = wantLamp && w.has.ledStrip;
   const tauGH = CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade);
   const shadeF = (w.has.shade && w.ctrl.shadeOn) ? 0.65 : 1;
   const directIn = out.ppfd*tauGH*shadeF;
@@ -1162,7 +1307,7 @@ function computeLight(w, dtH){
     outside: out.ppfd, directIn, diffuseIn, sun,
     meanLeaf: cnt? sum/cnt : 0,
     canopyLAI: totalLAI(w),
-    lampOn, cloud: out.cloud
+    lampOn, stripOn, cloud: out.cloud
   };
   return w.light;
 }
@@ -1298,7 +1443,7 @@ function climateSub(w, dtH, C){
   // --- приход тепла ---
   const shadeF = (w.has.shade && c.shadeOn) ? 0.55 : 1;
   const solarGain = out.ppfd*0.48*w.area*CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade)*0.85*shadeF;
-  const lampHeat = (w.light.lampOn ? E.lampKW*1000*0.9 : 0);
+  const lampHeat = ((w.light.lampOn ? E.lampKW : 0) + (w.light.stripOn ? 0.1 : 0))*1000*0.9;
   const heaterOK = w.equip.heater.ok && (w.power || w.has.ups);
   let heatIn = 0;
   if (heaterOK && w.temp < c.heatSet){
@@ -1318,7 +1463,7 @@ function climateSub(w, dtH, C){
   w.rhMaxDay = Math.max(w.rhMaxDay===undefined?w.rh:w.rhMaxDay, w.rh);
 
   // --- CO₂ ---
-  const co2OK = w.equip.co2.ok && w.power;
+  const co2OK = w.has.co2 && w.equip.co2.ok && w.power;
   const co2Stuck = w.equip.co2.stuck;
   const photoCO2 = (w.assimRate||0)*w.plantScale*44/30/24;      // г/ч
   let injG = 0;
@@ -1372,11 +1517,13 @@ function climateSub(w, dtH, C){
 
   // --- деньги ---
   const eurHeat = w.heatUse*dtH*CFG.energyPrice;
-  const eurLamp = (w.light.lampOn? E.lampKW:0)*dtH*CFG.energyPrice;
-  const eurCO2 = injG*dtH/1000*CFG.co2Price;
+  const eurLamp = ((w.light.lampOn? E.lampKW:0) + (w.light.stripOn? 0.1:0))*dtH*CFG.energyPrice;
+  const co2Kg = injG*dtH/1000;
+  const eurCO2 = co2Kg*CFG.co2Price;
+  w.useCo2Kg = (w.useCo2Kg||0) + co2Kg;
   w.cost.energy += eurHeat; w.cost.lamp += eurLamp; w.cost.co2 += eurCO2;
   w.money -= (eurHeat+eurLamp+eurCO2);
-  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0))*dtH;
+  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? 0.1:0))*dtH;
   return w;
 }
 
@@ -1555,18 +1702,54 @@ const EQUIP_DEFS = {
   sensor: {name:'Датчики', repair:120, failP:0.0030}
 };
 
+/* Есть ли это оборудование в мире: клапан CO₂ не может сломаться там, где его нет. */
+/* есть ли вообще чем светить: лампа-лента (в стартовом наборе), LED-лента, ЛЕД */
+function hasLight(w){
+  return !!(w && w.has && (w.has.led || w.has.ledStrip || w.has.lampBase));
+}
+function lightName(w){
+  if (!w) return 'нет';
+  if (w.has.led) return 'LED-досветка';
+  if (w.has.ledStrip) return 'LED-лента';
+  if (w.has.lampBase) return 'лампа-лента';
+  return 'нет';
+}
+/* сколько дней проживут баки при вчерашнем расходе (null — данных ещё нет) */
+function tankDays(w, what){
+  const last = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
+  if (!last) return null;
+  if (what==='water'){ const r = last.waterM3||0; return r>0.001 ? w.stock.waterM3/r : null; }
+  if (what==='fert'){  const r = last.fertKg||0;  return r>0.001 ? w.stock.fertKg/r : null; }
+  if (what==='co2'){   const r = last.co2Kg||0;   return r>0.001 ? w.stock.co2Kg/r : null; }
+  return null;
+}
+function fmtHour(h){ h=Math.round(h); return (h>=24?'24:00':String(((h%24)+24)%24).padStart(2,'0')+':00'); }
+/* что сейчас говорит будильник досветки — одной строкой для подсказки */
+function alarmState(w){
+  if (!w || !w.ctrl || !w.ctrl.alarmOn || !hasLight(w)) return 'Будильник выключен.';
+  const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
+  const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
+  if (inside) return w.ctrl.lampEnabled ? 'Окно досветки: лампа включена ✓' : 'Окно досветки: пора включить лампу';
+  return w.ctrl.lampEnabled ? 'Вне окна: лампу пора выключить' : 'Вне окна досветки: всё выключено ✓';
+}
+function equipInstalled(w, k){
+  if (k === 'co2') return !!w.has.co2;
+  if (k === 'dosing') return !!w.has.dosing;
+  return true;
+}
 function riskTick(w, dtH){
   const dtD = dtH/24;
   // износ и отказы
   for (const k in w.equip){
     const eq = w.equip[k], def = EQUIP_DEFS[k];
     if (!eq || !def) continue;
+    if (!equipInstalled(w, k)) continue;
     if (!eq.ok){ eq.down += dtH; continue; }
     const p = def.failP*dtD*(w.diffFail||1)*(w.has.service?0.35:1)*(w.upg.reliability?0.6:1);
     if (rnd(w) < p){
       eq.ok = false; eq.down = 0; eq.stuck = (k==='co2') && rnd(w)<0.5;
       w.events.push({kind:'breakdown', equip:k, days:0});
-      w.log.unshift({t:'Д'+w.day, m:`Отказ: ${def.name}. Ремонт ${def.repair} € (Магазин → Сервис)`, k:'bad'});
+      w.log.unshift({t:'Д'+w.day, m:`Отказ: ${def.name}. Ремонт ${money(def.repair)} (Магазин → Сервис)`, k:'bad'});
       w.incidents = (w.incidents||0)+1;
     }
   }
@@ -1695,7 +1878,7 @@ function whRot(w){
   w.wh.lots = keep;
   if (lost > 0.5){
     w.wh.wasteKg += lost; w.wh.wasteEur += eur;
-    w.log.unshift({t:'Д'+w.day, m:`Порча на складе: −${Math.round(lost)} кг (${Math.round(eur)} €)`, k:'warn'});
+    w.log.unshift({t:'Д'+w.day, m:`Порча на складе: −${Math.round(lost)} кг (${money(Math.round(eur))})`, k:'warn'});
   }
   return {lost, eur};
 }
@@ -1718,7 +1901,7 @@ function sellHarvest(w, crop, kgWant){
   if (kg <= 0.05) return {kg:0, eur:0, ok:false};
   w.money += eur; w.revenue += eur; w.soldKg = (w.soldKg||0) + kg; w.soldEur = (w.soldEur||0) + eur;
   w.cost.labor += CFG.laborHour*0.03; w.money -= CFG.laborHour*0.03;
-  w.log.unshift({t:'Д'+w.day, m:`Продано ${Math.round(kg)} кг по ${(priceToday(w,crop)).toFixed(2)} €/кг: +${Math.round(eur)} €`, k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:`Продано ${Math.round(kg)} кг по ${money2((priceToday(w,crop)).toFixed(2))}/кг: +${money(Math.round(eur))}`, k:'hl'});
   return {kg, eur, ok:true};
 }
 
@@ -1743,9 +1926,9 @@ function deliverContract(w, id){
   let bonus = 0;
   if (ct.leftKg <= 0.5){
     ct.done = true; bonus = ct.bonus; w.money += bonus; w.revenue += bonus;
-    w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» выполнен: +${Math.round(bonus)} €`, k:'hl'});
+    w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» выполнен: +${money(Math.round(bonus))}`, k:'hl'});
   } else {
-    w.log.unshift({t:'Д'+w.day, m:`Поставка по контракту: ${Math.round(take)} кг (+${Math.round(eur)} €)`, k:''});
+    w.log.unshift({t:'Д'+w.day, m:`Поставка по контракту: ${Math.round(take)} кг (+${money(Math.round(eur))})`, k:''});
   }
   return {ok:true, kg:take, eur, bonus};
 }
@@ -1756,7 +1939,7 @@ function addSection(w){
   const cost = whSectionCost(w);
   if (w.money < cost) return {ok:false, msg:'Недостаточно средств'};
   w.money -= cost; w.cost.upgrade += cost; w.wh.sections++;
-  w.log.unshift({t:'Д'+w.day, m:`Склад расширен: ${w.wh.sections} секций (−${cost} €)`, k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:`Склад расширен: ${w.wh.sections} секций (−${money(cost)})`, k:'hl'});
   return {ok:true, cost};
 }
 function whSectionCost(w){
@@ -1794,6 +1977,7 @@ function moveChapter(w, idx){
                 agro:{fertKg:60,co2Kg:300,waterM3:150,seeds:900} }[P.id] || {fertKg:10,co2Kg:0,waterM3:15,seeds:80};
   for (const k in kit) w.stock[k] = Math.max(w.stock[k]||0, kit[k]);
   if (P.id === 'farm'){ w.has.screen = true; w.ctrl.screenOn = true; w.upg.reliability = true; }
+  if (P.id === 'farm' || P.id === 'hobby' || P.id === 'agro'){ w.has.co2 = true; }   // клапан CO₂ вместе с теплицей
   // новое помещение чистое: вредители и гнили с собой не переезжают
   w.pest = { active:false, level:0 };
   w.disease = 0; w.stress = 0; w.ctrl.lampEnabled = false;
@@ -1854,7 +2038,7 @@ function offerContracts(w){
   return [
     {id:'wholesale', crop:w.crop, label:'Сетевой контракт', kg: baseKg*3,
      priceMult:1.25, bonus: Math.round(baseKg*3*C.price*0.12), deadline: w.day+30,
-     desc:`Поставить ${baseKg*3} кг к ${fmtDate(w.doy+30)}; штраф за недопоставку 400 €`},
+     desc:`Поставить ${baseKg*3} кг к ${fmtDate(w.doy+30)}; штраф за недопоставку ${money(400)}`},
     {id:'premium', crop:w.crop, label:'Премиум-партия', kg: baseKg*2,
      priceMult:1.6, bonus: Math.round(baseKg*2*C.price*0.35), deadline: w.day+20,
      desc:`${baseKg*2} кг к ${fmtDate(w.doy+20)} с бонусом за качество`}
@@ -1873,16 +2057,16 @@ function checkContracts(w){
     if (w.day > ct.deadline){
       w.money -= ct.penalty; w.cost.penalty += ct.penalty;
       ct.done = true; ct.failed = true;
-      w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» сорван: штраф −${ct.penalty} €`, k:'bad'});
+      w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» сорван: штраф −${money(ct.penalty)}`, k:'bad'});
     }
   }
 }
 
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
-   check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (нужно купить LED в магазине)', reward:90,
-   check:w=>w.ctrl.lampEnabled && w.has.led},
+   need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
+  {id:'m2', text:'«Параметры» → включите досветку (лампа покупается в магазине)', reward:90,
+   need:w=>!!(w.has.led||w.has.ledStrip||w.has.lampBase), check:w=>!w.ctrl.lampEnabled?false:(!!(w.has.led||w.has.ledStrip))},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
   {id:'m3b', text:'Панель «Склад» → продайте партию урожая', reward:130,
@@ -1897,19 +2081,24 @@ const MISSIONS = [
    check:w=>w.contracts.length>=1},
   {id:'m8', text:'Откалибруйте датчики в магазине (Сервис)', reward:180,
    check:w=>w.lastCalib>1},
-  {id:'m9', text:'Доведите прибыль за день выше 150 €', reward:300,
+  {id:'m9', text:'Доведите прибыль за день выше '+money(150), reward:300,
    check:w=>w.profitDay>150},
   {id:'m10', text:'Завершите сезон в плюсе', reward:0, check:w=>false}
 ];
 function missionsTick(w){
+  // задание, к которому ещё нет оборудования (например CO₂ на балконе), просто
+  // пропускаем — иначе игрок застревает на действии, которого не может сделать
+  let guard = 0;
+  while (MISSIONS[w.missionIdx] && MISSIONS[w.missionIdx].need && !MISSIONS[w.missionIdx].need(w) && guard++ < 20)
+    w.missionIdx++;
   const m = MISSIONS[w.missionIdx];
   if (!m) return;
   let ok = false;
   try { ok = m.check(w); } catch(e){ ok = false; }
   if (ok){
     w.missionIdx++;
-    if (m.reward>0){ w.money += m.reward; w.revenue += m.reward; }
-    w.log.unshift({t:'Д'+w.day, m:`Задание выполнено: ${m.text} (+${m.reward} €)`, k:'hl'});
+    if (m.reward>0){ w.money += m.reward; w.revenue += m.reward; w.rewardSum = (w.rewardSum||0) + m.reward; }
+    w.log.unshift({t:'Д'+w.day, m:`Задание выполнено: ${m.text} (+${money(m.reward)})`, k:'hl'});
     w.missionsDone++;
   }
 }
@@ -1936,9 +2125,15 @@ function makeWorld(opts){
     ctrl: {
       heatSet: 18, ventSet: 24, co2Set: 600,
       lampOn: false, lampEnabled: false, screenOn: false, shadeOn: false,
+      alarmOn: false, alarmFrom: 6, alarmTo: 20,
       ecSet: 2.4, phSet: 5.8, recipe: 'std', irrig: true
     },
-    has: { led:false, lampBase:true, screen:false, shade:false, co2:true, dosing:false, secondSensor:false,
+    // клaпан CO₂ есть только там, где он физически стоит: на балконе и в комнате
+    // его нет (в кампании он появляется вместе с теплицей), иначе игрок получал
+    // «отказ клапана CO₂» на 4 м², где никакого клапана не покупали
+    has: { led:false, lampBase:true, screen:false, shade:false,
+           co2: opts.campaign ? false : (P.id!=='balcony' && P.id!=='room'),
+           dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
     equip: {
@@ -1959,10 +2154,10 @@ function makeWorld(opts){
     mail: [],
     cost: {energy:0, lamp:0, co2:0, water:0, fert:0, labor:0, seed:0, repair:0, treat:0,
            maint:0, fixed:0, penalty:0, upgrade:0, loan:0, storage:0},
-    revenue: 0, revenueYesterday: 0, costPrev: 0, harvested:0, harvestedKg:0, dayHarvestKg:0,
-    assimDay:0, bio:0, energyKWh:0, profitDay:0,
+    revenue: 0, rewardSum: 0, revenueYesterday: 0, costPrev: 0, harvested:0, harvestedKg:0, dayHarvestKg:0,
+    assimDay:0, bio:0, energyKWh:0, profitDay:0, useCo2Kg:0,
     out: {temp:12, ppfd:0, rh:78, el:0, az:90, sun:{x:0,y:0.2,z:1}},
-    light: {meanLeaf:0, canopyLAI:0, lampOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
+    light: {meanLeaf:0, canopyLAI:0, lampOn:false, stripOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
     log: [], history: [], cloudToday: 0.25,
     useWaterM3: 0, useFertKg: 0
   };
@@ -1995,8 +2190,9 @@ function stepWorld(w, dtH){
   w.hour += dtH;
   let guard = 0;
   while (w.hour >= 24 && guard++ < 4){ w.hour -= 24; w.day++; w.doy++; newDay(w); }
-  // расписание досветки
-  w.ctrl.lampOn = !!w.ctrl.lampEnabled && (w.hour > 4.5 && w.hour < 21);
+  // досветка — ВРУЧНУЮ: лампа горит ровно тогда, когда её включил игрок.
+  // Автоматики нет; «будильник» (ctrl.alarm*) только напоминает алертами.
+  w.ctrl.lampOn = !!w.ctrl.lampEnabled && !!w.power && (!!w.has.led || !!w.has.ledStrip || !!w.has.lampBase);
   computeLight(w, dtH);
   climateTick(w, dtH, C);
   fertTick(w, dtH);
@@ -2022,14 +2218,24 @@ function newDay(w){
   w.revenueYesterday = w.revenue;
   const profit = rev - cost;
   w.profitDay = profit;
+  // сверка: насколько «бухгалтерская» прибыль совпадает с реальным движением денег
+  const moneyDelta = w.money - (w._moneyAtDay===undefined ? w.money : w._moneyAtDay);
+  w._moneyAtDay = w.money;
+  // разбивка расходов ЗА СУТКИ: разница накопленных статей с прошлой полуночи
+  const cb = {};
+  for (const k in w.cost) cb[k] = w.cost[k] - ((w._costAtDay && w._costAtDay[k]) || 0);
+  w._costAtDay = Object.assign({}, w.cost);
+  const rewardDay = (w.rewardSum||0) - (w._rewardAtDay||0);
+  w._rewardAtDay = w.rewardSum||0;
   w.history.push({
     day:w.day-1, doy:w.doy-1, temp:w.temp, co2:w.co2, rh:w.rh, assim:w.assimDay,
     tempMin:w.tempMin, tempMax:w.tempMax, rhMax:w.rhMaxDay,
-    rev, cost, profit, lai:w.light.canopyLAI, disease:w.disease,
+    rev, cost, profit, moneyDelta, lai:w.light.canopyLAI, disease:w.disease,
     harvestedKg: w.dayHarvestKg||0, energyKWh: w.energyKWh||0,
-    waterM3: w.useWaterM3||0, fertKg: w.useFertKg||0
+    waterM3: w.useWaterM3||0, fertKg: w.useFertKg||0,
+    co2Kg: w.useCo2Kg||0, costBreak: cb, rewardDay, lampOn: !!w.ctrl.lampEnabled
   });
-  w.assimDay = 0; w.dayHarvestKg = 0; w.energyKWh = 0; w.useWaterM3 = 0; w.useFertKg = 0;
+  w.assimDay = 0; w.dayHarvestKg = 0; w.energyKWh = 0; w.useWaterM3 = 0; w.useFertKg = 0; w.useCo2Kg = 0;
   w.tempMin = undefined; w.tempMax = undefined; w.rhMaxDay = undefined;
   for (const p of w.plants){
     p.carbonStatus = 0.65*p.carbonStatus + 0.35*(p.assimToday||0);
@@ -2072,7 +2278,7 @@ function newDay(w){
     if (r.n) w.log.unshift({t:'Д'+w.day, m:`Работник собрал ${r.n} шт (+${Math.round(r.kg)} кг)`, k:'hl'});
     pruneLower(w, 1);
   }
-  w.log.unshift({t:'Д'+w.day, m:`${fmtDate(w.doy)} · прибыль за сутки ${profit>=0?'+':''}${Math.round(profit)} €`, k:profit>=0?'hl':''});
+  w.log.unshift({t:'Д'+w.day, m:`${fmtDate(w.doy)} · прибыль за сутки ${profit>=0?'+':''}${money(Math.round(profit))}`, k:profit>=0?'hl':''});
   if (w.log.length>60) w.log.length = 60;
 }
 
@@ -2098,7 +2304,7 @@ const SHOP_ITEMS = () => ([
      desc:'+6% к усвоению питания (дешевле автодозирования)',
      buy:w=>{ w.has.handDose = true; }},
     {id:'ledStrip', noScale:true, name:'LED-лента 2×50 Вт на грядку', base:220,
-     desc:'+60 µmol/м²·с досветки, работает по расписанию досветки',
+     desc:'+60 µmol/м²·с досветки, включается вручную (будильник напомнит)',
      buy:w=>{ w.has.ledStrip = true; }},
     {id:'humid', noScale:true, name:'Увлажнитель-туман 5 л/ч', base:260,
      desc:'поднимает влажность в жару (расход воды)',
@@ -2209,12 +2415,12 @@ function buyItem(w, id){
       if (w.money < total) return {ok:false, msg:'Недостаточно средств'};
       if (w.has.insurance) total = Math.round(total*0.4);
       w.money -= total; w.cost.repair += total;
-      w.log.unshift({t:'Д'+w.day, m:`Ремонт выполнен: −${total} €`, k:'hl'});
-      return {ok:true, msg:`Ремонт: −${total} €`};
+      w.log.unshift({t:'Д'+w.day, m:`Ремонт выполнен: −${money(total)}`, k:'hl'});
+      return {ok:true, msg:`Ремонт: −${money(total)}`};
     }
     if (it.id === 'whSection'){
       const r = addSection(w);
-      return r.ok ? {ok:true, msg:`Склад: ${w.wh.sections} секций (−${r.cost} €)`} : {ok:false, msg:r.msg};
+      return r.ok ? {ok:true, msg:`Склад: ${w.wh.sections} секций (−${money(r.cost)})`} : {ok:false, msg:r.msg};
     }
     const cost = it.price ? it.price(w) : upgradeCost(w, it.base, it.noScale);
     if (w.money < cost) return {ok:false, msg:'Недостаточно средств'};
@@ -2229,7 +2435,7 @@ function buyItem(w, id){
     it.buy && it.buy(w);
     if (!it.dynamic) w.cost.upgrade += cost;
     else if (it.bucket) w.cost[it.bucket] += cost;
-    w.log.unshift({t:'Д'+w.day, m:`Покупка: ${it.name} (−${cost} €)`, k:''});
+    w.log.unshift({t:'Д'+w.day, m:`Покупка: ${it.name} (−${money(cost)})`, k:''});
     return {ok:true, msg:it.name+' куплено'};
   }
   return {ok:false, msg:'Не найдено'};
@@ -2437,8 +2643,8 @@ const CAM_HOME = {yaw:-0.62, pitch:0.26, dist:7.4, zoom:1.05, target:{x:2, y:1.1
    положительный — сверху вниз. Раньше минимум был 0.05, то есть из
    домашнего ракурса (0.26) вверх оставалось всего ~12° — и поворот
    «упирался» почти сразу.                                          */
-const PITCH_MIN = -0.55, PITCH_MAX = 1.32;
-const CAM_FLOOR_Y = 0.45;      // ниже этого камера не опускается
+const PITCH_MIN = -0.32, PITCH_MAX = 1.32;
+const CAM_FLOOR_Y = 0.18;      // ниже этого камера не опускается
 let camTween = null;
 
 /* положение камеры для вида: то, куда её нужно поставить */
@@ -2446,7 +2652,7 @@ function camPreset(mode){
   if (mode === 'bed')   return {yaw:cam.yaw, pitch:0.20, dist:4.2, zoom:1, target:{x:2, y:0.75, z:1.05}};
   if (mode === 'plant'){
     const p = selPlant(), C = CROPS[world.crop];
-    const y = Math.max(0.5, Math.min(C.ridgeY||1.6, 0.06 + p.nPhy*C.internode*0.8)*0.55);
+    const y = Math.max(0.5, Math.min(C.ridgeY||1.6, plantBaseY(world) + 0.06 + p.nPhy*C.internode*0.8)*0.55);
     return {yaw:cam.yaw, pitch:0.12, dist:1.9, zoom:1, target:{x:p.x, y, z:p.z}};
   }
   return {yaw:CAM_HOME.yaw, pitch:CAM_HOME.pitch, dist:CAM_HOME.dist, zoom:CAM_HOME.zoom, target:{...CAM_HOME.target}};
@@ -2523,11 +2729,14 @@ function buildView(){
     return persp(liftTarget({x:2, y:0.75, z:1.05}, d, pp), d, cam.yaw, pp);
   }
   if (cam.mode === 'plant'){
-    const y = Math.min(C.ridgeY||1.6, 0.06 + p.nPhy*C.internode*0.8)*0.55;
+    const y = Math.min(C.ridgeY||1.6, plantBaseY(world) + 0.06 + p.nPhy*C.internode*0.8)*0.55;
     return persp(liftTarget({x:p.x, y:Math.max(0.5,y), z:p.z}, d, pp), d, cam.yaw, pp);
   }
   return persp(liftTarget(cam.target, d, pp), d, cam.yaw, pp);
 }
+/* высота узла на текущем растении с учётом ёмкости (см. plantBaseY в core) */
+function nodeYw(C, i){ return nodeY(C, i, plantBaseY(world)); }
+
 /* Каким будет положение камеры при данном ракурсе: точка взгляда + dist
    назад по направлению взгляда. При отрицательном наклоне камера уходит
    ниже пола, поэтому точку взгляда поднимаем — камера остаётся у земли,
@@ -2544,7 +2753,10 @@ function persp(target, dist, yaw, pitch){
   // ужимается до пятачка посреди экрана
   const portrait = H > W*1.15;
   const fit = (portrait ? Math.min(W*1.35, H*0.8) : Math.min(W*1.15, H))/700;
-  return {ortho:false, target, dist, yaw, pitch, f:780*clamp(fit, 0.45, 1.25)};
+  // на телефоне снизу кадр занимают панель камеры и док: поднимаем оптический
+  // центр, иначе сцена (особенно при взгляде вверх) прячется под кнопками
+  const oy = portrait ? H*0.075 : 0;
+  return {ortho:false, target, dist, yaw, pitch, f:780*clamp(fit, 0.45, 1.25), oy};
 }
 
 let _view = null;                       // инициализируется лениво (world создаётся позже)
@@ -2568,7 +2780,7 @@ function project(p){
   const y2 = dy*cp - z1*sp, z2 = dy*sp + z1*cp;
   const zz = z2 + v.dist;
   const s = v.f/Math.max(0.25, zz);
-  return {x: W/2 + x1*s, y: H/2 - y2*s, s, z: zz};
+  return {x: W/2 + x1*s, y: H/2 - (v.oy||0) - y2*s, s, z: zz};
 }
 function depthOf(p){ return project(p).z; }
 
@@ -2666,7 +2878,7 @@ function drawScene(){
   if (!_view.ortho){
     // линия горизонта. Наклон вниз — как раньше (светлое «за стеклом» держится
     // в кадре). Наклон вверх — уходит вниз кадра, чтобы вверху было небо, а не пол.
-    const yHor = H/2 + _view.f*Math.abs(Math.tan(_view.pitch));
+    const yHor = H/2 - (_view.oy||0) + _view.f*Math.abs(Math.tan(_view.pitch));
     const top = Math.max(0, Math.min(H, yHor));
     const g = ctx.createLinearGradient(0, Math.max(0,yHor - H*0.1), 0, H);
     g.addColorStop(0, '#4a2f14');
@@ -2683,6 +2895,22 @@ function drawScene(){
   poly([{x:0,y:0,z:0},{x:CFG.floorW,y:0,z:0},{x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
        '#2b1c0e','#0a0806',2.5);
   if (interior && !_view.ortho){
+    // потолок: без него при взгляде снизу вверх комната выглядела как открытая
+    // площадка — стена обрывалась в небо. Рисуем до растений: они ближе.
+    poly([{x:0,y:2.7,z:0},{x:CFG.floorW,y:2.7,z:0},
+          {x:CFG.floorW,y:2.7,z:CFG.floorD},{x:0,y:2.7,z:CFG.floorD}],
+         '#6b4d23','#0a0806',3.5);
+    for (let i=1;i<4;i++){
+      const z = i*(CFG.floorD/4);
+      line3({x:0,y:2.68,z},{x:CFG.floorW,y:2.68,z}, '#0f0a05', 2.5);
+    }
+    for (let i=1;i<3;i++){
+      const x = i*(CFG.floorW/3);
+      line3({x,y:2.68,z:0},{x,y:2.68,z:CFG.floorD}, '#0f0a05', 2);
+    }
+    // лампа на потолке — ориентир: видно, что смотрим вверх
+    poly([{x:1.55,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.35},{x:2.45,y:2.66,z:1.65},{x:1.55,y:2.66,z:1.65}],
+         '#2a1d0e','#0a0806',2);
     // стена комнаты с окном — рисуем сразу за полом, иначе она закрывает растения
     poly([{x:0,y:2.7,z:CFG.floorD},{x:CFG.floorW,y:2.7,z:CFG.floorD},
           {x:CFG.floorW,y:0,z:CFG.floorD},{x:0,y:0,z:CFG.floorD}],
@@ -2764,13 +2992,18 @@ function drawScene(){
     const isSel = pi===cam.plant;
 
     // ёмкость под растением: горшок с грунтом, бак с раствором, плита кокоса или корзина аэропоники
-    items.push({z: depthOf({x:p.x, y:0.1, z:p.z}) + 0.02, draw(){
-      drawVessel(project({x:p.x, y:0, z:p.z}));
+    items.push({z: depthOf({x:p.x, y:plantBaseY(world)-0.06, z:p.z}) + 0.02, draw(){
+      drawVessel(p);
     }});
 
-    // стебель
-    const pts = [{x:p.x, y:0.04, z:p.z}];
-    for (let i=0;i<=p.nPhy;i++) pts.push({x:p.x+Math.sin(i*0.4)*0.006, y:nodeY(C,i), z:p.z+Math.cos(i*0.4)*0.006});
+    // стебель: начинается от поверхности ёмкости, а не от пола — иначе куст
+    // «стоит за горшком» и с верхних ракурсов кажется, что он не в нём
+    const mouth = plantBaseY(world);
+    const pts = [{x:p.x, y:mouth - 0.01, z:p.z}];
+    for (let i=0;i<=p.nPhy;i++){
+      const ny = nodeYw(C,i);
+      if (ny > mouth - 0.01) pts.push({x:p.x+Math.sin(i*0.4)*0.006, y:ny, z:p.z+Math.cos(i*0.4)*0.006});
+    }
     items.push({z: depthOf({x:p.x, y:1.0, z:p.z}), draw(){
       ctx.beginPath();
       for (let i=0;i<pts.length;i++){ const q = project(pts[i]); if(i===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y); }
@@ -2778,13 +3011,13 @@ function drawScene(){
       ctx.strokeStyle = '#0a0806'; ctx.lineWidth = Math.max(3.4, 4.6 + p.nPhy*0.10); ctx.stroke();
       ctx.strokeStyle = isSel ? '#c8ea70' : '#8f9a54';
       ctx.lineWidth = Math.max(1.2, 1.6 + p.nPhy*0.06); ctx.stroke();
-      if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeY(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
+      if (p.nPhy < C.maxPhy) dot3({x:p.x, y:nodeYw(C,p.nPhy)+0.03, z:p.z}, 0.012, '#a8d06a');
     }});
 
     // листья
     for (const lf of p.leaves){
       if (lf.area < 2e-4 && !lf.dead) continue;
-      const g = leafGeom(lf, C, p.x, nodeY(C, lf.i), p.z);
+      const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
       items.push({z: depthOf(g.cen), draw(){
         poly(g.corners, leafColor(lf), '#0a0806', 1.7);
         if (!lf.dead) line3(g.base, g.tip, 'rgba(12,10,6,.55)', 1.1);
@@ -2794,9 +3027,9 @@ function drawScene(){
     // плоды / головки
     if (C.leafy){
       const ready = p.head >= C.headTarget;
-      items.push({z: depthOf({x:p.x,y:nodeY(C, Math.min(p.nPhy,6)),z:p.z}), draw(){
+      items.push({z: depthOf({x:p.x,y:nodeYw(C, Math.min(p.nPhy,6)),z:p.z}), draw(){
         const r = 0.05+0.08*clamp(p.head/C.headTarget,0,1);
-        dot3({x:p.x, y:nodeY(C, Math.min(p.nPhy,6)), z:p.z}, r,
+        dot3({x:p.x, y:nodeYw(C, Math.min(p.nPhy,6)), z:p.z}, r,
              ready? '#d8ec8e' : '#87ad4e', '#0a0806', 2.2);
       }});
     } else {
@@ -2808,7 +3041,7 @@ function drawScene(){
           const r = 0.010 + 0.020*Math.cbrt(fr);
           const ang = 0.6+fi*1.05;
           const pos = {x:p.x+Math.cos(ang)*0.06*(1+fi*0.1),
-                       y:nodeY(C, tr.i+1) - fi*0.03,
+                       y:nodeYw(C, tr.i+1) - fi*0.03,
                        z:p.z+Math.sin(ang)*0.06*(1+fi*0.1)};
           items.push({z: depthOf(pos), draw(){
             const q = project(pos);
@@ -2910,86 +3143,109 @@ function drawScene(){
 }
 
 /* ---------- ёмкость под растением по системе выращивания ---------- */
-function drawVessel(q){
-  const sys = (world.sys || 'soil');
-  const S = 0.026*0;                       // масштаб уже в q.s
-  const w2 = Math.max(4, 0.13*q.s), h2 = Math.max(6, 0.20*q.s);
-  const ink = '#0a0806';
-  ctx.lineJoin = 'round';
+/* Ёмкость в мировых координатах: два кольца (низ и верх), стенка между ними.
+   Раньше горшок рисовался плоским силуэтом в экранных координатах и при
+   взгляде сверху выглядел как ведро перед кустом. Теперь он честно
+   разворачивается вместе с камерой, а куст растёт из его поверхности. */
+const VESSEL = {
+  soil: {rb:0.105, rt:0.125, h:0.17, mouth:0.17, wall:'#b5552a', rim:'#c96234', top:'#2f2213', soil:true},
+  coco: {rb:0.185, rt:0.185, h:0.12, mouth:0.12, wall:'#6b4a2a', rim:'#8a6236', top:'#7a5530', drip:true},
+  dwc:  {rb:0.140, rt:0.160, h:0.21, mouth:0.21, wall:'#dcd7c4', rim:'#efe9d8', top:'#3f93e0', water:0.09, hole:true},
+  nft:  {rb:0.140, rt:0.160, h:0.18, mouth:0.18, wall:'#dcd7c4', rim:'#efe9d8', top:'#2f7fd0', water:0.07, hole:true},
+  aero: {rb:0.125, rt:0.095, h:0.19, mouth:0.19, wall:'#e8e3d2', rim:'#f2eee0', top:'#2b2116', mist:true}
+};
+function vesselGeom(sys){ return VESSEL[sys] || VESSEL.soil; }
+function vesselMouth(sys){ return vesselGeom(sys).mouth; }
 
-  if (sys === 'coco'){
-    // плита кокоса: приземистый параллелепипед + капельница сверху
-    const bw = w2*1.35, bh = h2*0.62;
-    ctx.beginPath();
-    ctx.moveTo(q.x-bw, q.y); ctx.lineTo(q.x+bw, q.y);
-    ctx.lineTo(q.x+bw, q.y-bh); ctx.lineTo(q.x-bw, q.y-bh);
-    ctx.closePath();
-    ctx.fillStyle = '#6b4a2a'; ctx.fill();
-    ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(q.x, q.y-bh, bw, bh*0.28, 0, 0, 6.2832);
-    ctx.fillStyle = '#8a6236'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
-    // капельница
-    ctx.beginPath(); ctx.moveTo(q.x, q.y-bh*4.2); ctx.lineTo(q.x, q.y-bh*1.15);
-    ctx.strokeStyle = ink; ctx.lineWidth = 2.4; ctx.stroke();
-    ctx.beginPath(); ctx.arc(q.x, q.y-bh*0.95, Math.max(1.5, bh*0.16), 0, 6.2832);
-    ctx.fillStyle = '#57c8ff'; ctx.fill();
-    return;
-  }
-  if (sys === 'dwc' || sys === 'nft'){
-    // бак/лоток: белый пластик, голубой раствор, пузырьки
-    const bw = w2*1.12, bh = h2*1.15;
-    ctx.beginPath();
-    ctx.moveTo(q.x-bw, q.y); ctx.lineTo(q.x+bw, q.y);
-    ctx.lineTo(q.x+bw*0.86, q.y-bh); ctx.lineTo(q.x-bw*0.86, q.y-bh);
-    ctx.closePath();
-    ctx.fillStyle = '#dcd7c4'; ctx.fill();
-    ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
-    // уровень раствора
-    const lv = q.y-bh*0.52;
-    ctx.beginPath(); ctx.rect(q.x-bw*0.92, lv, bw*1.84, (q.y-lv)*0.86);
-    ctx.fillStyle = sys==='nft' ? '#2f7fd0' : '#3f93e0'; ctx.fill();
-    ctx.beginPath(); ctx.moveTo(q.x-bw*0.92, lv); ctx.lineTo(q.x+bw*0.92, lv);
-    ctx.strokeStyle = ink; ctx.lineWidth = 1.8; ctx.stroke();
-    // крышка с отверстием под корни
-    ctx.beginPath(); ctx.ellipse(q.x, q.y-bh, bw*0.86, bh*0.22, 0, 0, 6.2832);
-    ctx.fillStyle = '#efe9d8'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(q.x, q.y-bh, bw*0.30, bh*0.10, 0, 0, 6.2832);
-    ctx.fillStyle = '#2b2116'; ctx.fill();
-    // пузырьки аэратора
-    if (bh > 9){
-      for (let i=0;i<3;i++){
-        const bx = q.x + (i-1)*bw*0.45, by = q.y - bh*0.22 - (i%2)*bh*0.16;
-        ctx.beginPath(); ctx.arc(bx, by, Math.max(1, bh*0.075), 0, 6.2832);
-        ctx.fillStyle = 'rgba(240,250,255,.85)'; ctx.fill();
-      }
+function drawVessel(p){
+  const sys = world.sys || 'soil';
+  const g = vesselGeom(sys);
+  const ink = '#0a0806';
+  const K = 16;
+  ctx.lineJoin = 'round';
+  const ringAt = (y, r)=>{
+    const out = [];
+    for (let i=0;i<K;i++){
+      const t = i/K*6.2831853;
+      out.push(project({x:p.x+Math.cos(t)*r, y, z:p.z+Math.sin(t)*r}));
     }
-    return;
+    return out;
+  };
+  const base = plantBaseY(world);          // поверхность субстрата = низ растения
+  const bot = ringAt(base - g.h, g.rb), top = ringAt(base, g.rt);
+  const loop = (pts)=>{ ctx.beginPath(); pts.forEach((q,i)=> i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); };
+  const quad = (a,b,c2,d)=>{ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c2.x,c2.y); ctx.lineTo(d.x,d.y); ctx.closePath(); ctx.fill(); };
+  // корпус: заливаем дно, верх и боковые полоски между кольцами — так стенка
+  // получается сплошной при любом ракурсе (с «правилом ненулевого обхода» на
+  // двух вложенных эллипсах полоса не заливалась)
+  ctx.fillStyle = g.wall;
+  loop(bot); ctx.fill();
+  loop(top); ctx.fill();
+  for (let i=0;i<K;i++){
+    const j = (i+1)%K;
+    quad(bot[i], bot[j], top[j], top[i]);
   }
-  if (sys === 'aero'){
-    // белая корзина-конус и туман
-    ctx.beginPath();
-    ctx.moveTo(q.x-w2*0.95, q.y-h2*0.15); ctx.lineTo(q.x+w2*0.95, q.y-h2*0.15);
-    ctx.lineTo(q.x+w2*0.62, q.y-h2*1.05); ctx.lineTo(q.x-w2*0.62, q.y-h2*1.05);
-    ctx.closePath();
-    ctx.fillStyle = '#e8e3d2'; ctx.fill();
-    ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
-    for (let i=0;i<3;i++){
-      const bx = q.x + (i-1)*w2*0.55, by = q.y - h2*0.35 - (i%2)*h2*0.25;
-      ctx.beginPath(); ctx.arc(bx, by, Math.max(1, h2*0.10), 0, 6.2832);
-      ctx.fillStyle = 'rgba(220,240,255,.8)'; ctx.fill();
-    }
-    return;
-  }
-  // грунт: терракотовый горшок с землёй
+  // блик по левой стороне — плоский стиль
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,240,190,.16)';
+  for (let i=0;i<3;i++) quad(bot[i], bot[i+1], top[i+1], top[i]);
+  ctx.restore();
+  // контур: обод + нижняя дуга (дальняя дуга дна внутри корпуса не рисуется)
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.4;
+  const cTop = project({x:p.x, y:base, z:p.z});
   ctx.beginPath();
-  ctx.moveTo(q.x-w2, q.y); ctx.lineTo(q.x+w2, q.y);
-  ctx.lineTo(q.x+w2*0.72, q.y-h2); ctx.lineTo(q.x-w2*0.72, q.y-h2);
-  ctx.closePath();
-  ctx.fillStyle = '#b5552a'; ctx.fill();
-  ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(q.x, q.y-h2, w2*0.72, h2*0.20, 0, 0, 6.2832);
-  ctx.fillStyle = '#2f2213'; ctx.fill();
-  ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
+  let started = false;
+  for (let i=0;i<=K;i++){
+    const q = bot[i%K];
+    if (q.y > cTop.y){ if (!started){ ctx.moveTo(q.x,q.y); started = true; } else ctx.lineTo(q.x,q.y); }
+    else started = false;
+  }
+  ctx.stroke();
+  // тень-поддон под горшком
+  loop(bot);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fill();
+  // поверхность ёмкости (грунт / раствор / крышка)
+  loop(top);
+  ctx.fillStyle = g.top; ctx.fill();
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.stroke();
+  // обод
+  loop(top);
+  ctx.strokeStyle = g.rim; ctx.lineWidth = 1.4; ctx.stroke();
+
+  const c = project({x:p.x, y:base, z:p.z});
+  const rr = Math.max(2, g.rt*c.s);
+  if (g.drip){                                  // капельница над плитой кокоса
+    ctx.beginPath(); ctx.moveTo(c.x, c.y - rr*2.6); ctx.lineTo(c.x, c.y - rr*0.5);
+    ctx.strokeStyle = ink; ctx.lineWidth = 2.2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(c.x, c.y - rr*2.6, Math.max(1.4, rr*0.26), 0, 6.2832);
+    ctx.fillStyle = '#57c8ff'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.stroke();
+  }
+  if (g.water){                                 // раствор и пузырьки аэратора
+    for (let i=0;i<3;i++){
+      const bx = c.x + (i-1)*rr*0.55, by = c.y + rr*0.35 - (i%2)*rr*0.25;
+      ctx.beginPath(); ctx.arc(bx, by, Math.max(1, rr*0.13), 0, 6.2832);
+      ctx.fillStyle = 'rgba(240,250,255,.8)'; ctx.fill();
+    }
+  }
+  if (g.hole){                                  // отверстие в крышке под корни
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, rr*0.34, rr*0.14, 0, 0, 6.2832);
+    ctx.fillStyle = '#2b2116'; ctx.fill();
+  }
+  if (g.mist){                                  // туман в корзине аэропоники
+    for (let i=0;i<3;i++){
+      const bx = c.x + (i-1)*rr*0.6, by = c.y + rr*0.5 - (i%2)*rr*0.3;
+      ctx.beginPath(); ctx.arc(bx, by, Math.max(1, rr*0.16), 0, 6.2832);
+      ctx.fillStyle = 'rgba(220,240,255,.75)'; ctx.fill();
+    }
+  }
+  if (g.soil){                                  // земля: пара комков
+    for (let i=0;i<3;i++){
+      const a = 1.1 + i*2.1;
+      ctx.beginPath();
+      ctx.arc(c.x + Math.cos(a)*rr*0.45, c.y + Math.sin(a)*rr*0.16, Math.max(1, rr*0.13), 0, 6.2832);
+      ctx.fillStyle = '#43301a'; ctx.fill();
+    }
+  }
 }
 
 /* ---------- клики по сцене ---------- */
@@ -3004,7 +3260,7 @@ function hitTest(cx, cy){
       const f = tr.fruits[fi];
       if (f.harvested || !f.ripe) continue;
       const ang = 0.6+fi*1.05;
-      const pos = {x:p.x+Math.cos(ang)*0.06*(1+fi*0.1), y:nodeY(C, tr.i+1)-fi*0.03, z:p.z+Math.sin(ang)*0.06*(1+fi*0.1)};
+      const pos = {x:p.x+Math.cos(ang)*0.06*(1+fi*0.1), y:nodeYw(C, tr.i+1)-fi*0.03, z:p.z+Math.sin(ang)*0.06*(1+fi*0.1)};
       const q = project(pos);
       const rr = Math.max(6, 0.03*q.s);
       if (Math.hypot(q.x-x, q.y-y) < rr+5) return {kind:'fruit', plant:p, fruit:f};
@@ -3013,13 +3269,13 @@ function hitTest(cx, cy){
   // 2) листья
   for (const p of world.plants) for (const lf of p.leaves){
     if (lf.dead) continue;
-    const g = leafGeom(lf, C, p.x, nodeY(C, lf.i), p.z);
+    const g = leafGeom(lf, C, p.x, nodeYw(C, lf.i), p.z);
     if (pointInPoly(x,y,g.corners.map(project))) return {kind:'leaf', plant:p, leaf:lf};
   }
   // 3) растение
   let best=null, bd=1e9;
   for (const p of world.plants){
-    const q = project({x:p.x, y:nodeY(C, Math.min(p.nPhy,8))*0.5, z:p.z});
+    const q = project({x:p.x, y:nodeYw(C, Math.min(p.nPhy,8))*0.5, z:p.z});
     const d = Math.hypot(q.x-x, q.y-y);
     if (d<bd){ bd=d; best=p; }
   }
@@ -3075,7 +3331,17 @@ function pointInPoly(x,y,pts){
 const $ = id => document.getElementById(id);
 const CROP_ICON = { tomato:'#e05a4e', cherry:'#b8342f', cucumber:'#3f8f57', lettuce:'#7ac06a' };
 const ic = c => `<svg width="11" height="11" viewBox="0 0 12 12" style="vertical-align:-1px" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="${CROP_ICON[c.id]||'#7ad8a0'}" stroke="rgba(255,255,255,.5)" stroke-width="1"/></svg>`;
-const money = v => (v>=0?'':'−') + Math.abs(Math.round(v)).toLocaleString('ru-RU') + ' €';
+function moneyLabels(){
+  document.querySelectorAll('[data-eur]').forEach(el=>{ el.textContent = money(+el.dataset.eur); });
+}
+function setCurrency(id){
+  if (!CURS[id]) return;
+  curId = id;
+  try { if (typeof moneyLabels === 'function') moneyLabels(); } catch(e){}
+  try { localStorage.setItem('vgCur', id); } catch(_){}
+  renderAll(); if (page==='settings') renderSettings();
+  toast('Валюта: ' + CURS[id].label + ' (' + CURS[id].note + ')');
+}
 const num = v => Math.round(v).toLocaleString('ru-RU');
 
 let world = null;
@@ -3146,8 +3412,8 @@ function applyLoadedWorld(pack, silent){
   } catch(e){}
   if (away && away.hours > 0.1){
     const hh = away.hours < 1 ? Math.round(away.hours*60)+' мин' : away.hours.toFixed(1)+' ч';
-    world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${num(away.money)} €`, k:'hl'});
-    setTimeout(()=>toast(`Пока вас не было ${hh}: ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${num(away.money)} €`), 700);
+    world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`, k:'hl'});
+    setTimeout(()=>toast(`Пока вас не было ${hh}: ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`), 700);
   }
   cam.plant = 0; cam.mode = 'free'; acc = 0; paused = false; endShown = false; fc = null;
   tutorDone = true;                       // опытный игрок продолжает сезон, обучение не нужно
@@ -3187,7 +3453,7 @@ function buildStart(){
   const camp = $('campPick');
   if (camp){
     camp.innerHTML = `<div class="card" data-camp="1" style="cursor:pointer;${pending.campaign?'border-color:var(--acc)':''}">
-      <div class="h"><b>Кампания: со 100 € на балконе</b><span class="price" style="font-size:12px">100 €</span></div>
+      <div class="h"><b>Кампания с балкона</b><span class="price" style="font-size:12px">${money(100)}</span></div>
       <div class="d">Три главы: балкон 4 м² → комната 20 м² → теплица 400 м².
       Письма наставника, выборы и переезды. Культуру и погоду выбираете сами, капитал фиксирован.</div>
     </div>
@@ -3212,15 +3478,15 @@ function buildStart(){
     const P = PROFILES.balcony;
     $('profilePick').innerHTML = `
       <div class="card" style="border-color:var(--acc)">
-        <div class="h"><b>${P.name} · глава 1</b><span class="price" style="font-size:12px">100 €</span></div>
+        <div class="h"><b>${P.name} · глава 1</b><span class="price" style="font-size:12px">${money(100)}</span></div>
         <div class="d">${P.note}. Дальше — комната 20 м² и теплица 400 м²: переезд предлагает наставник,
         когда вы выполните цель главы. Сезон кампании — 210 дней.</div>
       </div>
       <div class="card" style="opacity:.55">
-        <div class="h"><b>Глава 2 · Комната</b></div><div class="d">20 м², стеллажи и вытяжка. Откроется после 350 € продаж.</div>
+        <div class="h"><b>Глава 2 · Комната</b></div><div class="d">20 м², стеллажи и вытяжка. Откроется после ${money(350)} продаж.</div>
       </div>
       <div class="card" style="opacity:.55">
-        <div class="h"><b>Глава 3 · Теплица</b></div><div class="d">400 м², климат-контроль и опт. Откроется после 1 500 € продаж.</div>
+        <div class="h"><b>Глава 3 · Теплица</b></div><div class="d">400 м², климат-контроль и опт. Откроется после ${money(1500)} продаж.</div>
       </div>
       <div class="card" style="opacity:.55">
         <div class="h"><b>Глава 4 · Сеть</b></div><div class="d">Филиалы по 400 м² под наёмным агрономом: приносят деньги без вашего участия.
@@ -3235,7 +3501,7 @@ function buildStart(){
   } else $('profilePick').innerHTML = Object.values(PROFILES).filter(p=>p.id!=='balcony'&&p.id!=='room').map(p=>`
     <div class="card" data-profile="${p.id}" style="cursor:pointer;${p.id===pending.profile?'border-color:var(--acc)':''}">
       <div class="h"><b>${p.name}</b><span class="price" style="font-size:12px">${money(p.start)}</span></div>
-      <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${p.fixedDay} €/сут · цена ${p.priceF.toFixed(2)}×</div>
+      <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${money(p.fixedDay)}/сут · цена ${p.priceF.toFixed(2)}×</div>
     </div>`).join('');
   // система выращивания
   const sysLock = S => pending.campaign && S.ch > 0;
@@ -3255,7 +3521,7 @@ function buildStart(){
 
   $('cropPick').innerHTML = Object.values(CROPS).map(c=>`
     <div class="card" data-crop="${c.id}" style="cursor:pointer;${c.id===pending.crop?'border-color:var(--acc)':''}">
-      <div class="h"><b>${ic(c)} ${c.name}</b><span class="price" style="font-size:12px">${c.price.toFixed(2)} €/кг</span></div>
+      <div class="h"><b>${ic(c)} ${c.name}</b><span class="price" style="font-size:12px">${money2(c.price)}/кг</span></div>
       <div class="d">${c.note}<br>Плотность ${c.density} шт/м² · плод ${(c.fruitFresh*1000)|0} г</div>
     </div>`).join('');
   const ws = [
@@ -3317,7 +3583,7 @@ function startGame(){
   saveNow(true);
   renderResumeBox();
   toast(pending.campaign
-    ? 'Кампания: балкон, 100 €, '+CROPS[world.crop].name.toLowerCase()
+    ? 'Кампания: балкон, '+money(100)+', '+CROPS[world.crop].name.toLowerCase()
     : 'Сезон начат: '+CROPS[world.crop].name+', '+PROFILES[world.profile].area+' м², '
       +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность');
   if (world.mail.length) setTimeout(()=>toast('В почте письмо от тёти Розы'), 2400);
@@ -3365,7 +3631,7 @@ const SHEET_TABS = {
   tablet: [
     {k:'mail',  t:'Почта', p:['mail']},
     {k:'tasks', t:'Дела',  p:['goals','missions']},
-    {k:'stock', t:'Склад', p:['stock','contracts']},
+    {k:'stock', t:'Склад', p:['stock','tanks','contracts']},
     {k:'net',   t:'Сеть',  p:['net']},
     {k:'log',   t:'Журнал',p:['log']}
   ],
@@ -3421,11 +3687,6 @@ function closeSheet(){
   document.querySelectorAll('#dashGrid .panel').forEach(p=>p.classList.remove('sel'));
   const dock = $('dock'); if (dock) dock.innerHTML='';
 }
-if ($('btnPanels')) $('btnPanels').onclick = ()=>{
-  const kind = layoutKind();
-  if (kind==='desktop'){ toast('Панели уже на экране'); return; }
-  toggleSheet(sheetTab || SHEET_TABS[kind][0].k);
-};
 let _layT = 0;
 window.addEventListener('resize', ()=>{
   clearTimeout(_layT);
@@ -3447,10 +3708,12 @@ function renderTop(){
   const hh = Math.floor(world.hour), mm = Math.floor((world.hour-hh)*60);
   $('tHour').textContent = String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
   $('tMoney').textContent = money(world.money);
+  // минус на балансе должен быть виден, а не «−0»
+  $('tMoney').style.color = world.money < -0.004 ? 'var(--bad)' : '';
   syncTopH();
   const pd = world.profitDay||0;
   const pe = $('tProfit');
-  pe.textContent = (pd>=0?'+':'') + num(pd) + ' €';
+  pe.textContent = (pd>=0?'+' : '') + moneyS(pd);
   pe.style.color = pd>=0 ? 'var(--acc)' : 'var(--bad)';
   $('tCrop').innerHTML = ic(C) + ' ' + C.name.toLowerCase();
   $('tYield').textContent = num(world.harvestedKg) + ' кг';
@@ -3492,27 +3755,98 @@ function renderFinance(){
   const w = world;
   const cost = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const profit = w.revenue - cost;
-  const h = w.history;
-  const rows = [
-    ['Выручка сезона', w.revenue, 'pos'],
-    ['  из них продажи', w.soldEur||0, 'pos'],
-    ['энергия + досветка', -(w.cost.energy+w.cost.lamp), 'neg'],
-    ['CO₂', -w.cost.co2, 'neg'],
-    ['вода + удобрения', -(w.cost.water+w.cost.fert), 'neg'],
-    ['содержание склада', -w.cost.storage, 'neg'],
-    ['труд', -(w.cost.labor+w.cost.maint), 'neg'],
-    ['постоянные', -(w.cost.fixed+w.cost.penalty+w.cost.loan), 'neg'],
-    ['покупки и сервис', -(w.cost.upgrade+w.cost.repair+w.cost.treat), 'neg'],
-    ...((w.net&&w.net.houses&&w.net.houses.length) ? [['филиалы, чистыми', w.net.netDay||0, (w.net.netDay||0)>=0?'pos':'neg']] : []),
-    ['ИТОГО', profit, profit>=0?'pos':'neg']
+  const h = w.history || [];
+  const last = h.length ? h[h.length-1] : null;
+  const cb = (last && last.costBreak) || null;
+  // статьи: [ключи статей расходов, подпись, знак]; «за сутки» — из разбивки дня
+  const items = [
+    [['__sales'],   'Продажи', +1],
+    [['__rewards'], 'Награды',   +1],
+    [['energy'],    'Тепло',   -1],
+    [['lamp'],      'Досветка',-1],
+    [['co2'],       'CO₂',       -1],
+    [['water'],     'Вода',      -1],
+    [['fert'],      'Удобр.',  -1],
+    [['seed'],      'Семена',    -1],
+    [['storage'],   'Склад',     -1],
+    [['labor','maint'], 'Труд',  -1],
+    [['fixed','penalty','loan'], 'Постоян.',-1],
+    [['upgrade','repair','treat'], 'Покупки',-1]
   ];
-  $('finance').innerHTML = rows.map(([k,v,cls])=>
-    `<div class="kv"><span>${k}</span><b class="${cls}">${money(v)}</b></div>`).join('') +
-    `<div class="spark">${h.slice(-40).map(x=>{
-      const mx = Math.max(60, ...h.slice(-40).map(y=>Math.abs(y.profit||0)));
+  const seasonOf = it=>{
+    const [keys,,sign] = it;
+    if (keys[0]==='__sales') return w.soldEur||0;
+    if (keys[0]==='__rewards') return w.rewardSum||0;
+    return -keys.reduce((s,k)=>s+(w.cost[k]||0),0);
+  };
+  const dayOf = it=>{
+    const [keys,,sign] = it;
+    if (!cb) return null;
+    if (keys[0]==='__sales') return (last.rev||0) - (last.rewardDay||0);
+    if (keys[0]==='__rewards') return last.rewardDay||0;
+    return -keys.reduce((s,k)=>s+(cb[k]||0),0);
+  };
+  const rows = items.map(it=>({label:it[1], day:dayOf(it), season:seasonOf(it)}))
+    .filter(r=>Math.abs(r.season)>0.02 || Math.abs(r.day||0)>0.02);
+  const profitDay = last ? (last.profit||0) : (w.profitDay||0);
+  const moneyDay  = last ? (last.moneyDelta||0) : null;
+  const recon = (w.money - w.startMoney) - profit;
+  const cell = v => (v===null || v===undefined) ? '<span class="dim">—</span>'
+    : `<b class="${v>0.004?'pos':(v<-0.004?'neg':'')}">${v>0.004?'+':''}${moneyNum(v)}</b>`;
+  $('finance').innerHTML = `
+    <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
+    ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
+    <div class="finRow total"><span>Прибыль</span>${cell(profitDay)}${cell(profit)}</div>
+    <div class="finRow total"><span>Деньги</span>${cell(moneyDay)}${cell(w.money)}</div>
+    <div class="finRow"><span>от старта</span><span class="dim">—</span>${cell(w.money-w.startMoney)}</div>
+    ${Math.abs(recon)>1 ? `<div class="finRow"><span>кредит и прочее</span><span class="dim">—</span>${cell(recon)}</div>`:''}
+    <div class="hint" style="margin-top:6px">${w.ctrl.lampEnabled
+      ? `Досветка горит: ${(((w.light&&w.light.stripOn)?0.1:0)+(((w.light&&w.light.lampOn)?(w.env.lampKW||0):0))).toFixed(2)} кВт·ч в час.`
+      : 'Досветка выключена — за свет не платите.'} «Сутки» — прошлые полные сутки, «сезон» — с начала.</div>
+    <div class="spark">${h.slice(-40).map(x=>{
+      const mx = Math.max(2, ...h.slice(-40).map(y=>Math.abs(y.profit||0)));
       const hp = Math.max(2, Math.abs(x.profit||0)/mx*34);
       return `<i style="height:${hp}px;background:${(x.profit||0)>=0?'#7ad8a0':'#ff7b72'}"></i>`;
     }).join('')}</div>`;
+}
+
+/* ---------------- баки и возможности ---------------- */
+function renderTanks(){
+  const box = $('tanks'); if (!box || !world) return;
+  const w = world, S = w.stock;
+  const daysHint = (what)=>{
+    const d = tankDays(w, what);
+    if (d===null || !isFinite(d) || d<=0) return '';
+    return ' · хватит ' + (d>999 ? '>999' : '≈'+(d<10?d.toFixed(1):Math.round(d))) + ' дн';
+  };
+  const row = (label, val, what, cls)=>`<div class="kv"><span>${label}</span><b class="${cls||''}">${val}<span style="font-weight:400;color:var(--dim)">${daysHint(what)}</span></b></div>`;
+  const tankRows = [
+    row('Вода в баке', `${S.waterM3.toFixed(0)} м³`, 'water', Math.floor(S.waterM3)<1?'bad':''),
+    row('Удобрения', `${S.fertKg.toFixed(S.fertKg<10?1:0)} кг`, 'fert', S.fertKg<5?'bad':''),
+    ...(w.has.co2 ? [row('CO₂ в баллоне', `${S.co2Kg.toFixed(0)} кг`, 'co2', S.co2Kg<5?'bad':'')] : []),
+    row('Семена', `${num(S.seeds)} шт`, null, S.seeds<5?'bad':''),
+    row('Склад свободно', `${num(whFreeL(w)/WH.bulkHarvest)} кг`, null, '')
+  ];
+  const featList = [
+    ['Свет: '+lightName(w), hasLight(w)],
+    ['Клапан CO₂', w.has.co2],
+    ['Термоэкран', w.has.screen],
+    ['Затеняющая сетка', w.has.shade],
+    ['Автодозирование EC/pH', w.has.dosing],
+    ['Второй датчик', w.has.secondSensor],
+    ['Обдув кроны', w.has.circFan],
+    ['Метеосервис', w.has.weatherSrv],
+    ['Страховка', w.has.insurance],
+    ['Работник', w.upg.worker],
+    ['Автозакупка', w.upg.autoBuy],
+    ['Плановый сервис', w.has.service]
+  ];
+  const yes = featList.filter(f=>f[1]).length;
+  box.innerHTML = `
+    ${tankRows.join('')}
+    <div class="hint" style="margin:7px 0 3px"><b>Возможности: ${yes} из ${featList.length}</b> · чего нет — покупается в магазине</div>
+    <div class="featGrid">${featList.map(([n,ok])=>`<div class="feat ${ok?'on':''}"><i>${ok?'✓':'·'}</i>${n}</div>`).join('')}</div>
+    <div class="hint" style="margin-top:6px">«Хватит ≈N дн» — оценка по вчерашнему расходу.</div>`;
 }
 
 /* ---------------- сеть филиалов ---------------- */
@@ -3530,15 +3864,15 @@ function renderNet(){
   const sales = w.camp && w.camp.ch===3 ? chapterSales(w) : 0;
   const pct = Math.min(100, sales/chGoal*100);
   let html = `<div class="kv"><span>филиалов</span><b>${t.n}</b></div>
-    <div class="g" style="grid-template-columns:1fr 84px"><span>${num(sales)}/${num(chGoal)} €</span>
+    <div class="g" style="grid-template-columns:1fr 84px"><span>${money(sales)}/${money(chGoal)}</span>
       <div class="bar"><i style="width:${pct}%;background:repeating-linear-gradient(115deg,#ffc21a 0 6px,#e0a100 6px 12px)"></i></div></div>
-    <div class="kv"><span>доход</span><b class="pos">+${Math.round(t.gross)} €/сут</b></div>
-    <div class="kv"><span>содержание</span><b class="neg">−${Math.round(t.opex)} €/сут</b></div>
-    <div class="kv"><span>чистыми</span><b class="${t.net>=0?'pos':'neg'}">${t.net>=0?'+':''}${Math.round(t.net)} €/сут</b></div>`;
+    <div class="kv"><span>доход</span><b class="pos">+${money(t.gross)}/сут</b></div>
+    <div class="kv"><span>содержание</span><b class="neg">${money(-t.opex)}/сут</b></div>
+    <div class="kv"><span>чистыми</span><b class="${t.net>=0?'pos':'neg'}">${money(t.net)}/сут</b></div>`;
   houses.forEach((h,i)=>{
     const g = netGrossDay(w, h);
     html += `<div class="kv"><span>${i+1}. ${CROPS[h.crop].name}</span>
-      <b>${Math.round(g.gross-g.opex)} €/сут</b></div>`;
+      <b>${money(g.gross-g.opex)}/сут</b></div>`;
   });
   html += `<div style="margin-top:7px">
     <button class="btn good" data-netbuy="1" ${w.money<cost?'disabled':''} style="width:100%">
@@ -3566,7 +3900,7 @@ function renderAlerts(){
   const w = world, C = CROPS[w.crop], out = [];
   // отказы
   const broken = [];
-  for (const k in w.equip) if (!w.equip[k].ok) broken.push(EQUIP_DEFS[k].name);
+  for (const k in w.equip) if (!w.equip[k].ok && equipInstalled(w,k)) broken.push(EQUIP_DEFS[k].name);
   if (!w.power) out.push(['bad','Нет электричества: отопление и форточки не работают']);
   if (broken.length) out.push(['bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт']);
   // климат по датчикам
@@ -3575,9 +3909,18 @@ function renderAlerts(){
   if (w.meas.rh > C.rhMax) out.push(['warn', `Влажность ${w.meas.rh.toFixed(0)}% — риск серой гнили, нужна вентиляция`]);
   if (w.disease > 0.25) out.push(['bad', `Серая гниль ${(w.disease*100)|0}% — обработка в магазине`]);
   if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
+  // свет: будильник напоминает, но не переключает
+  if (hasLight(w) && w.ctrl.alarmOn){
+    const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
+    const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
+    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу в «Параметрах»`]);
+    if (!inside && w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: окно закончилось — выключите лампу, она ест электричество впустую`]);
+  } else if (hasLight(w) && w.ctrl.lampEnabled && (w.hour < 4 || w.hour > 22)) {
+    out.push(['warn', 'Досветка горит ночью: растение не фотосинтезирует, а счётчик крутится — выключите лампу']);
+  }
   // запасы
   if (w.stock.fertKg < 5) out.push(['warn','Удобрения заканчиваются — рост замедлится']);
-  if (w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
+  if (w.has.co2 && w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
   if (w.stock.waterM3 < 3) out.push(['bad','Нет воды — растения в стрессе']);
   // контракты
   for (const ct of w.contracts){
@@ -3600,7 +3943,7 @@ function renderGoals(){
   const g = seasonGoals(world);
   $('goals').innerHTML = g.map(x=>{
     const done = x.pct >= 1;
-    const shown = x.unit==='€' ? num(x.value)+' / '+num(x.target)+' €'
+    const shown = x.unit==='€' ? money(x.value)+' / '+money(x.target)
                 : x.unit==='кг' ? num(x.value)+' / '+num(x.target)+' кг'
                 : num(x.value)+' / '+num(x.target)+' '+(x.unit||'');
     return `<div class="goal">
@@ -3633,7 +3976,7 @@ function renderMissions(){
   for (let k=i; k<Math.min(i+3, MISSIONS.length); k++){
     const m = MISSIONS[k];
     html += `<div class="task"><div>${k===i?'▸ ':'· '}${m.text}</div>
-      <div class="r">награда ${m.reward} €</div></div>`;
+      <div class="r">награда ${money(m.reward)}</div></div>`;
   }
   if (i>=MISSIONS.length-1) html = `<div class="task done">Все задания выполнены</div>`;
   html += `<div class="hint">Выполнено: ${world.missionsDone} · награды — это доход</div>`;
@@ -3649,7 +3992,7 @@ function renderStock(){
     const left = Math.max(0, l.shelf - l.age);
     const q = Math.round(lotQuality(l)*100);
     return `<div class="kv"><span>${ic(C)} ${C.name.split(' ')[0]} · ${l.age} дн</span>
-      <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}%</b></div>`;
+      <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}% · −${(100/l.shelf).toFixed(0)}%/сут</b></div>`;
   }).join('');
   const freeKg = whFreeL(world)/WH.bulkHarvest;
   $('stock').innerHTML = `
@@ -3663,23 +4006,26 @@ function renderStock(){
     <div class="kv"><span>CO₂</span><b style="${s.co2Kg<8?'color:var(--bad)':''}">${s.co2Kg.toFixed(s.co2Kg<10?1:0)} кг</b></div>
     <div class="kv"><span>Семена</span><b>${num(s.seeds)} шт</b></div>
     <div class="kv"><span>Вода (в баке)</span><b style="${s.waterM3<5?'color:var(--bad)':''}">${s.waterM3.toFixed(0)} м³</b></div>
-    <div class="hint" style="margin-top:6px">${wh.sections} секц. · содержание ${whRentDay(world).toFixed(1)} €/сут ·
+    <div class="hint" style="margin-top:6px">${wh.sections} секц. · содержание ${money2(whRentDay(world))}/сут ·
       свободно ${num(freeKg)} кг</div>
-    ${wh.wasteKg>1 ? `<div class="hint" style="color:var(--warn)">испорчено за сезон: ${num(wh.wasteKg)} кг (${num(wh.wasteEur)} €)</div>`:''}
+    <div class="hint">Лёжкость ${CROPS[world.crop].name.split(' ')[0].toLowerCase()}: ${CROPS[world.crop].shelfDays} дн →
+      теряется <b>${(100/CROPS[world.crop].shelfDays).toFixed(0)} % массы</b> и <b>${(0.55/1.4*100/CROPS[world.crop].shelfDays).toFixed(0)} % цены</b> в сутки;
+      после ${CROPS[world.crop].shelfDays*2} дн партия списывается целиком.</div>
+    ${wh.wasteKg>1 ? `<div class="hint" style="color:var(--warn)">испорчено за сезон: ${num(wh.wasteKg)} кг (${money(wh.wasteEur)})</div>`:''}
     <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
-      <button class="btn good" id="btnSellAll" ${storeKg(world)>0.5?'':'disabled'}>Продать всё · ${priceToday(world).toFixed(2)} €/кг</button>
+      <button class="btn good" id="btnSellAll" ${storeKg(world)>0.5?'':'disabled'}>Продать всё · ${money2(priceToday(world))}/кг</button>
       <button class="btn" id="btnWhExpand" title="Вторая секция: +600 л места, но и содержание">+секция ${money(whSectionCost(world))}</button>
     </div>`;
   const sell = $('btnSellAll');
   if (sell) sell.onclick = ()=>{
     const r = sellHarvest(world, world.crop, null);
-    toast(r.ok ? `Продано ${num(r.kg)} кг за ${num(r.eur)} €` : 'На складе нет продукции');
+    toast(r.ok ? `Продано ${num(r.kg)} кг за ${money(r.eur)}` : 'На складе нет продукции');
     renderAll(); if (page==='shop') renderShop();
   };
   const ex = $('btnWhExpand');
   if (ex) ex.onclick = ()=>{
     const r = addSection(world);
-    toast(r.ok ? `Склад: ${world.wh.sections} секций (−${r.cost} €). Содержание ${whRentDay(world).toFixed(1)} €/сут`
+    toast(r.ok ? `Склад: ${world.wh.sections} секций (${money(-r.cost)}). Содержание ${money2(whRentDay(world))}/сут`
                : r.msg);
     renderAll(); if (page==='shop') renderShop();
   };
@@ -3699,7 +4045,7 @@ function renderContracts(){
   }).join('');
   document.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=()=>{
     const r = deliverContract(world, b.dataset.deliver);
-    toast(r.ok ? `Поставлено ${num(r.kg)} кг за ${num(r.eur)} €${r.bonus?' · бонус '+num(r.bonus)+' €':''}` : r.msg);
+    toast(r.ok ? `Поставлено ${num(r.kg)} кг за ${money(r.eur)}${r.bonus?' · бонус '+money(r.bonus):''}` : r.msg);
     renderAll(); if (page==='shop') renderShop();
   });
 }
@@ -3718,7 +4064,7 @@ function renderMail(){
     const pct = clamp(sales/ch.goal,0,1)*100;
     html += `<div class="g" style="grid-template-columns:44px 1fr 84px"><span>продажи</span>
       <div class="bar"><i style="width:${pct}%;background:repeating-linear-gradient(115deg,#ffc21a 0 6px,#e0a100 6px 12px)"></i></div>
-      <b>${num(sales)}/${num(ch.goal)} €</b></div>`;
+      <b>${money(sales)}/${money(ch.goal)}</b></div>`;
   }
   if (world.mail.length){
     html += world.mail.map(m=>`<button class="btn" data-mail="${m.id}" style="display:block;width:100%;text-align:left;margin-bottom:4px;white-space:normal;line-height:1.3;font-size:10px">
@@ -3764,7 +4110,7 @@ function shopTopLine(){
   const tr = marketTrend(world, world.crop);
   return `Баланс: <b style="color:var(--acc2)">${money(world.money)}</b> · ` +
     `склад: <b>${Math.round(whUsedL(world))}/${whCap(world)} л</b> · ` +
-    `цена дня: <b style="color:var(--acc)">${priceToday(world).toFixed(2)} €/кг</b> ` +
+    `цена дня: <b style="color:var(--acc)">${money2(priceToday(world))}/кг</b> ` +
     (tr>0.01?'<span style="color:#a8e05a">▲ растёт</span>':(tr<-0.01?'<span style="color:var(--bad)">▼ падает</span>':''));
 }
 function renderShop(){
@@ -3843,7 +4189,9 @@ function renderSettings(){
       <div class="h"><b>Климат</b></div>
       ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
       ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
-      ${slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')}
+      ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
+        : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет оборудования</span></div>
+           <div class="hint">На балконе и в комнате клапана нет: воздух и так меняется через щели. Появится вместе с теплицей.</div>`}
       <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
     </div>
     <div class="card">
@@ -3862,8 +4210,20 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Свет и экраны</b></div>
-      <div class="row"><label>Досветка LED ${world.has.led?'':'<span style="color:var(--bad)">(не куплена)</span>'}</label>
-        <button class="btn ${c.lampEnabled?'good':''}" id="btnLampSet">${c.lampEnabled?'вкл':'выкл'}</button></div>
+      <div class="row"><label>Досветка: <b>${lightName(world)}</b>
+        ${hasLight(world)?'':'<span style="color:var(--bad)">(не куплена)</span>'}
+        <div class="hint">${hasLight(world)
+          ? (c.lampEnabled ? `горит${world.power?'':' — <span style="color:var(--bad)">нет электричества</span>'}` : 'выключена')
+          : 'Купите лампу в магазине — «Бюджетный старт» или «Оборудование».'}</div></label>
+        <button class="btn ${c.lampEnabled?'good':''}" id="btnLampSet" ${hasLight(world)?'':'disabled'}>${c.lampEnabled?'вкл':'выкл'}</button></div>
+      <div class="row"><label>Будильник досветки
+        <div class="hint">Включать/выключать лампу всё равно вручную: будильник только напоминает алертом.</div></label>
+        <button class="btn ${c.alarmOn?'good':''}" id="btnAlarmSet" ${hasLight(world)?'':'disabled'}>${c.alarmOn?'вкл':'выкл'}</button></div>
+      ${c.alarmOn && hasLight(world) ? `
+      ${slider('afrom','Будильник: включать с',0,23,1,c.alarmFrom,v=>String(v).padStart(2,'0')+':00')}
+      ${slider('ato','Будильник: выключать в',1,24,1,c.alarmTo,v=>(v>=24?'24:00':String(v).padStart(2,'0')+':00'))}
+      <div class="hint">Сейчас ${fmtHour(Math.floor(world.hour))}:${String(Math.floor((world.hour%1)*60)).padStart(2,'0')} · ${alarmState(world)}</div>` : ''}
+      <div class="hint">Автоматики нет: лампа горит ровно тогда, когда вы её включили, и всё это время ест электричество.</div>
       <div class="row"><label>Термоэкран ${world.has.screen?'':'<span style="color:var(--dim)">(не куплен)</span>'}</label>
         <button class="btn ${c.screenOn?'good':''}" id="btnScreenSet">${c.screenOn?'вкл':'выкл'}</button></div>
       <div class="row"><label>Затеняющая сетка ${world.has.shade?'':'<span style="color:var(--dim)">(не куплена)</span>'}</label>
@@ -3893,6 +4253,42 @@ function renderSettings(){
         <button class="btn" id="btnCamReset">⟲ как было</button></div>
     </div>
     <div class="card">
+      <div class="h"><b>Валюта</b></div>
+      <div class="row"><label>Показывать суммы в<div class="hint">Меняется только подпись и курс — экономика одна и та же.</div></label>
+        <div style="display:flex;gap:6px">
+          ${Object.values(CURS).map(c=>`<button class="btn ${curId===c.id?'good':''}" data-curset="${c.id}">${c.sym} ${c.label}</button>`).join('')}
+        </div></div>
+      <div class="hint">Сейчас: <b>${CURS[curId].sym} ${CURS[curId].label}</b> — ${CURS[curId].note}. Курс ${curId==='rub'?'1 € = 100 ₽':'базовый'}, цены магазина и отчёты пересчитываются целиком.</div>
+    </div>
+    <div class="card" id="glossCard">
+      <div class="h" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Словарь терминов</b><button class="btn" id="btnManual" style="padding:2px 8px">Справочник</button></div>
+      <div class="hint" style="margin-bottom:6px">Всё, что встречается в интерфейсе, — простыми словами.</div>
+      ${[
+        ['EC','Насколько «солёная» вода с удобрениями. 2.4 мСм/см для томата — норма. Мало — растение голодает, много — корни обжигаются и перестают пить.'],
+        ['pH','Кислотность раствора от 0 до 14. 5.5–6.0 — удобрения усваиваются лучше всего; вне этого коридора часть питания просто выпадает в осадок.'],
+        ['ppm','Частей на миллион. 800 ppm CO₂ ≈ 0.08 % воздуха — это примерно вдвое больше, чем на улице.'],
+        ['Досветка / ДНАТ / LED','Лампа для растений. ДНАТ — газоразрядная, греется и жрёт много; LED-лента — дешёвая и слабая, годится для рассады и досветки утром.'],
+        ['µmol/м²·с (PPFD)','Сила света для растения — сколько фотонов падает на квадратный метр в секунду. 200 — пасмурный день, 1000 — яркое солнце.'],
+        ['LAI','Сколько листвы над квадратным метром грядки. LAI 3 = три слоя листьев друг над другом; выше — нижние листья в тени и работают в минус.'],
+        ['Фаркуар','Модель фотосинтеза: считает, сколько сахара лист сделает из света и CO₂ и что его ограничивает — свет, газ или температура.'],
+        ['Воксельный свет','Сцена делится на кубики 25 см, в каждом считается свет. Так видно, что нижний ярус полога недополучает свет.'],
+        ['Граф органов','Растение как набор узлов: стебель, листья, кисти, плоды. Каждый орган стареет и вносит свой вклад в рост.'],
+        ['Дрейф датчиков','Показания медленно уплывают: датчик «врёт» на 1–2 °C. Калибровка возвращает его в норму, второй комплект — ловит расхождение.'],
+        ['Прогноз','Расчёт вперёд на копии мира с текущими настройками. Это оценка, а не гарантия: погода внутри другая.'],
+        ['Лежкость','Сколько дней урожай может лежать на складе, прежде чем начнёт портиться и дешеветь.']
+      ].map(([t,d])=>`<details style="border-top:1px solid var(--line2);padding:6px 0"><summary style="cursor:pointer"><b>${t}</b></summary><div class="hint" style="margin-top:4px">${d}</div></details>`).join('')}
+    </div>
+    <div class="card">
+      <div class="h"><b>Обучение</b></div>
+      <div class="hint" style="margin-bottom:8px">Всё это можно пройти заново в любой момент — прогресс сезона не пострадает.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn good" id="btnObAgain">Обучение по шагам</button>
+        <button class="btn" id="btnTutorAgain">Подсказки на сцене</button>
+        <button class="btn" id="btnManual2">Справочник</button>
+      </div>
+      <div class="hint" style="margin-top:6px">Словарь терминов — ниже в карточке «Словарь»: EC, pH, ppm, LAI, Фаркуар и остальное простыми словами.</div>
+    </div>
+    <div class="card">
       <div class="h"><b>Сезон</b></div>
       <div class="kv"><span>Профиль</span><b>${P.name} · ${P.area} м²</b></div>
       <div class="kv"><span>Культура</span><b>${ic(C)} ${C.name}</b></div>
@@ -3920,13 +4316,14 @@ function renderSettings(){
         Свет: воксельная LAD 0.25 м, 5 лучей на лист.<br>
         Фотосинтез: Farquhar-lite, V<sub>cmax</sub> ${C.vcmax} µмоль/м²·с, оптимум ${C.tempOpt} °C.<br>
         Климат: баланс с подшагами 5 мин, UA ${num(world.env.UA)} Вт/К.<br>
-        Экономика: ${num(world.plantScale)} растений на ${P.area} м², цена ${C.price} €/кг ×${P.priceF}.
+        Экономика: ${num(world.plantScale)} растений на ${P.area} м², цена ${money2(C.price)}/кг ×${P.priceF}.
       </div>
     </div>
   </div>`;
 
   const bind = (id, key, fmt) => {
     const s = $('s_'+id);
+    if (!s) return;                 // регулятора может не быть (например CO₂ без клапана)
     s.oninput = () => {
       const v = parseFloat(s.value);
       world.ctrl[key] = v;
@@ -3938,7 +4335,19 @@ function renderSettings(){
   bind('co2','co2Set', v=>v+' ppm');
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
-  $('btnLampSet').onclick = ()=>{ world.ctrl.lampEnabled = !world.ctrl.lampEnabled; renderSettings(); };
+  $('btnLampSet').onclick = ()=>{
+    if (!hasLight(world)) return toast('Сначала купите лампу в магазине');
+    world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
+    toast(world.ctrl.lampEnabled ? lightName(world)+': включена вручную' : 'Досветка выключена');
+    renderSettings(); renderTop(); renderAlerts();
+  };
+  if ($('btnAlarmSet')) $('btnAlarmSet').onclick = ()=>{
+    world.ctrl.alarmOn = !world.ctrl.alarmOn;
+    toast(world.ctrl.alarmOn ? 'Будильник досветки включён' : 'Будильник досветки выключен');
+    renderSettings();
+  };
+  bind('afrom','alarmFrom', v=>String(v).padStart(2,'0')+':00');
+  bind('ato','alarmTo', v=>(v>=24?'24:00':String(v).padStart(2,'0')+':00'));
   document.querySelectorAll('[data-sysset]').forEach(b=>b.onclick = ()=>{
     const r = setGrowSys(world, b.dataset.sysset);
     toast(r.msg); renderSettings(); renderAll(); saveNow(false);
@@ -3952,6 +4361,12 @@ function renderSettings(){
     renderSettings();
   };
   $('btnCamReset').onclick = ()=>{ resetCam(); toast('Ракурс сброшен'); };
+  document.querySelectorAll('[data-curset]').forEach(b=>b.onclick = ()=>setCurrency(b.dataset.curset));
+  if ($('btnManual')) $('btnManual').onclick = ()=>$('manual').classList.add('on');
+  if ($('btnManual2')) $('btnManual2').onclick = ()=>$('manual').classList.add('on');
+  if ($('btnObAgain')) $('btnObAgain').onclick = ()=>showOnboarding(0);
+  if ($('btnTutorAgain')) $('btnTutorAgain').onclick = ()=>showTutorAgain();
+  moneyLabels();
   $('btnRestart').onclick = ()=>{ renderResumeBox(); $('start').classList.add('on'); setPage('greenhouse'); };
   $('btnSaveNow').onclick = ()=>{ saveNow(false); renderSettings(); };
   $('btnSaveFile').onclick = downloadSave;
@@ -4033,7 +4448,7 @@ const TUTOR = [
     done:()=>(world.soldKg||0) > 0.5 },
   { text:'Откройте «Параметры» и поднимите целевой CO₂ до 800 ppm — при хорошем свете это даёт до +15% фотосинтеза.',
     done:()=>world.ctrl.co2Set >= 800 },
-  { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр 28 €, клейкие ловушки 45 €, бочка воды 90 € — купите одну вещь.',
+  { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр ${money(28)}, клейкие ловушки ${money(45)}, бочка воды ${money(90)} — купите одну вещь.',
     done:()=>world.has.alarm||world.has.sticky||world.has.circFan||world.has.handDose||
             world.has.humid||world.has.ups||world.has.film||world.has.climatePC||world.has.ledStrip },
   { text:'Нажмите «Прогноз» сверху и постройте прогноз на 7 дней — так проверяют решение до трат.',
@@ -4286,9 +4701,9 @@ window.addEventListener('keydown', e=>{
 
 function togglePause(){
   paused = !paused;
-  $('btnPause').textContent = paused?'1:1':'⏸';
+  $('btnPause').textContent = paused?'1:1':'1:1';
   $('btnPause').classList.toggle('on', paused);
-  $('btnPause').title = paused ? 'Пауза: время идёт как в жизни (1 секунда = 1 секунда)'
+  $('btnPause').title = paused ? 'Реальное время включено: час за час. Нажмите, чтобы вернуться к ускорению'
                                : 'Пауза: время замедлится до реального';
   if (paused) toast('Пауза: время идёт как в жизни — секунда за секунду');
 }
@@ -4303,7 +4718,33 @@ $('predClose').onclick = ()=>$('pred').classList.remove('on');
 document.querySelectorAll('[data-pred]').forEach(b=>b.onclick=()=>startPred(+b.dataset.pred));
 $('btnSave').onclick = ()=>saveNow(false);
 $('btnHelp').onclick = ()=>$('help').classList.add('on');
-$('helpClose').onclick = ()=>$('help').classList.remove('on');
+$('helpClose').onclick = ()=>{ clearInterval(window._obT); $('help').classList.remove('on'); };
+// ---- онбординг: пошаговый мастер ----
+let obI = 0;
+function obPaint(){
+  const slides = [...document.querySelectorAll('#help .obSlide')];
+  slides.forEach((el,k)=>el.classList.toggle('on', k===obI));
+  $('obStepNo').textContent = 'шаг '+(obI+1)+' из '+slides.length;
+  $('obDots').innerHTML = slides.map((_,k)=>`<i class="${k===obI?'on':''}" data-ob="${k}"></i>`).join('');
+  $('obPrev').style.visibility = obI===0 ? 'hidden' : 'visible';
+  $('obNext').style.display = obI===slides.length-1 ? 'none' : '';
+  $('helpClose').style.display = obI===slides.length-1 ? '' : 'none';
+}
+function showOnboarding(step){
+  obI = step||0; obPaint(); $('help').classList.add('on');
+}
+function showTutorAgain(){
+  tutorDone = false; tutorStep = 0; resetTutorFlags();
+  if (typeof renderTutor === 'function') renderTutor(); tutorTick();
+  setPage('greenhouse');
+  toast('Подсказки снова включены — они пройдут заново');
+}
+$('obNext').onclick = ()=>{ if(obI < document.querySelectorAll('#help .obSlide').length-1){ obI++; obPaint(); } };
+$('obPrev').onclick = ()=>{ if(obI>0){ obI--; obPaint(); } };
+$('obDots').onclick = e=>{ const k=e.target.dataset && e.target.dataset.ob; if(k!=null){ obI=+k; obPaint(); } };
+$('obGloss').onclick = ()=>{ $('help').classList.remove('on'); setPage('settings'); setTimeout(()=>{ const g=$('glossCard'); if(g) g.scrollIntoView({behavior:'smooth',block:'center'}); },60); };
+obPaint();
+$('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
 
 $('btnHarvest').onclick = ()=>{
@@ -4331,7 +4772,7 @@ $('btnShadeQuick').onclick = ()=>{
 function renderAll(){
   if (!world) return;
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
-  renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderContracts(); renderMail(); renderNet(); renderLog();
+  renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   tutorTick();
 }
 

@@ -5,6 +5,35 @@
 
 const D2R = Math.PI/180;
 
+/* Валюта: экономика считается в евро, показываем в выбранной валюте.
+   Курс условный и одинаковый для всех цен — это пересчёт витрины, а не новая экономика. */
+const CURS = {
+  eur: {id:'eur', sym:'€',  rate:1,   label:'евро',  note:'как в игре изначально'},
+  rub: {id:'rub', sym:'₽',  rate:100, label:'рубли', note:'курс 1 € = 100 ₽, цены пересчитаны'}
+};
+let curId = 'eur';
+try { const v = localStorage.getItem('vgCur'); if (CURS[v]) curId = v; } catch(_){}
+const cur = ()=> CURS[curId] || CURS.eur;
+const moneySym = ()=> cur().sym;
+const money = v => (v>=0?'':'−') + Math.abs(Math.round(v*cur().rate)).toLocaleString('ru-RU') + ' ' + cur().sym;
+const money2 = v => (v>=0?'':'−') + Math.abs(v*cur().rate).toFixed(2).replace('.',',') + ' ' + cur().sym;
+/* «умная» сумма: мелкие значения — с копейками, чтобы расход 0.35 € не превращался в «−0 €» */
+/* число без символа валюты — для узких таблиц, где символ стоит в заголовке */
+const moneyNum = v => {
+  const x = Math.abs(v*cur().rate);
+  if (x < 0.005) return '0';
+  const sign = v < 0 ? '−' : '';
+  if (x < 100) return sign + x.toFixed(2).replace('.',',');
+  return sign + Math.round(x).toLocaleString('ru-RU');
+};
+const moneyS = v => {
+  const x = Math.abs(v*cur().rate);
+  if (x < 0.005) return '0 ' + cur().sym;
+  const sign = v < 0 ? '−' : '';
+  if (x < 100) return sign + x.toFixed(2).replace('.',',') + ' ' + cur().sym;
+  return sign + Math.round(x).toLocaleString('ru-RU') + ' ' + cur().sym;
+};
+
 const CFG = {
   lat: 52.0,
   floorW: 4.0, floorD: 3.0,          // размер отрендеренной площадки, м
@@ -157,12 +186,12 @@ function setGrowSys(w, id){
   if (w.sys === id) return {ok:false, msg:'Уже используется'};
   if (!sysAllowed(w, id)) return {ok:false, msg:'Откроется в главе '+(S.ch+1)+' · '+CHAPTERS[S.ch].name};
   const cost = Math.round((S.cost||0)*PROFILES[w.profile].upgF);
-  if (w.money < cost) return {ok:false, msg:'Переход стоит '+Math.round(cost)+' € — не хватает'};
+  if (w.money < cost) return {ok:false, msg:'Переход стоит '+money(cost)+' — не хватает'};
   w.money -= cost; if (cost) w.cost.upgrade += cost;
   w.sys = id;
   // смена системы — это новая корневая зона: гнили и вредители начинают с чистого листа
   w.disease = Math.max(0, w.disease-0.35);
-  w.log.unshift({t:'Д'+w.day, m:'Система выращивания: '+S.name+(cost?' (−'+Math.round(cost)+' €)':''), k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:'Система выращивания: '+S.name+(cost?' (−'+money(cost)+')':''), k:'hl'});
   return {ok:true, msg:S.name+' — готово'};
 }
 
@@ -197,19 +226,19 @@ function netTotal(w){
 function netBuy(w, crop){
   if (!w.net) w.net = {houses:[], cum:{gross:0, opex:0}, netDay:0, won:false};
   const cost = netCost(w);
-  if (w.money < cost) return {ok:false, msg:`Филиал стоит ${Math.round(cost)} € — не хватает`};
+  if (w.money < cost) return {ok:false, msg:`Филиал стоит ${money(Math.round(cost))} — не хватает`};
   const cr = crop || w.crop;
   if (!NET.kgM2Day[cr]) return {ok:false, msg:'Для этой культуры нет контракта на объём'};
   w.money -= cost; w.cost.upgrade += cost;
   w.net.houses.push({crop:cr, day:w.day, price:cost});
   w.log.unshift({t:'Д'+w.day, m:`Открыт филиал №${w.net.houses.length}: ${CROPS[cr].name}, 400 м²`, k:'hl'});
-  return {ok:true, msg:`Филиал №${w.net.houses.length} открыт · −${Math.round(cost)} €`};
+  return {ok:true, msg:`Филиал №${w.net.houses.length} открыт · −${money(Math.round(cost))}`};
 }
 function netSell(w, i){
   const h = w.net.houses[i]; if (!h) return false;
   const back = Math.round(h.price*NET.refund);
   w.money += back; w.net.houses.splice(i,1);
-  w.log.unshift({t:'Д'+w.day, m:`Филиал продан за ${back} €`, k:''});
+  w.log.unshift({t:'Д'+w.day, m:`Филиал продан за ${money(back)}`, k:''});
   return back;
 }
 /* ежедневное начисление по филиалам — вызывается в newDay */
@@ -230,7 +259,7 @@ function netTick(w){
 const GEAR = {
   thermo:     {ch:0, why:'Датчик врёт — вы об этом не знаете. Второй прибор рядом покажет расхождение, и будет видно, когда пора калибровать.'},
   sticky:     {ch:0, why:'Клещ заводится в сухом тёплом воздухе и сначала незаметен. Ловушки ловят его до того, как он съест листья.'},
-  ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку и работает по расписанию досветки.'},
+  ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку; включается вручную в «Параметрах», будильник напомнит.'},
   water:      {ch:0, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
   fert20:     {ch:0, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
   whSection:  {ch:0, why:'Склад не резиновый: нет места — урожай останется на грядке. Каждая секция тянет содержание, поэтому расширяйте под объём.'},
@@ -287,32 +316,32 @@ const MAILBOX = [
         'Деньги есть только эти сто евро. Хочешь — займу триста до конца сезона под восемь процентов, '+
         'но тогда придётся продавать быстрее, чем хочется.',
    opts:[
-     {label:'Взять 300 € в долг', desc:'+300 € сейчас, долг с процентами', apply:w=>{ w.money+=300; w.loan+=300;
-        w.log.unshift({t:'Д'+w.day,m:'Тётя Роза одолжила 300 €',k:'hl'}); }},
-     {label:'Обойтись своими', desc:'без долга: только 100 € и смекалка', apply:w=>{
+     {label:'Взять '+money(300)+' в долг', desc:'+'+money(300)+' сейчас, долг с процентами', apply:w=>{ w.money+=300; w.loan+=300;
+        w.log.unshift({t:'Д'+w.day,m:'Тётя Роза одолжила '+money(300),k:'hl'}); }},
+     {label:'Обойтись своими', desc:'без долга: только '+money(100)+' и смекалка', apply:w=>{
         w.log.unshift({t:'Д'+w.day,m:'Решено: без долгов',k:''}); }}
    ]},
   {id:'goal1', subj:'«Пора выбираться с балкона»',
    when:w=>w.camp && w.camp.ch===0 && chapterSales(w)>=CHAPTERS[0].goal && !w.camp.seen.includes('goal1'),
-   body:'Ты продал на '+CHAPTERS[0].goal+' € — на балконе это предел: света мало, места нет. '+
-        'Есть комната за 380 € в месяц с окном на юг. Переезжаем?',
+   body:'Ты продал на '+money(CHAPTERS[0].goal)+' — на балконе это предел: света мало, места нет. '+
+        'Есть комната за '+money(380)+' в месяц с окном на юг. Переезжаем?',
    opts:[
-     {label:`Переехать в комнату (−${CHAPTERS[1].moveCost} €)`, desc:'20 м², стеллажи и вытяжка', apply:w=>moveChapter(w,1)},
+     {label:`Переехать в комнату (−${money(CHAPTERS[1].moveCost)})`, desc:'20 м², стеллажи и вытяжка', apply:w=>moveChapter(w,1)},
      {label:'Ещё пожить на балконе', desc:'подкопить денег и опыта', apply:w=>{ w.camp.wait=(w.camp.wait||0)+1; }}
    ]},
   {id:'goal2', subj:'«Время теплицы»',
    when:w=>w.camp && w.camp.ch===1 && chapterSales(w)>=CHAPTERS[1].goal && !w.camp.seen.includes('goal2'),
-   body:'Полторы тысячи продаж — это уже не хобби. Знакомый сдаёт теплицу на 400 м² за 1 000 € первого взноса. '+
+   body:'Полторы тысячи продаж — это уже не хобби. Знакомый сдаёт теплицу на 400 м² за '+money(1000)+' первого взноса. '+
         'Там настоящий климат-контроль и опт, но и расходы другие.',
    opts:[
-     {label:`Взять теплицу (−${CHAPTERS[2].moveCost} €)`, desc:'400 м² и полный климат-контроль', apply:w=>moveChapter(w,2)},
-     {label:'Взять теплицу с кредитом 3 000 €', desc:'−'+CHAPTERS[2].moveCost+' € за въезд, долг 3 000 € под 8 %: хватит на топливо и удобрения',
+     {label:`Взять теплицу (−${money(CHAPTERS[2].moveCost)})`, desc:'400 м² и полный климат-контроль', apply:w=>moveChapter(w,2)},
+     {label:'Взять теплицу с кредитом '+money(3000), desc:'−'+money(CHAPTERS[2].moveCost)+' за въезд, долг '+money(3000)+' под 8 %: хватит на топливо и удобрения',
       apply:w=>{ w.money += 3000; w.loan += 3000; moveChapter(w,2); }},
      {label:'Остаться в комнате', desc:'стабильно, но потолок близко', apply:w=>{ w.camp.wait=(w.camp.wait||0)+1; }}
    ]},
   {id:'gear0', subj:'«Что купить на первые деньги» — тётя Роза',
    when:w=>w.camp && w.camp.ch===0 && w.day>=3 && !w.camp.seen.includes('gear0'),
-   body:'Слушай главное: на балконе не покупают «всё сразу». Сначала — термометр-гигрометр за 28 €: он нужен не для красоты, '+
+   body:'Слушай главное: на балконе не покупают «всё сразу». Сначала — термометр-гигрометр за '+money(28)+': он нужен не для красоты, '+
         'а чтобы знать, врёт ли датчик (он врёт всегда, вопрос только когда). Потом клейкие ловушки: клещ любит сухой тёплый воздух '+
         'и появляется тихо. Лампа-лента — если день пасмурный, растение просто не наберёт сахар. '+
         'Остальное в магазине закрыто до следующей главы: на 4 м² оно не окупится.',
@@ -340,7 +369,7 @@ const MAILBOX = [
         'а тёплый раствор без кислорода даёт корневую гниль. Грунт прощает, вода — нет. Переключиться можно в «Параметрах», '+
         'раздел «Система выращивания».',
    opts:[
-     {label:'Перейти на DWC (180 €)', desc:'глубинная культура: вода ×0.55, рост +8%, риск гнили ×1.5',
+     {label:'Перейти на DWC ('+money(180)+')', desc:'глубинная культура: вода ×0.55, рост +8%, риск гнили ×1.5',
       apply:w=>{ const r = setGrowSys(w,'dwc');
         if (!r.ok) w.log.unshift({t:'Д'+w.day, m:'Гидропоника: '+r.msg+' — вернуться можно в «Параметрах»', k:''}); }},
      {label:'Остаться на грунте', desc:'надёжнее, зато медленнее', apply:w=>{}}
@@ -349,7 +378,7 @@ const MAILBOX = [
   {id:'goal3', subj:'«Пора строить сеть» — тётя Роза',
    when:w=>w.camp && w.camp.ch===2 && chapterSales(w)>=3000 && !w.camp.seen.includes('goal3'),
    body:'Одна теплица — это работа. Пять — это бизнес. Филиал — 400 м² под наёмным агрономом: он не сделает лучше вас, '+
-        'но делает сам. Управляющий, энергия и расходники — за ваш счёт, около 48 € в сутки; с томата выходит около 55–60 € чистыми в день. '+
+        'но делает сам. Управляющий, энергия и расходники — за ваш счёт, около '+money(48)+' в сутки; с томата выходит около '+money(55)+'–'+money(60)+' чистыми в день. '+
         'Хотите — начинайте сеть прямо сейчас, хотите — докопите на нормальный первый филиал.',
    opts:[
      {label:'Начать сеть', desc:'открывается раздел «Сеть» и цель главы',
@@ -424,7 +453,19 @@ function outsideClimate(w, doy, hour){
 }
 
 /* ---------------- Геометрия органов (порт turtle-подхода) ---------------- */
-function nodeY(C, i){ return 0.06 + i*C.internode*0.8; }
+/* Ёмкости: высота горшка/бака по системе и высота, на которой ёмкость стоит.
+   В теплице растения на желобах (0.16 м), в комнате и на балконе — на полу.
+   На эту высоту поднимается только КАРТИНКА (render.js): модель света и роста
+   считает куст от пола, как раньше, — иначе поедет баланс систем.        */
+const POT_H = { soil:0.17, coco:0.12, dwc:0.21, nft:0.18, aero:0.19 };
+function vesselStandY(w){
+  return ((w && w.profile) === 'room' || (w && w.profile) === 'balcony') ? 0 : 0.16;
+}
+function plantBaseY(w){
+  const sys = (w && w.sys) || 'soil';
+  return vesselStandY(w) + (POT_H[sys] || POT_H.soil);
+}
+function nodeY(C, i, base){ return (base||0) + 0.06 + i*C.internode*0.8; }
 
 function leafGeom(lf, C, px, py, pz){
   const tilt = lf.tilt, az = lf.az;
@@ -467,8 +508,10 @@ function computeLight(w, dtH){
   const out = outsideClimate(w, w.doy, w.hour + (dtH||0)*0.5);
   w.out = out;
   const sun = sunVector(out.el, out.az);
-  const lampOn = w.ctrl.lampOn && w.has.led && w.equip.lamp.ok && w.power;
-  const stripOn = w.ctrl.lampOn && w.has.ledStrip && w.power;
+  // лампа слушается игрока; отказ оборудования и отсутствие питания гасят её
+  const wantLamp = !!w.ctrl.lampOn && !!w.power;
+  const lampOn = wantLamp && ((w.has.led && w.equip.lamp.ok) || w.has.lampBase);
+  const stripOn = wantLamp && w.has.ledStrip;
   const tauGH = CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade);
   const shadeF = (w.has.shade && w.ctrl.shadeOn) ? 0.65 : 1;
   const directIn = out.ppfd*tauGH*shadeF;
@@ -538,7 +581,7 @@ function computeLight(w, dtH){
     outside: out.ppfd, directIn, diffuseIn, sun,
     meanLeaf: cnt? sum/cnt : 0,
     canopyLAI: totalLAI(w),
-    lampOn, cloud: out.cloud
+    lampOn, stripOn, cloud: out.cloud
   };
   return w.light;
 }
@@ -674,7 +717,7 @@ function climateSub(w, dtH, C){
   // --- приход тепла ---
   const shadeF = (w.has.shade && c.shadeOn) ? 0.55 : 1;
   const solarGain = out.ppfd*0.48*w.area*CFG.glassTau*(PROFILES[w.profile].tauF||1)*(1-CFG.frameShade)*0.85*shadeF;
-  const lampHeat = (w.light.lampOn ? E.lampKW*1000*0.9 : 0);
+  const lampHeat = ((w.light.lampOn ? E.lampKW : 0) + (w.light.stripOn ? 0.1 : 0))*1000*0.9;
   const heaterOK = w.equip.heater.ok && (w.power || w.has.ups);
   let heatIn = 0;
   if (heaterOK && w.temp < c.heatSet){
@@ -694,7 +737,7 @@ function climateSub(w, dtH, C){
   w.rhMaxDay = Math.max(w.rhMaxDay===undefined?w.rh:w.rhMaxDay, w.rh);
 
   // --- CO₂ ---
-  const co2OK = w.equip.co2.ok && w.power;
+  const co2OK = w.has.co2 && w.equip.co2.ok && w.power;
   const co2Stuck = w.equip.co2.stuck;
   const photoCO2 = (w.assimRate||0)*w.plantScale*44/30/24;      // г/ч
   let injG = 0;
@@ -748,11 +791,13 @@ function climateSub(w, dtH, C){
 
   // --- деньги ---
   const eurHeat = w.heatUse*dtH*CFG.energyPrice;
-  const eurLamp = (w.light.lampOn? E.lampKW:0)*dtH*CFG.energyPrice;
-  const eurCO2 = injG*dtH/1000*CFG.co2Price;
+  const eurLamp = ((w.light.lampOn? E.lampKW:0) + (w.light.stripOn? 0.1:0))*dtH*CFG.energyPrice;
+  const co2Kg = injG*dtH/1000;
+  const eurCO2 = co2Kg*CFG.co2Price;
+  w.useCo2Kg = (w.useCo2Kg||0) + co2Kg;
   w.cost.energy += eurHeat; w.cost.lamp += eurLamp; w.cost.co2 += eurCO2;
   w.money -= (eurHeat+eurLamp+eurCO2);
-  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0))*dtH;
+  w.energyKWh += (w.heatUse + (w.light.lampOn? E.lampKW:0) + (w.light.stripOn? 0.1:0))*dtH;
   return w;
 }
 
@@ -931,18 +976,54 @@ const EQUIP_DEFS = {
   sensor: {name:'Датчики', repair:120, failP:0.0030}
 };
 
+/* Есть ли это оборудование в мире: клапан CO₂ не может сломаться там, где его нет. */
+/* есть ли вообще чем светить: лампа-лента (в стартовом наборе), LED-лента, ЛЕД */
+function hasLight(w){
+  return !!(w && w.has && (w.has.led || w.has.ledStrip || w.has.lampBase));
+}
+function lightName(w){
+  if (!w) return 'нет';
+  if (w.has.led) return 'LED-досветка';
+  if (w.has.ledStrip) return 'LED-лента';
+  if (w.has.lampBase) return 'лампа-лента';
+  return 'нет';
+}
+/* сколько дней проживут баки при вчерашнем расходе (null — данных ещё нет) */
+function tankDays(w, what){
+  const last = (w.history && w.history.length) ? w.history[w.history.length-1] : null;
+  if (!last) return null;
+  if (what==='water'){ const r = last.waterM3||0; return r>0.001 ? w.stock.waterM3/r : null; }
+  if (what==='fert'){  const r = last.fertKg||0;  return r>0.001 ? w.stock.fertKg/r : null; }
+  if (what==='co2'){   const r = last.co2Kg||0;   return r>0.001 ? w.stock.co2Kg/r : null; }
+  return null;
+}
+function fmtHour(h){ h=Math.round(h); return (h>=24?'24:00':String(((h%24)+24)%24).padStart(2,'0')+':00'); }
+/* что сейчас говорит будильник досветки — одной строкой для подсказки */
+function alarmState(w){
+  if (!w || !w.ctrl || !w.ctrl.alarmOn || !hasLight(w)) return 'Будильник выключен.';
+  const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
+  const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
+  if (inside) return w.ctrl.lampEnabled ? 'Окно досветки: лампа включена ✓' : 'Окно досветки: пора включить лампу';
+  return w.ctrl.lampEnabled ? 'Вне окна: лампу пора выключить' : 'Вне окна досветки: всё выключено ✓';
+}
+function equipInstalled(w, k){
+  if (k === 'co2') return !!w.has.co2;
+  if (k === 'dosing') return !!w.has.dosing;
+  return true;
+}
 function riskTick(w, dtH){
   const dtD = dtH/24;
   // износ и отказы
   for (const k in w.equip){
     const eq = w.equip[k], def = EQUIP_DEFS[k];
     if (!eq || !def) continue;
+    if (!equipInstalled(w, k)) continue;
     if (!eq.ok){ eq.down += dtH; continue; }
     const p = def.failP*dtD*(w.diffFail||1)*(w.has.service?0.35:1)*(w.upg.reliability?0.6:1);
     if (rnd(w) < p){
       eq.ok = false; eq.down = 0; eq.stuck = (k==='co2') && rnd(w)<0.5;
       w.events.push({kind:'breakdown', equip:k, days:0});
-      w.log.unshift({t:'Д'+w.day, m:`Отказ: ${def.name}. Ремонт ${def.repair} € (Магазин → Сервис)`, k:'bad'});
+      w.log.unshift({t:'Д'+w.day, m:`Отказ: ${def.name}. Ремонт ${money(def.repair)} (Магазин → Сервис)`, k:'bad'});
       w.incidents = (w.incidents||0)+1;
     }
   }
@@ -1071,7 +1152,7 @@ function whRot(w){
   w.wh.lots = keep;
   if (lost > 0.5){
     w.wh.wasteKg += lost; w.wh.wasteEur += eur;
-    w.log.unshift({t:'Д'+w.day, m:`Порча на складе: −${Math.round(lost)} кг (${Math.round(eur)} €)`, k:'warn'});
+    w.log.unshift({t:'Д'+w.day, m:`Порча на складе: −${Math.round(lost)} кг (${money(Math.round(eur))})`, k:'warn'});
   }
   return {lost, eur};
 }
@@ -1094,7 +1175,7 @@ function sellHarvest(w, crop, kgWant){
   if (kg <= 0.05) return {kg:0, eur:0, ok:false};
   w.money += eur; w.revenue += eur; w.soldKg = (w.soldKg||0) + kg; w.soldEur = (w.soldEur||0) + eur;
   w.cost.labor += CFG.laborHour*0.03; w.money -= CFG.laborHour*0.03;
-  w.log.unshift({t:'Д'+w.day, m:`Продано ${Math.round(kg)} кг по ${(priceToday(w,crop)).toFixed(2)} €/кг: +${Math.round(eur)} €`, k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:`Продано ${Math.round(kg)} кг по ${money2((priceToday(w,crop)).toFixed(2))}/кг: +${money(Math.round(eur))}`, k:'hl'});
   return {kg, eur, ok:true};
 }
 
@@ -1119,9 +1200,9 @@ function deliverContract(w, id){
   let bonus = 0;
   if (ct.leftKg <= 0.5){
     ct.done = true; bonus = ct.bonus; w.money += bonus; w.revenue += bonus;
-    w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» выполнен: +${Math.round(bonus)} €`, k:'hl'});
+    w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» выполнен: +${money(Math.round(bonus))}`, k:'hl'});
   } else {
-    w.log.unshift({t:'Д'+w.day, m:`Поставка по контракту: ${Math.round(take)} кг (+${Math.round(eur)} €)`, k:''});
+    w.log.unshift({t:'Д'+w.day, m:`Поставка по контракту: ${Math.round(take)} кг (+${money(Math.round(eur))})`, k:''});
   }
   return {ok:true, kg:take, eur, bonus};
 }
@@ -1132,7 +1213,7 @@ function addSection(w){
   const cost = whSectionCost(w);
   if (w.money < cost) return {ok:false, msg:'Недостаточно средств'};
   w.money -= cost; w.cost.upgrade += cost; w.wh.sections++;
-  w.log.unshift({t:'Д'+w.day, m:`Склад расширен: ${w.wh.sections} секций (−${cost} €)`, k:'hl'});
+  w.log.unshift({t:'Д'+w.day, m:`Склад расширен: ${w.wh.sections} секций (−${money(cost)})`, k:'hl'});
   return {ok:true, cost};
 }
 function whSectionCost(w){
@@ -1170,6 +1251,7 @@ function moveChapter(w, idx){
                 agro:{fertKg:60,co2Kg:300,waterM3:150,seeds:900} }[P.id] || {fertKg:10,co2Kg:0,waterM3:15,seeds:80};
   for (const k in kit) w.stock[k] = Math.max(w.stock[k]||0, kit[k]);
   if (P.id === 'farm'){ w.has.screen = true; w.ctrl.screenOn = true; w.upg.reliability = true; }
+  if (P.id === 'farm' || P.id === 'hobby' || P.id === 'agro'){ w.has.co2 = true; }   // клапан CO₂ вместе с теплицей
   // новое помещение чистое: вредители и гнили с собой не переезжают
   w.pest = { active:false, level:0 };
   w.disease = 0; w.stress = 0; w.ctrl.lampEnabled = false;
@@ -1230,7 +1312,7 @@ function offerContracts(w){
   return [
     {id:'wholesale', crop:w.crop, label:'Сетевой контракт', kg: baseKg*3,
      priceMult:1.25, bonus: Math.round(baseKg*3*C.price*0.12), deadline: w.day+30,
-     desc:`Поставить ${baseKg*3} кг к ${fmtDate(w.doy+30)}; штраф за недопоставку 400 €`},
+     desc:`Поставить ${baseKg*3} кг к ${fmtDate(w.doy+30)}; штраф за недопоставку ${money(400)}`},
     {id:'premium', crop:w.crop, label:'Премиум-партия', kg: baseKg*2,
      priceMult:1.6, bonus: Math.round(baseKg*2*C.price*0.35), deadline: w.day+20,
      desc:`${baseKg*2} кг к ${fmtDate(w.doy+20)} с бонусом за качество`}
@@ -1249,16 +1331,16 @@ function checkContracts(w){
     if (w.day > ct.deadline){
       w.money -= ct.penalty; w.cost.penalty += ct.penalty;
       ct.done = true; ct.failed = true;
-      w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» сорван: штраф −${ct.penalty} €`, k:'bad'});
+      w.log.unshift({t:'Д'+w.day, m:`Контракт «${ct.label}» сорван: штраф −${money(ct.penalty)}`, k:'bad'});
     }
   }
 }
 
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
-   check:w=>w.ctrl.co2Set>=800},
-  {id:'m2', text:'«Параметры» → включите досветку (нужно купить LED в магазине)', reward:90,
-   check:w=>w.ctrl.lampEnabled && w.has.led},
+   need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
+  {id:'m2', text:'«Параметры» → включите досветку (лампа покупается в магазине)', reward:90,
+   need:w=>!!(w.has.led||w.has.ledStrip||w.has.lampBase), check:w=>!w.ctrl.lampEnabled?false:(!!(w.has.led||w.has.ledStrip))},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
    check:w=>w.harvested>=1},
   {id:'m3b', text:'Панель «Склад» → продайте партию урожая', reward:130,
@@ -1273,19 +1355,24 @@ const MISSIONS = [
    check:w=>w.contracts.length>=1},
   {id:'m8', text:'Откалибруйте датчики в магазине (Сервис)', reward:180,
    check:w=>w.lastCalib>1},
-  {id:'m9', text:'Доведите прибыль за день выше 150 €', reward:300,
+  {id:'m9', text:'Доведите прибыль за день выше '+money(150), reward:300,
    check:w=>w.profitDay>150},
   {id:'m10', text:'Завершите сезон в плюсе', reward:0, check:w=>false}
 ];
 function missionsTick(w){
+  // задание, к которому ещё нет оборудования (например CO₂ на балконе), просто
+  // пропускаем — иначе игрок застревает на действии, которого не может сделать
+  let guard = 0;
+  while (MISSIONS[w.missionIdx] && MISSIONS[w.missionIdx].need && !MISSIONS[w.missionIdx].need(w) && guard++ < 20)
+    w.missionIdx++;
   const m = MISSIONS[w.missionIdx];
   if (!m) return;
   let ok = false;
   try { ok = m.check(w); } catch(e){ ok = false; }
   if (ok){
     w.missionIdx++;
-    if (m.reward>0){ w.money += m.reward; w.revenue += m.reward; }
-    w.log.unshift({t:'Д'+w.day, m:`Задание выполнено: ${m.text} (+${m.reward} €)`, k:'hl'});
+    if (m.reward>0){ w.money += m.reward; w.revenue += m.reward; w.rewardSum = (w.rewardSum||0) + m.reward; }
+    w.log.unshift({t:'Д'+w.day, m:`Задание выполнено: ${m.text} (+${money(m.reward)})`, k:'hl'});
     w.missionsDone++;
   }
 }
@@ -1312,9 +1399,15 @@ function makeWorld(opts){
     ctrl: {
       heatSet: 18, ventSet: 24, co2Set: 600,
       lampOn: false, lampEnabled: false, screenOn: false, shadeOn: false,
+      alarmOn: false, alarmFrom: 6, alarmTo: 20,
       ecSet: 2.4, phSet: 5.8, recipe: 'std', irrig: true
     },
-    has: { led:false, lampBase:true, screen:false, shade:false, co2:true, dosing:false, secondSensor:false,
+    // клaпан CO₂ есть только там, где он физически стоит: на балконе и в комнате
+    // его нет (в кампании он появляется вместе с теплицей), иначе игрок получал
+    // «отказ клапана CO₂» на 4 м², где никакого клапана не покупали
+    has: { led:false, lampBase:true, screen:false, shade:false,
+           co2: opts.campaign ? false : (P.id!=='balcony' && P.id!=='room'),
+           dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
     equip: {
@@ -1335,10 +1428,10 @@ function makeWorld(opts){
     mail: [],
     cost: {energy:0, lamp:0, co2:0, water:0, fert:0, labor:0, seed:0, repair:0, treat:0,
            maint:0, fixed:0, penalty:0, upgrade:0, loan:0, storage:0},
-    revenue: 0, revenueYesterday: 0, costPrev: 0, harvested:0, harvestedKg:0, dayHarvestKg:0,
-    assimDay:0, bio:0, energyKWh:0, profitDay:0,
+    revenue: 0, rewardSum: 0, revenueYesterday: 0, costPrev: 0, harvested:0, harvestedKg:0, dayHarvestKg:0,
+    assimDay:0, bio:0, energyKWh:0, profitDay:0, useCo2Kg:0,
     out: {temp:12, ppfd:0, rh:78, el:0, az:90, sun:{x:0,y:0.2,z:1}},
-    light: {meanLeaf:0, canopyLAI:0, lampOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
+    light: {meanLeaf:0, canopyLAI:0, lampOn:false, stripOn:false, outside:0, directIn:0, diffuseIn:0, sun:{x:0,y:0.2,z:1}},
     log: [], history: [], cloudToday: 0.25,
     useWaterM3: 0, useFertKg: 0
   };
@@ -1371,8 +1464,9 @@ function stepWorld(w, dtH){
   w.hour += dtH;
   let guard = 0;
   while (w.hour >= 24 && guard++ < 4){ w.hour -= 24; w.day++; w.doy++; newDay(w); }
-  // расписание досветки
-  w.ctrl.lampOn = !!w.ctrl.lampEnabled && (w.hour > 4.5 && w.hour < 21);
+  // досветка — ВРУЧНУЮ: лампа горит ровно тогда, когда её включил игрок.
+  // Автоматики нет; «будильник» (ctrl.alarm*) только напоминает алертами.
+  w.ctrl.lampOn = !!w.ctrl.lampEnabled && !!w.power && (!!w.has.led || !!w.has.ledStrip || !!w.has.lampBase);
   computeLight(w, dtH);
   climateTick(w, dtH, C);
   fertTick(w, dtH);
@@ -1398,14 +1492,24 @@ function newDay(w){
   w.revenueYesterday = w.revenue;
   const profit = rev - cost;
   w.profitDay = profit;
+  // сверка: насколько «бухгалтерская» прибыль совпадает с реальным движением денег
+  const moneyDelta = w.money - (w._moneyAtDay===undefined ? w.money : w._moneyAtDay);
+  w._moneyAtDay = w.money;
+  // разбивка расходов ЗА СУТКИ: разница накопленных статей с прошлой полуночи
+  const cb = {};
+  for (const k in w.cost) cb[k] = w.cost[k] - ((w._costAtDay && w._costAtDay[k]) || 0);
+  w._costAtDay = Object.assign({}, w.cost);
+  const rewardDay = (w.rewardSum||0) - (w._rewardAtDay||0);
+  w._rewardAtDay = w.rewardSum||0;
   w.history.push({
     day:w.day-1, doy:w.doy-1, temp:w.temp, co2:w.co2, rh:w.rh, assim:w.assimDay,
     tempMin:w.tempMin, tempMax:w.tempMax, rhMax:w.rhMaxDay,
-    rev, cost, profit, lai:w.light.canopyLAI, disease:w.disease,
+    rev, cost, profit, moneyDelta, lai:w.light.canopyLAI, disease:w.disease,
     harvestedKg: w.dayHarvestKg||0, energyKWh: w.energyKWh||0,
-    waterM3: w.useWaterM3||0, fertKg: w.useFertKg||0
+    waterM3: w.useWaterM3||0, fertKg: w.useFertKg||0,
+    co2Kg: w.useCo2Kg||0, costBreak: cb, rewardDay, lampOn: !!w.ctrl.lampEnabled
   });
-  w.assimDay = 0; w.dayHarvestKg = 0; w.energyKWh = 0; w.useWaterM3 = 0; w.useFertKg = 0;
+  w.assimDay = 0; w.dayHarvestKg = 0; w.energyKWh = 0; w.useWaterM3 = 0; w.useFertKg = 0; w.useCo2Kg = 0;
   w.tempMin = undefined; w.tempMax = undefined; w.rhMaxDay = undefined;
   for (const p of w.plants){
     p.carbonStatus = 0.65*p.carbonStatus + 0.35*(p.assimToday||0);
@@ -1448,7 +1552,7 @@ function newDay(w){
     if (r.n) w.log.unshift({t:'Д'+w.day, m:`Работник собрал ${r.n} шт (+${Math.round(r.kg)} кг)`, k:'hl'});
     pruneLower(w, 1);
   }
-  w.log.unshift({t:'Д'+w.day, m:`${fmtDate(w.doy)} · прибыль за сутки ${profit>=0?'+':''}${Math.round(profit)} €`, k:profit>=0?'hl':''});
+  w.log.unshift({t:'Д'+w.day, m:`${fmtDate(w.doy)} · прибыль за сутки ${profit>=0?'+':''}${money(Math.round(profit))}`, k:profit>=0?'hl':''});
   if (w.log.length>60) w.log.length = 60;
 }
 
@@ -1474,7 +1578,7 @@ const SHOP_ITEMS = () => ([
      desc:'+6% к усвоению питания (дешевле автодозирования)',
      buy:w=>{ w.has.handDose = true; }},
     {id:'ledStrip', noScale:true, name:'LED-лента 2×50 Вт на грядку', base:220,
-     desc:'+60 µmol/м²·с досветки, работает по расписанию досветки',
+     desc:'+60 µmol/м²·с досветки, включается вручную (будильник напомнит)',
      buy:w=>{ w.has.ledStrip = true; }},
     {id:'humid', noScale:true, name:'Увлажнитель-туман 5 л/ч', base:260,
      desc:'поднимает влажность в жару (расход воды)',
@@ -1585,12 +1689,12 @@ function buyItem(w, id){
       if (w.money < total) return {ok:false, msg:'Недостаточно средств'};
       if (w.has.insurance) total = Math.round(total*0.4);
       w.money -= total; w.cost.repair += total;
-      w.log.unshift({t:'Д'+w.day, m:`Ремонт выполнен: −${total} €`, k:'hl'});
-      return {ok:true, msg:`Ремонт: −${total} €`};
+      w.log.unshift({t:'Д'+w.day, m:`Ремонт выполнен: −${money(total)}`, k:'hl'});
+      return {ok:true, msg:`Ремонт: −${money(total)}`};
     }
     if (it.id === 'whSection'){
       const r = addSection(w);
-      return r.ok ? {ok:true, msg:`Склад: ${w.wh.sections} секций (−${r.cost} €)`} : {ok:false, msg:r.msg};
+      return r.ok ? {ok:true, msg:`Склад: ${w.wh.sections} секций (−${money(r.cost)})`} : {ok:false, msg:r.msg};
     }
     const cost = it.price ? it.price(w) : upgradeCost(w, it.base, it.noScale);
     if (w.money < cost) return {ok:false, msg:'Недостаточно средств'};
@@ -1605,7 +1709,7 @@ function buyItem(w, id){
     it.buy && it.buy(w);
     if (!it.dynamic) w.cost.upgrade += cost;
     else if (it.bucket) w.cost[it.bucket] += cost;
-    w.log.unshift({t:'Д'+w.day, m:`Покупка: ${it.name} (−${cost} €)`, k:''});
+    w.log.unshift({t:'Д'+w.day, m:`Покупка: ${it.name} (−${money(cost)})`, k:''});
     return {ok:true, msg:it.name+' куплено'};
   }
   return {ok:false, msg:'Не найдено'};

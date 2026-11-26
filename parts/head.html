@@ -361,6 +361,39 @@
   .camNav button:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
   body{user-select:none;-webkit-user-select:none}
   input,select,textarea{user-select:text;-webkit-user-select:text}
+
+/* ---- онбординг ---- */
+.obTop{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.obStep{font-size:12px;color:var(--dim);white-space:nowrap}
+.obDots{display:flex;gap:5px;margin:8px 0 10px}
+.obDots i{width:100%;max-width:34px;height:4px;border-radius:2px;background:var(--line2,#333);cursor:pointer;display:block}
+.obDots i.on{background:var(--good,#7ec86a)}
+.obSlide{display:none}
+.obSlide.on{display:block}
+.obSlide h3{margin:2px 0 6px}
+.obSlider p,.obSlide p{margin:0 0 8px;line-height:1.45}
+.obList{margin:0 0 6px;padding-left:18px;line-height:1.5}
+.obList li{margin-bottom:6px}
+.obNav{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.obNav .btn{flex:1 1 auto}
+
+/* ---- экономика: две колонки «за сутки / за сезон» ---- */
+.finHead,.finRow{display:grid;grid-template-columns:minmax(0,1fr) 54px 58px;gap:2px;align-items:baseline;font-size:10.5px;line-height:1.3;padding:1px 0;white-space:nowrap}
+.finHead{color:var(--dim);text-transform:uppercase;font-size:9px;letter-spacing:.03em;border-bottom:1px solid var(--line2);margin-bottom:3px}
+.finRow span:first-child{overflow:hidden;text-overflow:ellipsis}
+.finHead span:not(:first-child),.finRow span:not(:first-child),.finRow b{text-align:right}
+.finRow span:first-child{color:var(--txt);opacity:.92}
+.finRow b{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.finRow b.pos{color:#a8e05a}.finRow b.neg{color:#ff7b72}
+.finRow.total{border-top:1px solid var(--line2);margin-top:3px;padding-top:3px;font-weight:700}
+.finRow .dim{color:var(--dim)}
+
+/* ---- список возможностей ---- */
+.featGrid{display:grid;grid-template-columns:1fr;gap:2px}
+.feat{display:flex;gap:4px;align-items:baseline;font-size:11px;color:var(--dim);line-height:1.25}
+.feat i{font-style:normal;width:9px;display:inline-block;text-align:center}
+.feat.on{color:var(--txt)}
+.feat.on i{color:#a8e05a}
 </style>
 </head>
 <body>
@@ -375,7 +408,7 @@
     <button data-tab="settings">Параметры</button>
   </div>
   <div class="metrics">
-    <div class="metric"><b id="tDay">Д 1</b><span id="tSeason">из '+world.seasonDays</span></div>
+    <div class="metric"><b id="tDay">Д 1</b><span id="tSeason">из 90</span></div>
     <div class="metric"><b id="tDate">1 апр</b><span id="tHour">06:00</span></div>
     <div class="metric money"><b id="tMoney">10 000 €</b><span>баланс</span></div>
     <div class="metric"><b id="tProfit">0 €</b><span>прибыль/сут</span></div>
@@ -388,7 +421,6 @@
       <button class="spd" data-s="32">32×</button>
       <button class="spd on" data-s="64">64×</button>
       <button class="spd" data-s="480">480×</button>
-      <button id="btnPanels" title="Панели данных">Панели</button>
       <button id="btnPred">Прогноз</button>
       <button id="btnSave" title="Сохранить сезон (Ctrl+S)"><svg width="13" height="13" viewBox="0 0 16 16" style="vertical-align:-2px" aria-hidden="true"><path d="M2 2h9l3 3v9H2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5 2v4h6V2M5 10h6v4H5z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
       <button id="btnHelp">?</button>
@@ -465,6 +497,10 @@
         <h2>Склад</h2>
         <div id="stock"></div>
       </div>
+      <div class="panel" data-p="tanks">
+        <h2>Баки и возможности</h2>
+        <div id="tanks"></div>
+      </div>
       <div class="panel" data-p="net" style="display:none">
         <h2>Сеть теплиц</h2>
         <div id="netBox"></div>
@@ -509,7 +545,72 @@
 <!-- ============ МОДАЛЬНЫЕ ОКНА ============ -->
 <div id="help" class="modal">
   <div class="sheet">
-    <h1>Как играть</h1>
+    <div class="obTop"><h1 style="margin:0">Как играть</h1><span class="obStep" id="obStepNo">шаг 1 из 5</span></div>
+    <div class="obDots" id="obDots"></div>
+
+    <div class="obSlide on">
+      <h3>Вы растите урожай и продаёте его</h3>
+      <p>Вы агроном-самоучка: начинаете на балконе 4 м² и доходите до сети теплиц. Деньги — это топливо, но зарабатывают их растения.</p>
+      <ul class="obList">
+        <li>Растение живое: ему нужны свет, тепло, вода, питание и CO₂. Чего-то не хватает — оно просто растёт медленнее, а не «ломается кнопкой».</li>
+        <li>Цель — <b>прибыль</b>: урожай и контракты минус энергия, удобрения, труд, склад и штрафы.</li>
+        <li>Приборы показывают <b>свои показания</b>, а не истину: они «плывут», их калибруют.</li>
+      </ul>
+    </div>
+
+    <div class="obSlide">
+      <h3>Три страницы, ничего больше</h3>
+      <ul class="obList">
+        <li><b>Теплица</b> — сцена и дашборд: что растёт, что мешает, «Почему так», алерты, сбор урожая.</li>
+        <li><b>Магазин</b> — траты: оборудование, удобрения, склад, услуги. У каждой покупки написано «зачем».</li>
+        <li><b>Параметры</b> — климат и питание: отопление, вентиляция, CO₂, досветка, EC/pH. Плюс валюта и словарь.</li>
+      </ul>
+      <p class="hint">На планшете и телефоне справа внизу — док с этими панелями, сцена занимает весь экран.</p>
+    </div>
+
+    <div class="obSlide">
+      <h3>День первый — четыре шага</h3>
+      <ol class="obList">
+        <li><b>Соберите спелое.</b> Клик по плоду на сцене или по строке в алертах. Недозревшее не срывается.</li>
+        <li><b>Возьмите дешёвый старт</b> в магазине: термометр-гигрометр, клейкие ловушки, бочка воды. Это дешевле мешка удобрений и сразу снимает часть рисков.</li>
+        <li><b>Поднимите CO₂</b> до 800 ppm в «Параметрах» — при нормальном свете это до +30 % фотосинтеза.</li>
+        <li><b>Посмотрите «Почему так»</b>: панель назовёт, что сейчас ограничивает рост, — и вы не будете угадывать.</li>
+      </ol>
+    </div>
+
+    <div class="obSlide">
+      <h3>Время и скорость</h3>
+      <ul class="obList">
+        <li><b>1× — один игровой час за реальную минуту</b> (сутки за 24 минуты). Дальше 4×, 16×, 32×, 64×, 480× — до суток за 3 секунды.</li>
+        <li>Кнопка паузы подписана <b>1:1</b>: время не встаёт, просто идёт секунда за секунду, микроклимат продолжает жить.</li>
+        <li><b>«Прогноз»</b> прогоняет 7/14/30 дней на копии мира и не портит ваш сезон.</li>
+      </ul>
+    </div>
+
+    <div class="obSlide">
+      <h3>Деньги и склад — и что дальше</h3>
+      <ul class="obList">
+        <li>Урожай сам не превращается в деньги: он ложится на <b>склад</b>, где у каждой культуры свой срок лёжкости. Дольше лежит — ниже качество и цена.</li>
+        <li>Продажа — по <b>цене дня</b>; склад расширяется секциями и добавляет постоянных расходов.</li>
+        <li>В панели <b>«Экономика»</b> видно: продажи урожая, награды за задания, статьи расходов, ИТОГО и сверку с балансом.</li>
+        <li>Письмо от тёти Розы = новая глава: переезд, кредит или остаться. Выбор меняет стартовые условия.</li>
+      </ul>
+    </div>
+
+    <div class="obNav">
+      <button class="btn" id="obPrev">Назад</button>
+      <button class="btn" id="obGloss">Словарь терминов</button>
+      <button class="btn good" id="obNext">Далее</button>
+      <button class="btn" id="helpClose" style="display:none">Играть</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Подробности — кнопка <b>«Справочник»</b> и карточка «Словарь» в «Параметрах».</p>
+  </div>
+</div>
+
+<div id="manual" class="modal">
+  <div class="sheet" style="max-height:86vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1 style="margin:0">Справочник</h1><button class="btn" id="manualClose" style="padding:2px 8px">✕</button></div>
+
     <p>Три страницы: <b>Теплица</b> — дашборд (наблюдение), <b>Магазин</b> — траты, <b>Параметры</b> — настройки климата и питания.</p>
     <p style="margin-bottom:8px">Скорость считается от реального времени: <b>1× — один игровой час за реальную минуту</b>
     (сутки за 24 минуты). Дальше по кнопкам: 4× — сутки за 6 минут, 16× — за 90 секунд, 32× — за 45 секунд,
@@ -517,7 +618,7 @@
     подстраивается под скорость, поэтому на медленных скоростях климат живёт плавно, а на быстрых не «звенит».</p>
     <h3>С чего начать</h3>
     <p style="margin-bottom:8px">1) Соберите урожай — плоды на сцене и в алертах; 2) в магазине откройте
-    <b>«Бюджетный старт»</b>: термометр-гигрометр (28 €), клейкие ловушки (45 €), бочка воды (90 €) —
+    <b>«Бюджетный старт»</b>: термометр-гигрометр (<span data-eur="28"></span>), клейкие ловушки (<span data-eur="45"></span>), бочка воды (<span data-eur="90"></span>) —
     это дешевле одного мешка удобрений и сразу снимает часть рисков; 3) в «Параметрах» поднимите
     целевой CO₂ до 800 ppm; 4) перед тратами загляните в «Прогноз» — он покажет, окупится ли решение.</p>
     <h3>Склад и деньги</h3>
@@ -533,7 +634,7 @@
     вас. Если закрыть вкладку, растения продолжат расти по реальным часам — при возврате вы увидите, что
     изменилось, но не больше трёх суток за раз.</p>
     <h3>Кампания</h3>
-    <p style="margin-bottom:8px">Режим «со 100 €»: балкон 4 м² → комната 20 м² → теплица 400 м² → <b>сеть филиалов</b>.
+    <p style="margin-bottom:8px">Режим «со <span data-eur="100"></span>»: балкон 4 м² → комната 20 м² → теплица 400 м² → <b>сеть филиалов</b>.
     Цель главы — продажи, а не баланс (кредит не считается заработком). Когда цель взята, в «Почте» появляется
     письмо от тёти Розы: переезд, кредит или остаться. Выбор меняет стартовые условия следующей главы.</p>
     <p style="margin-bottom:8px">В кампании магазин работает как обучение: вещи открываются <b>по главам</b>, и у каждой
@@ -543,7 +644,7 @@
     <h3>Сеть теплиц</h3>
     <p style="margin-bottom:8px">Финальная цель кампании — не одна теплица, а сеть. Филиал — 400 м² под наёмным
     агрономом: он приносит урожай и продаёт его оптом, но берёт за это управляющего, энергию и расходники
-    (около 48 € в сутки). Каждый следующий филиал дороже на 25%. Филиал моделируется <b>укрупнённо</b>
+    (около <span data-eur="48"></span> в сутки). Каждый следующий филиал дороже на 25%. Филиал моделируется <b>укрупнённо</b>
     (кг с м² в сутки, оптовая цена, содержание) — покамерный климат и органы считаются только в вашей теплице.
     Панель «Сеть» показывает доход, содержание и чистую прибыль по каждому филиалу.</p>
     <h3>Что вы управляете</h3>
@@ -556,7 +657,7 @@
       <tr><td>EC / pH / рецепт</td><td>усвоение питания, кальций, качество плодов</td><td>кг удобрений, вода</td></tr>
       <tr><td>Обрезка, сбор</td><td>светопроницаемость полога, урожай</td><td>труд</td></tr>
       <tr><td>Сервис, страховка, метеосервис</td><td>риски: отказы, инциденты, прогноз погоды</td><td>деньги</td></tr>
-      <tr><td>Дешёвая мелочь: контрольный термометр, ловушки, обдув, ИБП, плёнка</td><td>дрейф датчиков, вредители, гнили, отключения света</td><td>25–500 €</td></tr>
+      <tr><td>Дешёвая мелочь: контрольный термометр, ловушки, обдув, ИБП, плёнка</td><td>дрейф датчиков, вредители, гнили, отключения света</td><td><span data-eur="25"></span>–<span data-eur="500"></span></td></tr>
     </table>
     <h3>Подсказки на экране</h3>
     <p style="margin-bottom:8px">Панель <b>«Почему так»</b> объясняет, что сейчас ограничивает рост (свет, CO₂, питание, болезнь).
@@ -576,9 +677,10 @@
     внизу — док с кнопками «Климат», «Почему», «Деньги», «Дела», «Склад», «Почта»; сцена занимает весь экран,
     панель открывается поверх и закрывается повторным нажатием. Всё управление — пальцем.</p>
     <h3>Цель</h3>
-    <p>Сезон 90 дней. Считается итоговая прибыль: урожай + контракты − энергия − CO₂ − вода и удобрения − труд − фиксированные расходы − штрафы. Профиль «Хобби» стартует с 1 000 €, «Ферма» — 10 000 €, «Агрокомплекс» — 100 000 €.</p>
+    <p>Сезон 90 дней. Считается итоговая прибыль: урожай + контракты − энергия − CO₂ − вода и удобрения − труд − фиксированные расходы − штрафы. Профиль «Хобби» стартует с <span data-eur="1000"></span>, «Ферма» — <span data-eur="10000"></span>, «Агрокомплекс» — <span data-eur="100000"></span>.</p>
     <p class="hint">Модель: граф органов + воксельная трассировка света + Фаркуар + энергобаланс теплицы. Подробности — в readme.md и GDD.md.</p>
-    <p style="margin-top:14px"><button class="btn good" id="helpClose">Понятно</button></p>
+    
+  
   </div>
 </div>
 

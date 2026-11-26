@@ -4,7 +4,17 @@
 const $ = id => document.getElementById(id);
 const CROP_ICON = { tomato:'#e05a4e', cherry:'#b8342f', cucumber:'#3f8f57', lettuce:'#7ac06a' };
 const ic = c => `<svg width="11" height="11" viewBox="0 0 12 12" style="vertical-align:-1px" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="${CROP_ICON[c.id]||'#7ad8a0'}" stroke="rgba(255,255,255,.5)" stroke-width="1"/></svg>`;
-const money = v => (v>=0?'':'−') + Math.abs(Math.round(v)).toLocaleString('ru-RU') + ' €';
+function moneyLabels(){
+  document.querySelectorAll('[data-eur]').forEach(el=>{ el.textContent = money(+el.dataset.eur); });
+}
+function setCurrency(id){
+  if (!CURS[id]) return;
+  curId = id;
+  try { if (typeof moneyLabels === 'function') moneyLabels(); } catch(e){}
+  try { localStorage.setItem('vgCur', id); } catch(_){}
+  renderAll(); if (page==='settings') renderSettings();
+  toast('Валюта: ' + CURS[id].label + ' (' + CURS[id].note + ')');
+}
 const num = v => Math.round(v).toLocaleString('ru-RU');
 
 let world = null;
@@ -75,8 +85,8 @@ function applyLoadedWorld(pack, silent){
   } catch(e){}
   if (away && away.hours > 0.1){
     const hh = away.hours < 1 ? Math.round(away.hours*60)+' мин' : away.hours.toFixed(1)+' ч';
-    world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${num(away.money)} €`, k:'hl'});
-    setTimeout(()=>toast(`Пока вас не было ${hh}: ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${num(away.money)} €`), 700);
+    world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`, k:'hl'});
+    setTimeout(()=>toast(`Пока вас не было ${hh}: ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`), 700);
   }
   cam.plant = 0; cam.mode = 'free'; acc = 0; paused = false; endShown = false; fc = null;
   tutorDone = true;                       // опытный игрок продолжает сезон, обучение не нужно
@@ -116,7 +126,7 @@ function buildStart(){
   const camp = $('campPick');
   if (camp){
     camp.innerHTML = `<div class="card" data-camp="1" style="cursor:pointer;${pending.campaign?'border-color:var(--acc)':''}">
-      <div class="h"><b>Кампания: со 100 € на балконе</b><span class="price" style="font-size:12px">100 €</span></div>
+      <div class="h"><b>Кампания с балкона</b><span class="price" style="font-size:12px">${money(100)}</span></div>
       <div class="d">Три главы: балкон 4 м² → комната 20 м² → теплица 400 м².
       Письма наставника, выборы и переезды. Культуру и погоду выбираете сами, капитал фиксирован.</div>
     </div>
@@ -141,15 +151,15 @@ function buildStart(){
     const P = PROFILES.balcony;
     $('profilePick').innerHTML = `
       <div class="card" style="border-color:var(--acc)">
-        <div class="h"><b>${P.name} · глава 1</b><span class="price" style="font-size:12px">100 €</span></div>
+        <div class="h"><b>${P.name} · глава 1</b><span class="price" style="font-size:12px">${money(100)}</span></div>
         <div class="d">${P.note}. Дальше — комната 20 м² и теплица 400 м²: переезд предлагает наставник,
         когда вы выполните цель главы. Сезон кампании — 210 дней.</div>
       </div>
       <div class="card" style="opacity:.55">
-        <div class="h"><b>Глава 2 · Комната</b></div><div class="d">20 м², стеллажи и вытяжка. Откроется после 350 € продаж.</div>
+        <div class="h"><b>Глава 2 · Комната</b></div><div class="d">20 м², стеллажи и вытяжка. Откроется после ${money(350)} продаж.</div>
       </div>
       <div class="card" style="opacity:.55">
-        <div class="h"><b>Глава 3 · Теплица</b></div><div class="d">400 м², климат-контроль и опт. Откроется после 1 500 € продаж.</div>
+        <div class="h"><b>Глава 3 · Теплица</b></div><div class="d">400 м², климат-контроль и опт. Откроется после ${money(1500)} продаж.</div>
       </div>
       <div class="card" style="opacity:.55">
         <div class="h"><b>Глава 4 · Сеть</b></div><div class="d">Филиалы по 400 м² под наёмным агрономом: приносят деньги без вашего участия.
@@ -164,7 +174,7 @@ function buildStart(){
   } else $('profilePick').innerHTML = Object.values(PROFILES).filter(p=>p.id!=='balcony'&&p.id!=='room').map(p=>`
     <div class="card" data-profile="${p.id}" style="cursor:pointer;${p.id===pending.profile?'border-color:var(--acc)':''}">
       <div class="h"><b>${p.name}</b><span class="price" style="font-size:12px">${money(p.start)}</span></div>
-      <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${p.fixedDay} €/сут · цена ${p.priceF.toFixed(2)}×</div>
+      <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${money(p.fixedDay)}/сут · цена ${p.priceF.toFixed(2)}×</div>
     </div>`).join('');
   // система выращивания
   const sysLock = S => pending.campaign && S.ch > 0;
@@ -184,7 +194,7 @@ function buildStart(){
 
   $('cropPick').innerHTML = Object.values(CROPS).map(c=>`
     <div class="card" data-crop="${c.id}" style="cursor:pointer;${c.id===pending.crop?'border-color:var(--acc)':''}">
-      <div class="h"><b>${ic(c)} ${c.name}</b><span class="price" style="font-size:12px">${c.price.toFixed(2)} €/кг</span></div>
+      <div class="h"><b>${ic(c)} ${c.name}</b><span class="price" style="font-size:12px">${money2(c.price)}/кг</span></div>
       <div class="d">${c.note}<br>Плотность ${c.density} шт/м² · плод ${(c.fruitFresh*1000)|0} г</div>
     </div>`).join('');
   const ws = [
@@ -246,7 +256,7 @@ function startGame(){
   saveNow(true);
   renderResumeBox();
   toast(pending.campaign
-    ? 'Кампания: балкон, 100 €, '+CROPS[world.crop].name.toLowerCase()
+    ? 'Кампания: балкон, '+money(100)+', '+CROPS[world.crop].name.toLowerCase()
     : 'Сезон начат: '+CROPS[world.crop].name+', '+PROFILES[world.profile].area+' м², '
       +DIFFICULTY[world.diffId].name.toLowerCase()+' сложность');
   if (world.mail.length) setTimeout(()=>toast('В почте письмо от тёти Розы'), 2400);
@@ -294,7 +304,7 @@ const SHEET_TABS = {
   tablet: [
     {k:'mail',  t:'Почта', p:['mail']},
     {k:'tasks', t:'Дела',  p:['goals','missions']},
-    {k:'stock', t:'Склад', p:['stock','contracts']},
+    {k:'stock', t:'Склад', p:['stock','tanks','contracts']},
     {k:'net',   t:'Сеть',  p:['net']},
     {k:'log',   t:'Журнал',p:['log']}
   ],
@@ -350,11 +360,6 @@ function closeSheet(){
   document.querySelectorAll('#dashGrid .panel').forEach(p=>p.classList.remove('sel'));
   const dock = $('dock'); if (dock) dock.innerHTML='';
 }
-if ($('btnPanels')) $('btnPanels').onclick = ()=>{
-  const kind = layoutKind();
-  if (kind==='desktop'){ toast('Панели уже на экране'); return; }
-  toggleSheet(sheetTab || SHEET_TABS[kind][0].k);
-};
 let _layT = 0;
 window.addEventListener('resize', ()=>{
   clearTimeout(_layT);
@@ -376,10 +381,12 @@ function renderTop(){
   const hh = Math.floor(world.hour), mm = Math.floor((world.hour-hh)*60);
   $('tHour').textContent = String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
   $('tMoney').textContent = money(world.money);
+  // минус на балансе должен быть виден, а не «−0»
+  $('tMoney').style.color = world.money < -0.004 ? 'var(--bad)' : '';
   syncTopH();
   const pd = world.profitDay||0;
   const pe = $('tProfit');
-  pe.textContent = (pd>=0?'+':'') + num(pd) + ' €';
+  pe.textContent = (pd>=0?'+' : '') + moneyS(pd);
   pe.style.color = pd>=0 ? 'var(--acc)' : 'var(--bad)';
   $('tCrop').innerHTML = ic(C) + ' ' + C.name.toLowerCase();
   $('tYield').textContent = num(world.harvestedKg) + ' кг';
@@ -421,27 +428,98 @@ function renderFinance(){
   const w = world;
   const cost = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const profit = w.revenue - cost;
-  const h = w.history;
-  const rows = [
-    ['Выручка сезона', w.revenue, 'pos'],
-    ['  из них продажи', w.soldEur||0, 'pos'],
-    ['энергия + досветка', -(w.cost.energy+w.cost.lamp), 'neg'],
-    ['CO₂', -w.cost.co2, 'neg'],
-    ['вода + удобрения', -(w.cost.water+w.cost.fert), 'neg'],
-    ['содержание склада', -w.cost.storage, 'neg'],
-    ['труд', -(w.cost.labor+w.cost.maint), 'neg'],
-    ['постоянные', -(w.cost.fixed+w.cost.penalty+w.cost.loan), 'neg'],
-    ['покупки и сервис', -(w.cost.upgrade+w.cost.repair+w.cost.treat), 'neg'],
-    ...((w.net&&w.net.houses&&w.net.houses.length) ? [['филиалы, чистыми', w.net.netDay||0, (w.net.netDay||0)>=0?'pos':'neg']] : []),
-    ['ИТОГО', profit, profit>=0?'pos':'neg']
+  const h = w.history || [];
+  const last = h.length ? h[h.length-1] : null;
+  const cb = (last && last.costBreak) || null;
+  // статьи: [ключи статей расходов, подпись, знак]; «за сутки» — из разбивки дня
+  const items = [
+    [['__sales'],   'Продажи', +1],
+    [['__rewards'], 'Награды',   +1],
+    [['energy'],    'Тепло',   -1],
+    [['lamp'],      'Досветка',-1],
+    [['co2'],       'CO₂',       -1],
+    [['water'],     'Вода',      -1],
+    [['fert'],      'Удобр.',  -1],
+    [['seed'],      'Семена',    -1],
+    [['storage'],   'Склад',     -1],
+    [['labor','maint'], 'Труд',  -1],
+    [['fixed','penalty','loan'], 'Постоян.',-1],
+    [['upgrade','repair','treat'], 'Покупки',-1]
   ];
-  $('finance').innerHTML = rows.map(([k,v,cls])=>
-    `<div class="kv"><span>${k}</span><b class="${cls}">${money(v)}</b></div>`).join('') +
-    `<div class="spark">${h.slice(-40).map(x=>{
-      const mx = Math.max(60, ...h.slice(-40).map(y=>Math.abs(y.profit||0)));
+  const seasonOf = it=>{
+    const [keys,,sign] = it;
+    if (keys[0]==='__sales') return w.soldEur||0;
+    if (keys[0]==='__rewards') return w.rewardSum||0;
+    return -keys.reduce((s,k)=>s+(w.cost[k]||0),0);
+  };
+  const dayOf = it=>{
+    const [keys,,sign] = it;
+    if (!cb) return null;
+    if (keys[0]==='__sales') return (last.rev||0) - (last.rewardDay||0);
+    if (keys[0]==='__rewards') return last.rewardDay||0;
+    return -keys.reduce((s,k)=>s+(cb[k]||0),0);
+  };
+  const rows = items.map(it=>({label:it[1], day:dayOf(it), season:seasonOf(it)}))
+    .filter(r=>Math.abs(r.season)>0.02 || Math.abs(r.day||0)>0.02);
+  const profitDay = last ? (last.profit||0) : (w.profitDay||0);
+  const moneyDay  = last ? (last.moneyDelta||0) : null;
+  const recon = (w.money - w.startMoney) - profit;
+  const cell = v => (v===null || v===undefined) ? '<span class="dim">—</span>'
+    : `<b class="${v>0.004?'pos':(v<-0.004?'neg':'')}">${v>0.004?'+':''}${moneyNum(v)}</b>`;
+  $('finance').innerHTML = `
+    <div class="finHead"><span>статья</span><span>сутки</span><span>сезон, ${moneySym()}</span></div>
+    ${rows.map(r=>`<div class="finRow"><span>${r.label}</span>${cell(r.day)}${cell(r.season)}</div>`).join('')}
+    <div class="finRow total"><span>Прибыль</span>${cell(profitDay)}${cell(profit)}</div>
+    <div class="finRow total"><span>Деньги</span>${cell(moneyDay)}${cell(w.money)}</div>
+    <div class="finRow"><span>от старта</span><span class="dim">—</span>${cell(w.money-w.startMoney)}</div>
+    ${Math.abs(recon)>1 ? `<div class="finRow"><span>кредит и прочее</span><span class="dim">—</span>${cell(recon)}</div>`:''}
+    <div class="hint" style="margin-top:6px">${w.ctrl.lampEnabled
+      ? `Досветка горит: ${(((w.light&&w.light.stripOn)?0.1:0)+(((w.light&&w.light.lampOn)?(w.env.lampKW||0):0))).toFixed(2)} кВт·ч в час.`
+      : 'Досветка выключена — за свет не платите.'} «Сутки» — прошлые полные сутки, «сезон» — с начала.</div>
+    <div class="spark">${h.slice(-40).map(x=>{
+      const mx = Math.max(2, ...h.slice(-40).map(y=>Math.abs(y.profit||0)));
       const hp = Math.max(2, Math.abs(x.profit||0)/mx*34);
       return `<i style="height:${hp}px;background:${(x.profit||0)>=0?'#7ad8a0':'#ff7b72'}"></i>`;
     }).join('')}</div>`;
+}
+
+/* ---------------- баки и возможности ---------------- */
+function renderTanks(){
+  const box = $('tanks'); if (!box || !world) return;
+  const w = world, S = w.stock;
+  const daysHint = (what)=>{
+    const d = tankDays(w, what);
+    if (d===null || !isFinite(d) || d<=0) return '';
+    return ' · хватит ' + (d>999 ? '>999' : '≈'+(d<10?d.toFixed(1):Math.round(d))) + ' дн';
+  };
+  const row = (label, val, what, cls)=>`<div class="kv"><span>${label}</span><b class="${cls||''}">${val}<span style="font-weight:400;color:var(--dim)">${daysHint(what)}</span></b></div>`;
+  const tankRows = [
+    row('Вода в баке', `${S.waterM3.toFixed(0)} м³`, 'water', Math.floor(S.waterM3)<1?'bad':''),
+    row('Удобрения', `${S.fertKg.toFixed(S.fertKg<10?1:0)} кг`, 'fert', S.fertKg<5?'bad':''),
+    ...(w.has.co2 ? [row('CO₂ в баллоне', `${S.co2Kg.toFixed(0)} кг`, 'co2', S.co2Kg<5?'bad':'')] : []),
+    row('Семена', `${num(S.seeds)} шт`, null, S.seeds<5?'bad':''),
+    row('Склад свободно', `${num(whFreeL(w)/WH.bulkHarvest)} кг`, null, '')
+  ];
+  const featList = [
+    ['Свет: '+lightName(w), hasLight(w)],
+    ['Клапан CO₂', w.has.co2],
+    ['Термоэкран', w.has.screen],
+    ['Затеняющая сетка', w.has.shade],
+    ['Автодозирование EC/pH', w.has.dosing],
+    ['Второй датчик', w.has.secondSensor],
+    ['Обдув кроны', w.has.circFan],
+    ['Метеосервис', w.has.weatherSrv],
+    ['Страховка', w.has.insurance],
+    ['Работник', w.upg.worker],
+    ['Автозакупка', w.upg.autoBuy],
+    ['Плановый сервис', w.has.service]
+  ];
+  const yes = featList.filter(f=>f[1]).length;
+  box.innerHTML = `
+    ${tankRows.join('')}
+    <div class="hint" style="margin:7px 0 3px"><b>Возможности: ${yes} из ${featList.length}</b> · чего нет — покупается в магазине</div>
+    <div class="featGrid">${featList.map(([n,ok])=>`<div class="feat ${ok?'on':''}"><i>${ok?'✓':'·'}</i>${n}</div>`).join('')}</div>
+    <div class="hint" style="margin-top:6px">«Хватит ≈N дн» — оценка по вчерашнему расходу.</div>`;
 }
 
 /* ---------------- сеть филиалов ---------------- */
@@ -459,15 +537,15 @@ function renderNet(){
   const sales = w.camp && w.camp.ch===3 ? chapterSales(w) : 0;
   const pct = Math.min(100, sales/chGoal*100);
   let html = `<div class="kv"><span>филиалов</span><b>${t.n}</b></div>
-    <div class="g" style="grid-template-columns:1fr 84px"><span>${num(sales)}/${num(chGoal)} €</span>
+    <div class="g" style="grid-template-columns:1fr 84px"><span>${money(sales)}/${money(chGoal)}</span>
       <div class="bar"><i style="width:${pct}%;background:repeating-linear-gradient(115deg,#ffc21a 0 6px,#e0a100 6px 12px)"></i></div></div>
-    <div class="kv"><span>доход</span><b class="pos">+${Math.round(t.gross)} €/сут</b></div>
-    <div class="kv"><span>содержание</span><b class="neg">−${Math.round(t.opex)} €/сут</b></div>
-    <div class="kv"><span>чистыми</span><b class="${t.net>=0?'pos':'neg'}">${t.net>=0?'+':''}${Math.round(t.net)} €/сут</b></div>`;
+    <div class="kv"><span>доход</span><b class="pos">+${money(t.gross)}/сут</b></div>
+    <div class="kv"><span>содержание</span><b class="neg">${money(-t.opex)}/сут</b></div>
+    <div class="kv"><span>чистыми</span><b class="${t.net>=0?'pos':'neg'}">${money(t.net)}/сут</b></div>`;
   houses.forEach((h,i)=>{
     const g = netGrossDay(w, h);
     html += `<div class="kv"><span>${i+1}. ${CROPS[h.crop].name}</span>
-      <b>${Math.round(g.gross-g.opex)} €/сут</b></div>`;
+      <b>${money(g.gross-g.opex)}/сут</b></div>`;
   });
   html += `<div style="margin-top:7px">
     <button class="btn good" data-netbuy="1" ${w.money<cost?'disabled':''} style="width:100%">
@@ -495,7 +573,7 @@ function renderAlerts(){
   const w = world, C = CROPS[w.crop], out = [];
   // отказы
   const broken = [];
-  for (const k in w.equip) if (!w.equip[k].ok) broken.push(EQUIP_DEFS[k].name);
+  for (const k in w.equip) if (!w.equip[k].ok && equipInstalled(w,k)) broken.push(EQUIP_DEFS[k].name);
   if (!w.power) out.push(['bad','Нет электричества: отопление и форточки не работают']);
   if (broken.length) out.push(['bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт']);
   // климат по датчикам
@@ -504,9 +582,18 @@ function renderAlerts(){
   if (w.meas.rh > C.rhMax) out.push(['warn', `Влажность ${w.meas.rh.toFixed(0)}% — риск серой гнили, нужна вентиляция`]);
   if (w.disease > 0.25) out.push(['bad', `Серая гниль ${(w.disease*100)|0}% — обработка в магазине`]);
   if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
+  // свет: будильник напоминает, но не переключает
+  if (hasLight(w) && w.ctrl.alarmOn){
+    const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;
+    const inside = from < to ? (h >= from && h < to) : (h >= from || h < to);
+    if (inside && !w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: время с ${fmtHour(from)} до ${fmtHour(to)} — включите лампу в «Параметрах»`]);
+    if (!inside && w.ctrl.lampEnabled) out.push(['warn', `Будильник досветки: окно закончилось — выключите лампу, она ест электричество впустую`]);
+  } else if (hasLight(w) && w.ctrl.lampEnabled && (w.hour < 4 || w.hour > 22)) {
+    out.push(['warn', 'Досветка горит ночью: растение не фотосинтезирует, а счётчик крутится — выключите лампу']);
+  }
   // запасы
   if (w.stock.fertKg < 5) out.push(['warn','Удобрения заканчиваются — рост замедлится']);
-  if (w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
+  if (w.has.co2 && w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
   if (w.stock.waterM3 < 3) out.push(['bad','Нет воды — растения в стрессе']);
   // контракты
   for (const ct of w.contracts){
@@ -529,7 +616,7 @@ function renderGoals(){
   const g = seasonGoals(world);
   $('goals').innerHTML = g.map(x=>{
     const done = x.pct >= 1;
-    const shown = x.unit==='€' ? num(x.value)+' / '+num(x.target)+' €'
+    const shown = x.unit==='€' ? money(x.value)+' / '+money(x.target)
                 : x.unit==='кг' ? num(x.value)+' / '+num(x.target)+' кг'
                 : num(x.value)+' / '+num(x.target)+' '+(x.unit||'');
     return `<div class="goal">
@@ -562,7 +649,7 @@ function renderMissions(){
   for (let k=i; k<Math.min(i+3, MISSIONS.length); k++){
     const m = MISSIONS[k];
     html += `<div class="task"><div>${k===i?'▸ ':'· '}${m.text}</div>
-      <div class="r">награда ${m.reward} €</div></div>`;
+      <div class="r">награда ${money(m.reward)}</div></div>`;
   }
   if (i>=MISSIONS.length-1) html = `<div class="task done">Все задания выполнены</div>`;
   html += `<div class="hint">Выполнено: ${world.missionsDone} · награды — это доход</div>`;
@@ -578,7 +665,7 @@ function renderStock(){
     const left = Math.max(0, l.shelf - l.age);
     const q = Math.round(lotQuality(l)*100);
     return `<div class="kv"><span>${ic(C)} ${C.name.split(' ')[0]} · ${l.age} дн</span>
-      <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}%</b></div>`;
+      <b style="${left<=1?'color:var(--bad)':(left<=3?'color:var(--warn)':'')}">${num(l.kg)} кг · ещё ${left} дн · ${q}% · −${(100/l.shelf).toFixed(0)}%/сут</b></div>`;
   }).join('');
   const freeKg = whFreeL(world)/WH.bulkHarvest;
   $('stock').innerHTML = `
@@ -592,23 +679,26 @@ function renderStock(){
     <div class="kv"><span>CO₂</span><b style="${s.co2Kg<8?'color:var(--bad)':''}">${s.co2Kg.toFixed(s.co2Kg<10?1:0)} кг</b></div>
     <div class="kv"><span>Семена</span><b>${num(s.seeds)} шт</b></div>
     <div class="kv"><span>Вода (в баке)</span><b style="${s.waterM3<5?'color:var(--bad)':''}">${s.waterM3.toFixed(0)} м³</b></div>
-    <div class="hint" style="margin-top:6px">${wh.sections} секц. · содержание ${whRentDay(world).toFixed(1)} €/сут ·
+    <div class="hint" style="margin-top:6px">${wh.sections} секц. · содержание ${money2(whRentDay(world))}/сут ·
       свободно ${num(freeKg)} кг</div>
-    ${wh.wasteKg>1 ? `<div class="hint" style="color:var(--warn)">испорчено за сезон: ${num(wh.wasteKg)} кг (${num(wh.wasteEur)} €)</div>`:''}
+    <div class="hint">Лёжкость ${CROPS[world.crop].name.split(' ')[0].toLowerCase()}: ${CROPS[world.crop].shelfDays} дн →
+      теряется <b>${(100/CROPS[world.crop].shelfDays).toFixed(0)} % массы</b> и <b>${(0.55/1.4*100/CROPS[world.crop].shelfDays).toFixed(0)} % цены</b> в сутки;
+      после ${CROPS[world.crop].shelfDays*2} дн партия списывается целиком.</div>
+    ${wh.wasteKg>1 ? `<div class="hint" style="color:var(--warn)">испорчено за сезон: ${num(wh.wasteKg)} кг (${money(wh.wasteEur)})</div>`:''}
     <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
-      <button class="btn good" id="btnSellAll" ${storeKg(world)>0.5?'':'disabled'}>Продать всё · ${priceToday(world).toFixed(2)} €/кг</button>
+      <button class="btn good" id="btnSellAll" ${storeKg(world)>0.5?'':'disabled'}>Продать всё · ${money2(priceToday(world))}/кг</button>
       <button class="btn" id="btnWhExpand" title="Вторая секция: +600 л места, но и содержание">+секция ${money(whSectionCost(world))}</button>
     </div>`;
   const sell = $('btnSellAll');
   if (sell) sell.onclick = ()=>{
     const r = sellHarvest(world, world.crop, null);
-    toast(r.ok ? `Продано ${num(r.kg)} кг за ${num(r.eur)} €` : 'На складе нет продукции');
+    toast(r.ok ? `Продано ${num(r.kg)} кг за ${money(r.eur)}` : 'На складе нет продукции');
     renderAll(); if (page==='shop') renderShop();
   };
   const ex = $('btnWhExpand');
   if (ex) ex.onclick = ()=>{
     const r = addSection(world);
-    toast(r.ok ? `Склад: ${world.wh.sections} секций (−${r.cost} €). Содержание ${whRentDay(world).toFixed(1)} €/сут`
+    toast(r.ok ? `Склад: ${world.wh.sections} секций (${money(-r.cost)}). Содержание ${money2(whRentDay(world))}/сут`
                : r.msg);
     renderAll(); if (page==='shop') renderShop();
   };
@@ -628,7 +718,7 @@ function renderContracts(){
   }).join('');
   document.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=()=>{
     const r = deliverContract(world, b.dataset.deliver);
-    toast(r.ok ? `Поставлено ${num(r.kg)} кг за ${num(r.eur)} €${r.bonus?' · бонус '+num(r.bonus)+' €':''}` : r.msg);
+    toast(r.ok ? `Поставлено ${num(r.kg)} кг за ${money(r.eur)}${r.bonus?' · бонус '+money(r.bonus):''}` : r.msg);
     renderAll(); if (page==='shop') renderShop();
   });
 }
@@ -647,7 +737,7 @@ function renderMail(){
     const pct = clamp(sales/ch.goal,0,1)*100;
     html += `<div class="g" style="grid-template-columns:44px 1fr 84px"><span>продажи</span>
       <div class="bar"><i style="width:${pct}%;background:repeating-linear-gradient(115deg,#ffc21a 0 6px,#e0a100 6px 12px)"></i></div>
-      <b>${num(sales)}/${num(ch.goal)} €</b></div>`;
+      <b>${money(sales)}/${money(ch.goal)}</b></div>`;
   }
   if (world.mail.length){
     html += world.mail.map(m=>`<button class="btn" data-mail="${m.id}" style="display:block;width:100%;text-align:left;margin-bottom:4px;white-space:normal;line-height:1.3;font-size:10px">
@@ -693,7 +783,7 @@ function shopTopLine(){
   const tr = marketTrend(world, world.crop);
   return `Баланс: <b style="color:var(--acc2)">${money(world.money)}</b> · ` +
     `склад: <b>${Math.round(whUsedL(world))}/${whCap(world)} л</b> · ` +
-    `цена дня: <b style="color:var(--acc)">${priceToday(world).toFixed(2)} €/кг</b> ` +
+    `цена дня: <b style="color:var(--acc)">${money2(priceToday(world))}/кг</b> ` +
     (tr>0.01?'<span style="color:#a8e05a">▲ растёт</span>':(tr<-0.01?'<span style="color:var(--bad)">▼ падает</span>':''));
 }
 function renderShop(){
@@ -772,7 +862,9 @@ function renderSettings(){
       <div class="h"><b>Климат</b></div>
       ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
       ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
-      ${slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')}
+      ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
+        : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет оборудования</span></div>
+           <div class="hint">На балконе и в комнате клапана нет: воздух и так меняется через щели. Появится вместе с теплицей.</div>`}
       <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
     </div>
     <div class="card">
@@ -791,8 +883,20 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Свет и экраны</b></div>
-      <div class="row"><label>Досветка LED ${world.has.led?'':'<span style="color:var(--bad)">(не куплена)</span>'}</label>
-        <button class="btn ${c.lampEnabled?'good':''}" id="btnLampSet">${c.lampEnabled?'вкл':'выкл'}</button></div>
+      <div class="row"><label>Досветка: <b>${lightName(world)}</b>
+        ${hasLight(world)?'':'<span style="color:var(--bad)">(не куплена)</span>'}
+        <div class="hint">${hasLight(world)
+          ? (c.lampEnabled ? `горит${world.power?'':' — <span style="color:var(--bad)">нет электричества</span>'}` : 'выключена')
+          : 'Купите лампу в магазине — «Бюджетный старт» или «Оборудование».'}</div></label>
+        <button class="btn ${c.lampEnabled?'good':''}" id="btnLampSet" ${hasLight(world)?'':'disabled'}>${c.lampEnabled?'вкл':'выкл'}</button></div>
+      <div class="row"><label>Будильник досветки
+        <div class="hint">Включать/выключать лампу всё равно вручную: будильник только напоминает алертом.</div></label>
+        <button class="btn ${c.alarmOn?'good':''}" id="btnAlarmSet" ${hasLight(world)?'':'disabled'}>${c.alarmOn?'вкл':'выкл'}</button></div>
+      ${c.alarmOn && hasLight(world) ? `
+      ${slider('afrom','Будильник: включать с',0,23,1,c.alarmFrom,v=>String(v).padStart(2,'0')+':00')}
+      ${slider('ato','Будильник: выключать в',1,24,1,c.alarmTo,v=>(v>=24?'24:00':String(v).padStart(2,'0')+':00'))}
+      <div class="hint">Сейчас ${fmtHour(Math.floor(world.hour))}:${String(Math.floor((world.hour%1)*60)).padStart(2,'0')} · ${alarmState(world)}</div>` : ''}
+      <div class="hint">Автоматики нет: лампа горит ровно тогда, когда вы её включили, и всё это время ест электричество.</div>
       <div class="row"><label>Термоэкран ${world.has.screen?'':'<span style="color:var(--dim)">(не куплен)</span>'}</label>
         <button class="btn ${c.screenOn?'good':''}" id="btnScreenSet">${c.screenOn?'вкл':'выкл'}</button></div>
       <div class="row"><label>Затеняющая сетка ${world.has.shade?'':'<span style="color:var(--dim)">(не куплена)</span>'}</label>
@@ -822,6 +926,42 @@ function renderSettings(){
         <button class="btn" id="btnCamReset">⟲ как было</button></div>
     </div>
     <div class="card">
+      <div class="h"><b>Валюта</b></div>
+      <div class="row"><label>Показывать суммы в<div class="hint">Меняется только подпись и курс — экономика одна и та же.</div></label>
+        <div style="display:flex;gap:6px">
+          ${Object.values(CURS).map(c=>`<button class="btn ${curId===c.id?'good':''}" data-curset="${c.id}">${c.sym} ${c.label}</button>`).join('')}
+        </div></div>
+      <div class="hint">Сейчас: <b>${CURS[curId].sym} ${CURS[curId].label}</b> — ${CURS[curId].note}. Курс ${curId==='rub'?'1 € = 100 ₽':'базовый'}, цены магазина и отчёты пересчитываются целиком.</div>
+    </div>
+    <div class="card" id="glossCard">
+      <div class="h" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Словарь терминов</b><button class="btn" id="btnManual" style="padding:2px 8px">Справочник</button></div>
+      <div class="hint" style="margin-bottom:6px">Всё, что встречается в интерфейсе, — простыми словами.</div>
+      ${[
+        ['EC','Насколько «солёная» вода с удобрениями. 2.4 мСм/см для томата — норма. Мало — растение голодает, много — корни обжигаются и перестают пить.'],
+        ['pH','Кислотность раствора от 0 до 14. 5.5–6.0 — удобрения усваиваются лучше всего; вне этого коридора часть питания просто выпадает в осадок.'],
+        ['ppm','Частей на миллион. 800 ppm CO₂ ≈ 0.08 % воздуха — это примерно вдвое больше, чем на улице.'],
+        ['Досветка / ДНАТ / LED','Лампа для растений. ДНАТ — газоразрядная, греется и жрёт много; LED-лента — дешёвая и слабая, годится для рассады и досветки утром.'],
+        ['µmol/м²·с (PPFD)','Сила света для растения — сколько фотонов падает на квадратный метр в секунду. 200 — пасмурный день, 1000 — яркое солнце.'],
+        ['LAI','Сколько листвы над квадратным метром грядки. LAI 3 = три слоя листьев друг над другом; выше — нижние листья в тени и работают в минус.'],
+        ['Фаркуар','Модель фотосинтеза: считает, сколько сахара лист сделает из света и CO₂ и что его ограничивает — свет, газ или температура.'],
+        ['Воксельный свет','Сцена делится на кубики 25 см, в каждом считается свет. Так видно, что нижний ярус полога недополучает свет.'],
+        ['Граф органов','Растение как набор узлов: стебель, листья, кисти, плоды. Каждый орган стареет и вносит свой вклад в рост.'],
+        ['Дрейф датчиков','Показания медленно уплывают: датчик «врёт» на 1–2 °C. Калибровка возвращает его в норму, второй комплект — ловит расхождение.'],
+        ['Прогноз','Расчёт вперёд на копии мира с текущими настройками. Это оценка, а не гарантия: погода внутри другая.'],
+        ['Лежкость','Сколько дней урожай может лежать на складе, прежде чем начнёт портиться и дешеветь.']
+      ].map(([t,d])=>`<details style="border-top:1px solid var(--line2);padding:6px 0"><summary style="cursor:pointer"><b>${t}</b></summary><div class="hint" style="margin-top:4px">${d}</div></details>`).join('')}
+    </div>
+    <div class="card">
+      <div class="h"><b>Обучение</b></div>
+      <div class="hint" style="margin-bottom:8px">Всё это можно пройти заново в любой момент — прогресс сезона не пострадает.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn good" id="btnObAgain">Обучение по шагам</button>
+        <button class="btn" id="btnTutorAgain">Подсказки на сцене</button>
+        <button class="btn" id="btnManual2">Справочник</button>
+      </div>
+      <div class="hint" style="margin-top:6px">Словарь терминов — ниже в карточке «Словарь»: EC, pH, ppm, LAI, Фаркуар и остальное простыми словами.</div>
+    </div>
+    <div class="card">
       <div class="h"><b>Сезон</b></div>
       <div class="kv"><span>Профиль</span><b>${P.name} · ${P.area} м²</b></div>
       <div class="kv"><span>Культура</span><b>${ic(C)} ${C.name}</b></div>
@@ -849,13 +989,14 @@ function renderSettings(){
         Свет: воксельная LAD 0.25 м, 5 лучей на лист.<br>
         Фотосинтез: Farquhar-lite, V<sub>cmax</sub> ${C.vcmax} µмоль/м²·с, оптимум ${C.tempOpt} °C.<br>
         Климат: баланс с подшагами 5 мин, UA ${num(world.env.UA)} Вт/К.<br>
-        Экономика: ${num(world.plantScale)} растений на ${P.area} м², цена ${C.price} €/кг ×${P.priceF}.
+        Экономика: ${num(world.plantScale)} растений на ${P.area} м², цена ${money2(C.price)}/кг ×${P.priceF}.
       </div>
     </div>
   </div>`;
 
   const bind = (id, key, fmt) => {
     const s = $('s_'+id);
+    if (!s) return;                 // регулятора может не быть (например CO₂ без клапана)
     s.oninput = () => {
       const v = parseFloat(s.value);
       world.ctrl[key] = v;
@@ -867,7 +1008,19 @@ function renderSettings(){
   bind('co2','co2Set', v=>v+' ppm');
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
-  $('btnLampSet').onclick = ()=>{ world.ctrl.lampEnabled = !world.ctrl.lampEnabled; renderSettings(); };
+  $('btnLampSet').onclick = ()=>{
+    if (!hasLight(world)) return toast('Сначала купите лампу в магазине');
+    world.ctrl.lampEnabled = !world.ctrl.lampEnabled;
+    toast(world.ctrl.lampEnabled ? lightName(world)+': включена вручную' : 'Досветка выключена');
+    renderSettings(); renderTop(); renderAlerts();
+  };
+  if ($('btnAlarmSet')) $('btnAlarmSet').onclick = ()=>{
+    world.ctrl.alarmOn = !world.ctrl.alarmOn;
+    toast(world.ctrl.alarmOn ? 'Будильник досветки включён' : 'Будильник досветки выключен');
+    renderSettings();
+  };
+  bind('afrom','alarmFrom', v=>String(v).padStart(2,'0')+':00');
+  bind('ato','alarmTo', v=>(v>=24?'24:00':String(v).padStart(2,'0')+':00'));
   document.querySelectorAll('[data-sysset]').forEach(b=>b.onclick = ()=>{
     const r = setGrowSys(world, b.dataset.sysset);
     toast(r.msg); renderSettings(); renderAll(); saveNow(false);
@@ -881,6 +1034,12 @@ function renderSettings(){
     renderSettings();
   };
   $('btnCamReset').onclick = ()=>{ resetCam(); toast('Ракурс сброшен'); };
+  document.querySelectorAll('[data-curset]').forEach(b=>b.onclick = ()=>setCurrency(b.dataset.curset));
+  if ($('btnManual')) $('btnManual').onclick = ()=>$('manual').classList.add('on');
+  if ($('btnManual2')) $('btnManual2').onclick = ()=>$('manual').classList.add('on');
+  if ($('btnObAgain')) $('btnObAgain').onclick = ()=>showOnboarding(0);
+  if ($('btnTutorAgain')) $('btnTutorAgain').onclick = ()=>showTutorAgain();
+  moneyLabels();
   $('btnRestart').onclick = ()=>{ renderResumeBox(); $('start').classList.add('on'); setPage('greenhouse'); };
   $('btnSaveNow').onclick = ()=>{ saveNow(false); renderSettings(); };
   $('btnSaveFile').onclick = downloadSave;
@@ -962,7 +1121,7 @@ const TUTOR = [
     done:()=>(world.soldKg||0) > 0.5 },
   { text:'Откройте «Параметры» и поднимите целевой CO₂ до 800 ppm — при хорошем свете это даёт до +15% фотосинтеза.',
     done:()=>world.ctrl.co2Set >= 800 },
-  { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр 28 €, клейкие ловушки 45 €, бочка воды 90 € — купите одну вещь.',
+  { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр ${money(28)}, клейкие ловушки ${money(45)}, бочка воды ${money(90)} — купите одну вещь.',
     done:()=>world.has.alarm||world.has.sticky||world.has.circFan||world.has.handDose||
             world.has.humid||world.has.ups||world.has.film||world.has.climatePC||world.has.ledStrip },
   { text:'Нажмите «Прогноз» сверху и постройте прогноз на 7 дней — так проверяют решение до трат.',
@@ -1215,9 +1374,9 @@ window.addEventListener('keydown', e=>{
 
 function togglePause(){
   paused = !paused;
-  $('btnPause').textContent = paused?'1:1':'⏸';
+  $('btnPause').textContent = paused?'1:1':'1:1';
   $('btnPause').classList.toggle('on', paused);
-  $('btnPause').title = paused ? 'Пауза: время идёт как в жизни (1 секунда = 1 секунда)'
+  $('btnPause').title = paused ? 'Реальное время включено: час за час. Нажмите, чтобы вернуться к ускорению'
                                : 'Пауза: время замедлится до реального';
   if (paused) toast('Пауза: время идёт как в жизни — секунда за секунду');
 }
@@ -1232,7 +1391,33 @@ $('predClose').onclick = ()=>$('pred').classList.remove('on');
 document.querySelectorAll('[data-pred]').forEach(b=>b.onclick=()=>startPred(+b.dataset.pred));
 $('btnSave').onclick = ()=>saveNow(false);
 $('btnHelp').onclick = ()=>$('help').classList.add('on');
-$('helpClose').onclick = ()=>$('help').classList.remove('on');
+$('helpClose').onclick = ()=>{ clearInterval(window._obT); $('help').classList.remove('on'); };
+// ---- онбординг: пошаговый мастер ----
+let obI = 0;
+function obPaint(){
+  const slides = [...document.querySelectorAll('#help .obSlide')];
+  slides.forEach((el,k)=>el.classList.toggle('on', k===obI));
+  $('obStepNo').textContent = 'шаг '+(obI+1)+' из '+slides.length;
+  $('obDots').innerHTML = slides.map((_,k)=>`<i class="${k===obI?'on':''}" data-ob="${k}"></i>`).join('');
+  $('obPrev').style.visibility = obI===0 ? 'hidden' : 'visible';
+  $('obNext').style.display = obI===slides.length-1 ? 'none' : '';
+  $('helpClose').style.display = obI===slides.length-1 ? '' : 'none';
+}
+function showOnboarding(step){
+  obI = step||0; obPaint(); $('help').classList.add('on');
+}
+function showTutorAgain(){
+  tutorDone = false; tutorStep = 0; resetTutorFlags();
+  if (typeof renderTutor === 'function') renderTutor(); tutorTick();
+  setPage('greenhouse');
+  toast('Подсказки снова включены — они пройдут заново');
+}
+$('obNext').onclick = ()=>{ if(obI < document.querySelectorAll('#help .obSlide').length-1){ obI++; obPaint(); } };
+$('obPrev').onclick = ()=>{ if(obI>0){ obI--; obPaint(); } };
+$('obDots').onclick = e=>{ const k=e.target.dataset && e.target.dataset.ob; if(k!=null){ obI=+k; obPaint(); } };
+$('obGloss').onclick = ()=>{ $('help').classList.remove('on'); setPage('settings'); setTimeout(()=>{ const g=$('glossCard'); if(g) g.scrollIntoView({behavior:'smooth',block:'center'}); },60); };
+obPaint();
+$('manualClose').onclick = ()=>$('manual').classList.remove('on');
 $('startBtn').onclick = startGame;
 
 $('btnHarvest').onclick = ()=>{
@@ -1260,7 +1445,7 @@ $('btnShadeQuick').onclick = ()=>{
 function renderAll(){
   if (!world) return;
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
-  renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderContracts(); renderMail(); renderNet(); renderLog();
+  renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   tutorTick();
 }
 
