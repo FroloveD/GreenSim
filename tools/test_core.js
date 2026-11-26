@@ -11,7 +11,8 @@ const M = new Function(src.slice(a,b) + `
           setAuto,setAutoTime,autoAllowed,autoWhy,autoTick,alarmTick,inWindow,AUTO_KEYS,
           climateTick,CROPS,
           SITES,SITE_LIST,siteById,siteNormals,normAt,todayDoy,doyFromDate,dateFromDoy,
-          ORIENTS,outsideClimate,EQUIP_DEFS,WARRANTY,riskTick,fmtDate};`)();
+          ORIENTS,outsideClimate,EQUIP_DEFS,WARRANTY,riskTick,fmtDate,
+          serializeWorld,deserializeWorld,SAVE_VERSION};`)();
 
 let fails = 0;
 const ok = (c, m, extra)=>{ if(!c) fails++; console.log((c?'✅ ':'❌ ')+m+(extra!==undefined?' — '+extra:'')); };
@@ -306,6 +307,36 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
   ok(lampW(breakLamp(400, 1)).length === 0, 'на 400-й день гарантии нет (больше 364)');
   ok(lampW(breakLamp(200, 190)).length === 0, 'считаем возраст от покупки, а не от старта сезона');
   ok(lampW(breakLamp(300, 110)).length === 1, 'покупка на 110-й день, отказ на 300-й — гарантия');
+}
+
+// 12. восстановление сохранений: неизвестная сложность и миграция v1
+{
+  const w = M.makeWorld({profile:'farm', crop:'tomato', seed:19});
+  const legacy = JSON.parse(M.serializeWorld(w));
+  legacy.v = 1;
+  legacy.world.diffId = 'legacy-custom';
+  delete legacy.world.diffPriceF;
+  delete legacy.world.wh;
+  delete legacy.world.market;
+  delete legacy.world.mail;
+  delete legacy.world.auto;
+  delete legacy.world.site;
+  delete legacy.world.startDoy;
+  delete legacy.world.warranty;
+  delete legacy.world.moist;
+  delete legacy.world.meas;
+  delete legacy.world.drift;
+  delete legacy.world.waterStress;
+  delete legacy.world.seasonDays;
+
+  const restored = M.deserializeWorld(legacy);
+  ok(restored.v === M.SAVE_VERSION, 'сохранение v1 мигрирует в актуальную версию', restored.v);
+  ok(restored.world.diffId === 'normal' && restored.world.diffPriceF === 1,
+     'неизвестная сложность безопасно заменяется обычной',
+     restored.world.diffId + ' / ' + restored.world.diffPriceF);
+  ok(!!restored.world.wh && !!restored.world.market && !!restored.world.auto
+     && !!restored.world.site && restored.world.moist === M.SOIL.m0,
+     'при миграции восстанавливаются обязательные подсистемы');
 }
 
 console.log(fails ? `\nПРОВАЛЕНО: ${fails}` : '\nЯдро в порядке');
