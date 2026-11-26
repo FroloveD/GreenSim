@@ -494,6 +494,17 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .setgrid .kv{padding:2px 0;font-size:10.5px}
   @media(max-width:720px){.setgrid{grid-template-columns:1fr;gap:6px}.setgrid .card{padding:7px 8px}}
 
+
+  /* ---- ручное управление климатом на основном экране ---- */
+  .climate-controls{display:grid;grid-template-columns:1fr;gap:5px;margin-top:7px;padding-top:7px;border-top:1px solid var(--line2)}
+  .climate-control{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 7px}
+  .climate-control label{font-size:10px;color:var(--dim);line-height:1.2}
+  .climate-control .climate-value{font:10px var(--mono);white-space:nowrap}
+  .climate-control input{grid-column:1/-1;width:100%;margin:1px 0 3px}
+  .climate-control.is-disabled{opacity:.45}
+  #dashGrid .col.left>[data-p="climate"]{overflow-y:auto;scrollbar-width:thin}
+  @media(max-width:720px){.climate-controls{gap:7px}.climate-control label{font-size:11px}}
+
 </style>
 </head>
 <body>
@@ -551,6 +562,25 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
       <div class="panel" data-p="climate">
         <h2>Климат (по датчикам)</h2>
         <div id="gauges"></div>
+        <div id="climateControls" class="climate-controls">
+          <div class="climate-control">
+            <label for="ghHeat">Отопление включать ниже</label>
+            <div class="climate-value"><b id="ghHeatVal">\${world.ctrl.heatSet.toFixed(1)} °C</b></div>
+            <input id="ghHeat" type="range" min="8" max="28" step="0.5" value="\${world.ctrl.heatSet}">
+          </div>
+          <div class="climate-control">
+            <label for="ghVent">Проветривание включать выше</label>
+            <div class="climate-value"><b id="ghVentVal">\${world.ctrl.ventSet.toFixed(1)} °C</b></div>
+            <input id="ghVent" type="range" min="14" max="38" step="0.5" value="\${world.ctrl.ventSet}">
+          </div>
+          <div class="climate-control" id="ghCo2Control">
+            <label for="ghCo2">Целевой CO₂</label>
+            <div class="climate-value"><b id="ghCo2Val">\${world.ctrl.co2Set} ppm</b></div>
+            <input id="ghCo2" type="range" min="400" max="1200" step="25" value="\${world.ctrl.co2Set}">
+            <div class="hint" id="ghCo2Hint"></div>
+          </div>
+          <div class="hint">Ручные уставки оборудования. Автоматические таймеры настраиваются отдельно.</div>
+        </div>
         <div class="hint" id="driftHint"></div>
       </div>
       <div class="panel" data-p="why">
