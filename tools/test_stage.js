@@ -24,6 +24,19 @@ ok(recipes,'все культуры имеют рецепты старта, ро
  ok(r.ec[0]<r.ec[1]&&r.ph[0]<r.ph[1]&&r.why.length>10,'рецепт содержит диапазоны EC/pH и объяснение',r.name);
 }
 
+// 2b. После первого завязывания фаза налива не откатывается при сборе плодов.
+{
+ const w=M.makeWorld({profile:'hobby',crop:'tomato',seed:19,startDoy:120});
+ const stages=[];
+ for(let d=0;d<70;d++){
+  for(let h=0;h<24;h++){M.stepWorld(w,1);if(w.moist<45)M.water(w);}
+  M.harvestAll(w);
+  const key=M.cropStage(w).key;
+  if(stages[stages.length-1]!==key)stages.push(key);
+ }
+ ok(stages.join(',')==='start,veg,fruit','фазы идут вперёд и не откатываются после сбора',stages.join(' → '));
+}
+
 // 3. Внутри коридора штрафа нет; далеко за коридором он мягкий и ограниченный.
 {
  const w=M.makeWorld({profile:'hobby',crop:'tomato',seed:13});
