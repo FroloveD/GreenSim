@@ -2170,8 +2170,9 @@ function renderAll(){
     ? 'Максимальная скорость кампании — 64×'
     : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
+  renderTop(); renderGauges(); renderClimateControls(); renderFinance();
   bindDashboardDetails();
-  renderTop(); renderGauges(); renderClimateControls(); renderFinance(); renderAlerts();
+  renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
   syncLightButtons();
   tutorTick();
