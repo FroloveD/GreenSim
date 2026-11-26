@@ -473,6 +473,7 @@ function renderFinance(){
     <div class="finRow total"><span>Деньги</span>${cell(moneyDay)}${cell(w.money)}</div>
     <div class="finRow"><span>от старта</span><span class="dim">—</span>${cell(w.money-w.startMoney)}</div>
     ${Math.abs(recon)>1 ? `<div class="finRow"><span>кредит и прочее</span><span class="dim">—</span>${cell(recon)}</div>`:''}
+    ${w.money < -0.01 ? `<div class="finRow"><span>долг, ${(CFG.debtRate*100).toFixed(0)}%/сут</span><span class="dim">—</span><b class="neg">${moneyNum(-w.money)}</b></div>`:''}
     <div class="hint" style="margin-top:6px">${w.ctrl.lampEnabled
       ? `Досветка горит: ${(((w.light&&w.light.stripOn)?0.1:0)+(((w.light&&w.light.lampOn)?(w.env.lampKW||0):0))).toFixed(2)} кВт·ч в час.`
       : 'Досветка выключена — за свет не платите.'} «Сутки» — прошлые полные сутки, «сезон» — с начала.</div>
@@ -582,6 +583,11 @@ function renderAlerts(){
   if (w.meas.rh > C.rhMax) out.push(['warn', `Влажность ${w.meas.rh.toFixed(0)}% — риск серой гнили, нужна вентиляция`]);
   if (w.disease > 0.25) out.push(['bad', `Серая гниль ${(w.disease*100)|0}% — обработка в магазине`]);
   if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
+  // долг
+  if (w.money < -0.01){
+    const rate = (typeof CFG!=='undefined' && CFG.debtRate) ? CFG.debtRate : 0.02;
+    out.push(['bad', `Долг ${moneyS(-w.money)}: проценты ${moneyS(-w.money*rate)} в сутки. Покупки заблокированы — продайте урожай или уберите расходы`]);
+  }
   // свет: будильник напоминает, но не переключает
   if (hasLight(w) && w.ctrl.alarmOn){
     const from = w.ctrl.alarmFrom, to = w.ctrl.alarmTo, h = w.hour;

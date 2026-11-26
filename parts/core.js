@@ -46,6 +46,7 @@ const CFG = {
   waterPrice: 1.2,                   // €/м³
   fertPrice: 1.35,                   // €/кг смеси
   laborHour: 18,                     // €/ч
+  debtRate: 0.02,                    // проценты в сутки на отрицательный баланс (долг)
   // прочее
   maxPhyHardCap: 40,
   plotPlants: 8
@@ -279,7 +280,7 @@ const GEAR = {
   co2_50:     {ch:1, why:'CO₂ поднимает фотосинтез до +30% при хорошем свете — но только в закрытом помещении.'},
   seeds:      {ch:1, why:'Пересев листовых: салат живёт коротким циклом, семена расходуются.'},
   rain:       {ch:1, why:'Запас воды на 40 м³: полив и подпитка идут каждый день, и бегать за водой некогда.'},
-  repair:     {ch:1, why:'Сломалось — чинить сразу: простой оборудования в разгар плодоношения дороже ремонта.'},
+  repair:     {ch:0, why:'Сломалось — чинить сразу: простой оборудования в разгар плодоношения дороже ремонта. Ремонт доступен с первого дня: отказы случаются и на балконе.'},
 
   climatePC:  {ch:2, why:'Перестаёте жить у пульта: контроллер сам держит T и RH и пишет логи колебаний.'},
   ups:        {ch:2, why:'Отключение света останавливает котёл. ИБП держит отопление, пока не дадут ток.'},
@@ -1489,6 +1490,20 @@ function newDay(w){
   const costTotal = Object.values(w.cost).reduce((s,x)=>s+x,0);
   const cost = costTotal - (w.costPrev||0);
   w.costPrev = costTotal;
+  // ДОЛГ: текущие расходы (энергия, вода, труд, содержание) могут увести баланс в минус —
+  // покупки без денег не делаются, а вот за свет и воду платить приходится. Минус — это долг,
+  // на него капают проценты, и в «Экономике» он виден отдельной строкой.
+  if (w.money < -0.01){
+    const rate = CFG.debtRate || 0.02;
+    const interest = -w.money*rate;
+    w.money -= interest;
+    w.cost.loan += interest;
+    w.debtDays = (w.debtDays||0)+1;
+    if (!w._debtAlertDay || w._debtAlertDay < w.day-1){
+      w.log.unshift({t:'Д'+w.day, m:`Долг ${moneyS(-w.money)}: проценты ${moneyS(interest)} в сутки — продайте урожай или уберите расходы`, k:'bad'});
+      w._debtAlertDay = w.day;
+    }
+  } else { w.debtDays = 0; }
   w.revenueYesterday = w.revenue;
   const profit = rev - cost;
   w.profitDay = profit;
@@ -1680,17 +1695,28 @@ function buyItem(w, id){
     if (it.id !== id) continue;
     if (it.req && !it.req(w)) return {ok:false, msg:'Недоступно'};
     if (id === 'repair'){
-      let total = 0;
-      for (const k in w.equip){
-        const eq = w.equip[k];
-        if (!eq.ok){ total += EQUIP_DEFS[k].repair; eq.ok = true; eq.stuck = false; eq.down = 0; }
+      // чиним по одному, начиная с самого важного: денег на всё может не хватить,
+      // и тогда игрок чинит то, что сильнее всего влияет на урожай, а не ждёт месяцами
+      const order = ['heater','fan','lamp','dosing','co2','sensor'];
+      const broken = order.filter(k=>w.equip[k] && !w.equip[k].ok);
+      if (!broken.length) return {ok:false, msg:'Всё работает'};
+      const priceOf = k => w.has.insurance ? Math.round(EQUIP_DEFS[k].repair*0.4) : EQUIP_DEFS[k].repair;
+      let total = 0, fixed = [];
+      for (const k of broken){
+        const p = priceOf(k);
+        if (w.money - total < p) continue;          // на это не хватает — чиним, что можем
+        total += p;
+        const eq = w.equip[k]; eq.ok = true; eq.stuck = false; eq.down = 0;
+        fixed.push(EQUIP_DEFS[k].name);
       }
-      if (!total) return {ok:false, msg:'Всё работает'};
-      if (w.money < total) return {ok:false, msg:'Недостаточно средств'};
-      if (w.has.insurance) total = Math.round(total*0.4);
+      if (!fixed.length){
+        const min = Math.min(...broken.map(priceOf));
+        return {ok:false, msg:`Недостаточно средств: самый дешёвый ремонт ${money(min)}`};
+      }
       w.money -= total; w.cost.repair += total;
-      w.log.unshift({t:'Д'+w.day, m:`Ремонт выполнен: −${money(total)}`, k:'hl'});
-      return {ok:true, msg:`Ремонт: −${money(total)}`};
+      const rest = broken.length - fixed.length;
+      w.log.unshift({t:'Д'+w.day, m:`Ремонт: ${fixed.join(', ')} — ${money(total)}` + (rest?` (осталось сломано: ${rest})`:''), k:'hl'});
+      return {ok:true, msg:`Ремонт: ${fixed.join(', ')} — ${money(total)}` + (rest?`. Не хватило на остальное: ${rest}`:'')};
     }
     if (it.id === 'whSection'){
       const r = addSection(w);
