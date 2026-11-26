@@ -495,7 +495,7 @@ function renderAlerts(){
   const w = world, C = CROPS[w.crop], out = [];
   // отказы
   const broken = [];
-  for (const k in w.equip) if (!w.equip[k].ok) broken.push(EQUIP_DEFS[k].name);
+  for (const k in w.equip) if (!w.equip[k].ok && equipInstalled(w,k)) broken.push(EQUIP_DEFS[k].name);
   if (!w.power) out.push(['bad','Нет электричества: отопление и форточки не работают']);
   if (broken.length) out.push(['bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт']);
   // климат по датчикам
@@ -506,7 +506,7 @@ function renderAlerts(){
   if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
   // запасы
   if (w.stock.fertKg < 5) out.push(['warn','Удобрения заканчиваются — рост замедлится']);
-  if (w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
+  if (w.has.co2 && w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
   if (w.stock.waterM3 < 3) out.push(['bad','Нет воды — растения в стрессе']);
   // контракты
   for (const ct of w.contracts){
@@ -687,7 +687,8 @@ const OWNED = {
   led:w=>w.has.led, ledBoost:w=>w.upg.ledBoost, screen:w=>w.has.screen, shade:w=>w.has.shade,
   dosing:w=>w.has.dosing, secondSensor:w=>w.has.secondSensor, worker:w=>w.upg.worker,
   reliability:w=>w.upg.reliability, service:w=>w.has.service, insurance:w=>w.has.insurance,
-  biocontrol:w=>w.has.biocontrol, weather:w=>w.has.weatherSrv, autoBuy:w=>w.upg.autoBuy
+  biocontrol:w=>w.has.biocontrol, weather:w=>w.has.weatherSrv, autoBuy:w=>w.upg.autoBuy,
+  co2valve:w=>w.has.co2
 };
 function shopTopLine(){
   const tr = marketTrend(world, world.crop);
@@ -772,7 +773,9 @@ function renderSettings(){
       <div class="h"><b>Климат</b></div>
       ${slider('heat','Отопление ≥',8,28,0.5,c.heatSet,v=>v.toFixed(1)+' °C')}
       ${slider('vent','Вентиляция ≥',14,38,0.5,c.ventSet,v=>v.toFixed(1)+' °C')}
-      ${slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')}
+      ${world.has.co2 ? slider('co2','Целевой CO₂',400,1200,25,c.co2Set,v=>v+' ppm')
+        : `<div class="row"><label>Обогащение CO₂</label><span class="val">нет клапана</span></div>
+           <div class="hint">Клапана нет: CO₂ держится на уровне комнатного воздуха, около 480 ppm. Клапан покупается в магазине, раздел «Оборудование».</div>`}
       <div class="hint">Проветривание выдувает CO₂ и тепло: чем ниже порог, тем дороже сезон, но суше воздух.</div>
     </div>
     <div class="card">
@@ -865,6 +868,7 @@ function renderSettings(){
 
   const bind = (id, key, fmt) => {
     const s = $('s_'+id);
+    if (!s) return;                 // регулятора может не быть (например CO₂ без клапана)
     s.oninput = () => {
       const v = parseFloat(s.value);
       world.ctrl[key] = v;
@@ -981,8 +985,8 @@ const TUTOR = [
     done:()=>world.harvested >= 1 },
   { text:'Урожай лёг на склад — деньги за него ещё не пришли. В панели «Склад» нажмите «Продать всё»: цена дня меняется, а лёжкость ограничена.',
     done:()=>(world.soldKg||0) > 0.5 },
-  { text:'Откройте «Параметры» и поднимите целевой CO₂ до 800 ppm — при хорошем свете это даёт до +15% фотосинтеза.',
-    done:()=>world.ctrl.co2Set >= 800 },
+  { text:'Откройте «Параметры» и поднимите целевой CO₂ до 800 ppm — при хорошем свете это даёт до +15% фотосинтеза. Нужен клапан из магазина.',
+    done:()=>!world.has.co2 || world.ctrl.co2Set >= 800 },
   { text:'В «Магазине» есть дешёвый старт: термометр-гигрометр 28 €, клейкие ловушки 45 €, бочка воды 90 € — купите одну вещь.',
     done:()=>world.has.alarm||world.has.sticky||world.has.circFan||world.has.handDose||
             world.has.humid||world.has.ups||world.has.film||world.has.climatePC||world.has.ledStrip },

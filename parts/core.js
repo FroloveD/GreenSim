@@ -247,6 +247,7 @@ const GEAR = {
   biocontrol: {ch:1, why:'Биозащита: −60% риска вредителей и выше качество партии. Работает вместо химии.'},
   weather:    {ch:1, why:'Метеосервис показывает будущие события в прогнозе: можно закрыть форточку заранее.'},
   fert100:    {ch:1, why:'Мешок со скидкой 12% — выгодно, когда расход перевалил за 20 кг.'},
+  co2valve:   {ch:2, why:'Клапан подаёт газ до уставки. Без него CO₂ держится на уровне комнатного воздуха, около 480 ppm, и фотосинтез недобирает. В теплице это окупается.'},
   co2_50:     {ch:1, why:'CO₂ поднимает фотосинтез до +30% при хорошем свете — но только в закрытом помещении.'},
   seeds:      {ch:1, why:'Пересев листовых: салат живёт коротким циклом, семена расходуются.'},
   rain:       {ch:1, why:'Запас воды на 40 м³: полив и подпитка идут каждый день, и бегать за водой некогда.'},
@@ -694,17 +695,21 @@ function climateSub(w, dtH, C){
   w.rhMaxDay = Math.max(w.rhMaxDay===undefined?w.rh:w.rhMaxDay, w.rh);
 
   // --- CO₂ ---
-  const co2OK = w.equip.co2.ok && w.power;
-  const co2Stuck = w.equip.co2.stuck;
+  const co2OK = w.has.co2 && w.equip.co2.ok && w.power;
+  const co2Stuck = w.has.co2 && w.equip.co2.stuck;
+  // без клапана воздух держится на комнатном уровне (улица ~420 ppm + дыхание людей и растений)
+  const airBase = w.has.co2 ? 420 : 480;
   const photoCO2 = (w.assimRate||0)*w.plantScale*44/30/24;      // г/ч
   let injG = 0;
   if (co2Stuck && w.stock.co2Kg > 0.2) injG = E.co2MaxG;
   else if (co2OK && c.co2Set > w.co2 && w.stock.co2Kg > 0.2)
     injG = E.co2MaxG*clamp((c.co2Set-w.co2)/80,0,1);
   const netPPM = (injG - photoCO2)/w.gPerPPM;
-  const exch = 7*w.act.vent;
+  // без клапана воздух всё равно обменивается с комнатой через щели: иначе растения выедали бы CO₂ до пола
+  const leak = w.has.co2 ? 0 : 2.5;                // 1/ч: окна и щели комнаты (~2.5 объёма в час)
+  const exch = 7*w.act.vent + leak;
   if (exch > 0.05){
-    const Ceq = 420 + netPPM/exch;
+    const Ceq = airBase + netPPM/exch;
     w.co2 = Ceq + (w.co2-Ceq)*Math.exp(-dtH/exch);
   } else w.co2 += netPPM*dtH;
   w.co2 = clamp(w.co2, 330, 2000);
@@ -931,12 +936,20 @@ const EQUIP_DEFS = {
   sensor: {name:'Датчики', repair:120, failP:0.0030}
 };
 
+// Есть ли это оборудование в мире: клапан CO₂ не может сломаться там, где его не купили.
+function equipInstalled(w, k){
+  if (k === 'co2') return !!w.has.co2;
+  if (k === 'dosing') return !!w.has.dosing;
+  return true;
+}
+
 function riskTick(w, dtH){
   const dtD = dtH/24;
   // износ и отказы
   for (const k in w.equip){
     const eq = w.equip[k], def = EQUIP_DEFS[k];
     if (!eq || !def) continue;
+    if (!equipInstalled(w, k)) continue;
     if (!eq.ok){ eq.down += dtH; continue; }
     const p = def.failP*dtD*(w.diffFail||1)*(w.has.service?0.35:1)*(w.upg.reliability?0.6:1);
     if (rnd(w) < p){
@@ -1256,7 +1269,7 @@ function checkContracts(w){
 
 const MISSIONS = [
   {id:'m1', text:'«Параметры» → поднимите целевой CO₂ до 800 ppm', reward:60,
-   check:w=>w.ctrl.co2Set>=800},
+   need:w=>!!w.has.co2, check:w=>w.ctrl.co2Set>=800},
   {id:'m2', text:'«Параметры» → включите досветку (нужно купить LED в магазине)', reward:90,
    check:w=>w.ctrl.lampEnabled && w.has.led},
   {id:'m3', text:'Соберите первый урожай (клик по спелому плоду)', reward:120,
@@ -1278,6 +1291,11 @@ const MISSIONS = [
   {id:'m10', text:'Завершите сезон в плюсе', reward:0, check:w=>false}
 ];
 function missionsTick(w){
+  // задание, к которому ещё нет оборудования, пропускаем: иначе игрок застревает на действии,
+  // которое не может сделать
+  let guard = 0;
+  while (MISSIONS[w.missionIdx] && MISSIONS[w.missionIdx].need && !MISSIONS[w.missionIdx].need(w) && guard++ < 20)
+    w.missionIdx++;
   const m = MISSIONS[w.missionIdx];
   if (!m) return;
   let ok = false;
@@ -1316,7 +1334,7 @@ function makeWorld(opts){
     },
     // досветку включает игрок вручную; будильник лишь напоминает (алерт), сам свет не переключает
     lampAlarm: { on:{on:true, h:4.5}, off:{on:true, h:21} }, alerts: [],
-    has: { led:false, lampBase:true, screen:false, shade:false, co2:true, dosing:false, secondSensor:false,
+    has: { led:false, lampBase:true, screen:false, shade:false, co2:false, dosing:false, secondSensor:false,
            service:false, insurance:false, weatherSrv:false, biocontrol:false },
     upg: { ledBoost:false, reliability:false, laborF:1, autoBuy:false, worker:false },
     equip: {
@@ -1547,6 +1565,9 @@ const SHOP_ITEMS = () => ([
      buy:w=>{ w.has.climatePC = true; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
+    {id:'co2valve', noScale:true, name:'Клапан CO₂ с подачей газа', base:420,
+     desc:'подаёт CO₂ из баллонов до уставки; без него воздух держится около 480 ppm',
+     req:w=>!w.has.co2, buy:w=>{ w.has.co2 = true; }},
     {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, включается вручную',
      buy:w=>{ w.has.led = true; }},
     {id:'ledBoost', name:'Форсирование LED (+50%)', base:2600, desc:'280 µmol, +энергия',
@@ -1569,9 +1590,9 @@ const SHOP_ITEMS = () => ([
      buy:w=>{ w.stock.fertKg += 20; }},
     {id:'fert100', dynamic:true, bucket:'fert', bulk:120, name:'Удобрения, 100 кг', base:150, desc:'скидка 12% · 120 л склада',
      buy:w=>{ w.stock.fertKg += 100; }},
-    {id:'co2_50', dynamic:true, bucket:'co2', bulk:75, name:'CO₂, 50 кг', base:26, desc:'жидкий CO₂ в баллонах · 75 л',
+    {id:'co2_50', dynamic:true, bucket:'co2', bulk:75, name:'CO₂, 50 кг', base:26, desc:'жидкий CO₂ в баллонах · 75 л', req:w=>w.has.co2,
      buy:w=>{ w.stock.co2Kg += 50; }},
-    {id:'co2_200', dynamic:true, bucket:'co2', bulk:300, name:'CO₂, 200 кг', base:88, desc:'скидка 15% · 300 л',
+    {id:'co2_200', dynamic:true, bucket:'co2', bulk:300, name:'CO₂, 200 кг', base:88, desc:'скидка 15% · 300 л', req:w=>w.has.co2,
      buy:w=>{ w.stock.co2Kg += 200; }},
     {id:'water', dynamic:true, bucket:'water', name:'Вода, 100 м³', base:110, desc:'полив и подпитка',
      buy:w=>{ w.stock.waterM3 += 100; }},
