@@ -505,6 +505,21 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   #dashGrid .col.left>[data-p="climate"]{overflow-y:auto;scrollbar-width:thin}
   @media(max-width:720px){.climate-controls{gap:7px}.climate-control label{font-size:11px}}
 
+
+  /* ---- сворачиваемые панели и контекстные подсказки ---- */
+  .panel-fold{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;padding:0;border:0;background:transparent;color:var(--dim);font:600 10.5px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:uppercase;letter-spacing:.6px;text-align:left;cursor:pointer}
+  .panel-fold:hover{color:var(--txt)}
+  .fold-content[hidden]{display:none!important}
+  .finance-summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--dim);margin:3px 0 6px}
+  .finance-summary b{font:600 11px var(--mono);color:var(--txt);margin-left:3px}
+  .finance-fold{font-size:9.5px;margin:4px 0 2px;text-transform:none;letter-spacing:0}
+  .sensor-label{position:relative;display:inline-flex;align-items:center;gap:4px;cursor:help;outline:none}
+  .sensor-label>i{font-style:normal;font-size:8px;opacity:.55}
+  .sensor-label:after{content:attr(data-tip);display:none;position:absolute;z-index:50;left:0;top:calc(100% + 5px);width:min(220px,70vw);padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#101d17;color:var(--txt);font:10px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:none;letter-spacing:0;white-space:normal;box-shadow:0 6px 18px #0008;pointer-events:none}
+  @media(hover:hover) and (pointer:fine){.sensor-label:hover:after,.sensor-label:focus:after{display:block}}
+  @media(hover:none),(pointer:coarse){.sensor-label.tip-open:after{display:block}}
+  .tutor-shop-buy{outline:2px solid var(--acc)!important;box-shadow:0 0 0 4px rgba(122,216,160,.12)}
+
 </style>
 </head>
 <body>
@@ -559,7 +574,10 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   <div id="dashGrid">
     <div class="col left">
       <div class="panel" data-p="climate">
-        <h2>Климат (по датчикам)</h2>
+        <button type="button" class="panel-fold climate-fold" data-fold-target="climateDetails" aria-expanded="true">
+          <span>Климат (по датчикам)</span><span class="fold-icon">−</span>
+        </button>
+        <div id="climateDetails" class="fold-content">
         <div id="gauges"></div>
         <div id="climateControls" class="climate-controls">
           <div class="climate-control">
@@ -581,6 +599,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
           <div class="hint">Ручные уставки оборудования. Автоматические таймеры настраиваются отдельно.</div>
         </div>
         <div class="hint" id="driftHint"></div>
+        </div>
       </div>
       <div class="panel" data-p="why">
         <h2>Почему так</h2>
