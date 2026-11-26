@@ -1130,6 +1130,14 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Питание (fertigation)</b></div>
+      ${(()=>{ const R = stageRecipe(world);
+        const inEC = c.ecSet >= R.ec[0] && c.ecSet <= R.ec[1] && c.phSet >= R.ph[0] && c.phSet <= R.ph[1];
+        const mid = ((R.ec[0]+R.ec[1])/2).toFixed(1), phMid = ((R.ph[0]+R.ph[1])/2).toFixed(1);
+        return `<div class="kv"><span>текущая стадия</span><b>${R.name}</b></div>
+        <div class="hint" style="margin-bottom:7px">${R.why}</div>
+        <div class="row"><label>Рецепт для этой стадии
+          <div class="hint">EC ${R.ec[0]}–${R.ec[1]} · pH ${R.ph[0]}–${R.ph[1]} · ${inEC?'параметры в коридоре':'параметры вне коридора'}</div></label>
+          <button class="btn ${inEC?'':'good'}" id="btnRecipeApply">поставить ${mid} / ${phMid}</button></div>`; })()}
       ${slider('ec','EC, мСм/см',1.0,3.6,0.1,c.ecSet,v=>v.toFixed(1))}
       ${slider('ph','pH',5.0,6.8,0.1,c.phSet,v=>v.toFixed(1))}
       <div class="row"><label>Рецепт</label>
@@ -1252,6 +1260,15 @@ function renderSettings(){
   $('btnScreenSet').onclick = ()=>{ if (!world.has.screen) return toast('Сначала купите термоэкран'); world.ctrl.screenOn = !world.ctrl.screenOn; renderSettings(); };
   $('btnShadeSet').onclick = ()=>{ if (!world.has.shade) return toast('Сначала купите сетку'); world.ctrl.shadeOn = !world.ctrl.shadeOn; renderSettings(); };
   $('recipeSel').onchange = e => { world.ctrl.recipe = e.target.value; };
+  // Рецепт фазы: устанавливаем середину диапазонов EC и pH для текущей культуры.
+  if ($('btnRecipeApply')) $('btnRecipeApply').onclick = ()=>{
+    const R = stageRecipe(world);
+    world.ctrl.ecSet = Math.round((R.ec[0]+R.ec[1])/2*10)/10;
+    world.ctrl.phSet = Math.round((R.ph[0]+R.ph[1])/2*10)/10;
+    world.ctrl.recipe = R.stage.key==='fruit' ? 'fruit' : 'std';
+    toast(`Рецепт «${R.name}»: EC ${world.ctrl.ecSet} · pH ${world.ctrl.phSet}`);
+    renderSettings(); renderAll(); saveNow(true);
+  };
   document.querySelectorAll('[data-auto]').forEach(b=>b.onclick=()=>{
     const id = b.dataset.auto, cur = !!(world.auto[id] && world.auto[id].on);
     const r = setAuto(world, id, !cur);
