@@ -631,7 +631,7 @@
     <div class="obSlide">
       <h3>Время и скорость</h3>
       <ul class="obList">
-        <li><b>1× — один игровой час за реальную минуту</b> (сутки за 24 минуты). Дальше 4×, 16×, 32×, 64×, 480× — до суток за 3 секунды.</li>
+        <li><b>1× — один игровой час за реальную минуту</b> (сутки за 24 минуты). В свободном сезоне доступны 4×, 16×, 32×, 64× и 480×. В кампании максимум — 64×, чтобы было проще следить за обучающими событиями и последствиями решений.</li>
         <li>Кнопка паузы подписана <b>1:1</b>: время не встаёт, просто идёт секунда за секунду, микроклимат продолжает жить.</li>
         <li><b>«Прогноз»</b> прогоняет 7/14/30 дней на копии мира и не портит ваш сезон.</li>
       </ul>
@@ -664,7 +664,7 @@
     <p>Три страницы: <b>Теплица</b> — дашборд (наблюдение), <b>Магазин</b> — траты, <b>Параметры</b> — настройки климата и питания.</p>
     <p style="margin-bottom:8px">Скорость считается от реального времени: <b>1× — один игровой час за реальную минуту</b>
     (сутки за 24 минуты). Дальше по кнопкам: 4× — сутки за 6 минут, 16× — за 90 секунд, 32× — за 45 секунд,
-    64× — за 22 секунды, 480× — сутки за 3 секунды. Пауза «1:1» — секунда за секунду. Шаг симуляции
+    64× — за 22 секунды; 480× (сутки за 3 секунды) доступна только в свободном сезоне. В кампании максимальная скорость — 64×. Пауза «1:1» — секунда за секунду. Шаг симуляции
     подстраивается под скорость, поэтому на медленных скоростях климат живёт плавно, а на быстрых не «звенит».</p>
     <h3>С чего начать</h3>
     <p style="margin-bottom:8px">1) Соберите урожай — плоды на сцене и в алертах; 2) в магазине откройте
@@ -5013,11 +5013,18 @@ function renderNet(){
 /* ---------------- дашборд: риски ---------------- */
 function renderAlerts(){
   const w = world, C = CROPS[w.crop], out = [];
+  const addRisk = (sev, text, why, risk, action) => out.push([sev, text, why, risk, action]);
   // отказы
   const broken = [];
   for (const k in w.equip) if (!w.equip[k].ok && equipInstalled(w,k)) broken.push(EQUIP_DEFS[k].name);
-  if (!w.power) out.push(['bad','Нет электричества: отопление и форточки не работают']);
-  if (broken.length) out.push(['bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт']);
+  if (!w.power) addRisk('bad','Нет электричества: отопление и форточки не работают',
+    'Сеть питания недоступна или отключён вводной автомат.',
+    'Без питания останавливаются активные электроприборы; температура и влажность могут выйти за безопасные пределы.',
+    'Проверьте электроснабжение и автомат. После восстановления убедитесь, что контроллеры и оборудование снова включены.');
+  if (broken.length) addRisk('bad','Отказ: '+broken.join(', ')+'. Магазин → Сервис → Ремонт',
+    'Диагностика оборудования зафиксировала неисправность установленного узла.',
+    'Оборудование не выполняет свою функцию; связанные параметры климата или производства могут ухудшиться.',
+    'Откройте «Магазин → Сервис», выберите неисправный узел и выполните ремонт. Затем проверьте его состояние.');
   // гарантия: возврат денег за прибор, сломавшийся на 180–364-й день
   if (w.warranty && w.warranty.length){
     for (const r of w.warranty){
@@ -5026,15 +5033,33 @@ function renderAlerts(){
     }
   }
   // климат по датчикам
-  if (w.meas.temp > C.heatTol) out.push(['warn', `Перегрев ${w.meas.temp.toFixed(1)} °C — аборт завязей, откройте форточки или затенение`]);
-  if (w.meas.temp < C.coldTol) out.push(['warn', `Холод ${w.meas.temp.toFixed(1)} °C — рост останавливается`]);
-  if (w.meas.rh > C.rhMax) out.push(['warn', `Влажность ${w.meas.rh.toFixed(0)}% — риск серой гнили, нужна вентиляция`]);
-  if (w.disease > 0.25) out.push(['bad', `Серая гниль ${(w.disease*100)|0}% — обработка в магазине`]);
-  if (w.pest.active) out.push(['bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — обработка`]);
+  if (w.meas.temp > C.heatTol) addRisk('warn', `Перегрев ${w.meas.temp.toFixed(1)} °C — откройте форточки или затенение`,
+    `Измеренная температура выше порога жаростойкости культуры (${C.heatTol} °C).`,
+    'Жара снижает эффективность фотосинтеза и может привести к сбросу цветков и завязей.',
+    'Проверьте вентиляцию, затеняющую сетку и уставку охлаждения. После изменения следите за температурой по датчику.');
+  if (w.meas.temp < C.coldTol) addRisk('warn', `Холод ${w.meas.temp.toFixed(1)} °C — рост замедляется`,
+    `Измеренная температура ниже холодостойкого порога культуры (${C.coldTol} °C).`,
+    'При длительном охлаждении замедляются обмен веществ, рост корней и развитие плодов.',
+    'Проверьте отопление, термоэкран и теплопотери. Убедитесь, что датчик показывает корректное значение.');
+  if (w.meas.rh > C.rhMax) addRisk('warn', `Влажность ${w.meas.rh.toFixed(0)}% — повышен риск серой гнили`,
+    `Относительная влажность выше ориентира культуры (${C.rhMax}%).`,
+    'На влажных листьях дольше сохраняется конденсат, что повышает вероятность развития грибковых болезней.',
+    'Проветрите теплицу и проверьте, не переувлажнён ли субстрат. Не допускайте резкого переохлаждения растений.');
+  if (w.disease > 0.25) addRisk('bad', `Серая гниль ${(w.disease*100)|0}% — требуется обработка`,
+    'Модель болезни учитывает продолжительную влажность и недостаточный воздухообмен.',
+    'Поражённые ткани теряют продуктивность; без мер уровень болезни может продолжить расти.',
+    'Снизьте влажность, улучшите вентиляцию и примените доступную в магазине обработку.');
+  if (w.pest.active) addRisk('bad', `Паутинный клещ: уровень ${(w.pest.level*100)|0}% — требуется обработка`,
+    'Вредитель повреждает листья и уменьшает работающую фотосинтезирующую поверхность.',
+    'При росте заражения падает ассимиляция, а растение медленнее формирует новую биомассу.',
+    'Проведите обработку из магазина и повторно оцените уровень вредителя через несколько игровых дней.');
   // долг
   if (w.money < -0.01){
     const rate = (typeof CFG!=='undefined' && CFG.debtRate) ? CFG.debtRate : 0.02;
-    out.push(['bad', `Долг ${moneyS(-w.money)}: проценты ${moneyS(-w.money*rate)} в сутки. Покупки заблокированы — продайте урожай или уберите расходы`]);
+    addRisk('bad', `Долг ${moneyS(-w.money)}: проценты ${moneyS(-w.money*rate)} в сутки. Покупки заблокированы`,
+      'Баланс ушёл ниже нуля; проценты начисляются на непогашенную сумму каждый игровой день.',
+      'Долг увеличивается даже без новых покупок, а блокировка магазина мешает обслуживать хозяйство.',
+      'Продайте доступный урожай, сократите необязательные расходы и проверьте ежедневные затраты в панели «Экономика».');
   }
   // свет: будильник напоминает, но не переключает
   if (hasLight(w) && w.ctrl.alarmOn){
@@ -5048,7 +5073,10 @@ function renderAlerts(){
   // запасы
   if (w.stock.fertKg < 5) out.push(['warn','Удобрения заканчиваются — рост замедлится']);
   if (w.has.co2 && w.stock.co2Kg < 5 && w.ctrl.co2Set > 450) out.push(['warn','CO₂ заканчивается — заданный уровень не держится']);
-  if (w.stock.waterM3 < 3) out.push(['bad','Нет воды в баке — полить нечем, купите воду в магазине']);
+  if (w.stock.waterM3 < 3) addRisk('bad','В баке почти нет воды — поливать нечем',
+    'Запас воды ниже рабочего резерва системы полива.',
+    'При исчерпании запаса влажность субстрата начнёт снижаться, даже если растение нуждается в поливе.',
+    'Пополните бак в магазине и проверьте, восстановился ли запас после покупки.');
   // влага субстрата: датчик показывает проценты, поливает игрок руками
   {
     const st = soilState(w), m = Math.round(w.moist||0);
@@ -5071,7 +5099,12 @@ function renderAlerts(){
   // сначала плохие, потом предупреждения: будильник не должен теряться за мелочью
   const rank = {bad:0, warn:1, ok:2};
   out.sort((a,b)=>(rank[(a[0])]||9)-(rank[(b[0])]||9));
-  $('alerts').innerHTML = out.slice(0,8).map(([k,t])=>`<div class="alert ${k}">${t}</div>`).join('');
+  $('alerts').innerHTML = out.slice(0,8).map(([k,t,why,risk,action])=>{
+    const extra = [why?'<div><b>Почему:</b> '+why+'</div>':'',
+                   risk?'<div><b>Чем грозит:</b> '+risk+'</div>':'',
+                   action?'<div><b>Что сделать:</b> '+action+'</div>':''].filter(Boolean).join('');
+    return `<div class="alert ${k}">${t}${extra?'<details style="margin-top:5px"><summary style="cursor:pointer">Разбор риска и действия</summary><div class="hint" style="padding:5px 0 0 4px;display:grid;gap:4px">${extra}</div></details>':''}</div>`;
+  }).join('');
 }
 
 /* ---------------- дашборд: цели сезона ---------------- */
@@ -5097,14 +5130,19 @@ function renderDiagnosis(){
   const d = diagnose(world);
   const head = `<div class="kv"><span>усвоено за сутки</span><b>${world.day>1?d.assimDay.toFixed(1)+' г/м²':'— (первый день)'}</b></div>`;
   const body = d.items.length
-    ? d.items.map(it=>{
+    ? d.items.map((it,i)=>{
         const cls = it.sev==='bad'?'bad':it.sev==='warn'?'warn':'ok';
-        const details = [it.why ? `<div class="hint"><b>Почему:</b> ${it.why}</div>` : '',
-                         it.risk ? `<div class="hint"><b>Риск:</b> ${it.risk}</div>` : '',
-                         it.action ? `<div class="hint"><b>Что сделать:</b> ${it.action}</div>` : ''].filter(Boolean).join('');
-        return `<div class="alert ${cls}" style="margin-bottom:4px">${it.text}${details ? `<div style="margin-top:5px;padding-left:8px">${details}</div>` : ''}</div>`;
+        const details = [it.why ? `<div class="hint"><b>Причина:</b> ${it.why}</div>` : '',
+                         it.risk ? `<div class="hint"><b>Последствие:</b> ${it.risk}</div>` : '',
+                         it.action ? `<div class="hint"><b>Действие:</b> ${it.action}</div>` : ''].filter(Boolean).join('');
+        return `<div class="alert ${cls}" style="margin-bottom:5px">
+          <div>${it.text}</div>
+          ${details ? `<details style="margin-top:4px"><summary style="cursor:pointer">Почему это происходит и чем грозит</summary>
+            <div style="margin-top:5px;padding:5px 0 0 8px;display:grid;gap:5px">${details}</div>
+          </details>` : ''}
+        </div>`;
       }).join('')
-    : `<div class="alert ok">Растение у своего предела: свет, питание и климат в норме</div>`;
+    : `<div class="alert ok">Ограничений не выявлено: свет, питание и климат в рабочем диапазоне</div>`;
   $('diagnosis').innerHTML = head + body +
     `<div class="hint" style="margin-top:4px">углерод, усвоенный кроной за прошлые сутки. Ориентир: 15–25 г/м²·сут у томата в апреле</div>`;
 }
@@ -6043,7 +6081,14 @@ function togglePause(){
 }
 $('btnPause').onclick = togglePause;
 document.querySelectorAll('.spd').forEach(b=>b.onclick=()=>{
-  speed = parseFloat(b.dataset.s);
+  const requested = parseFloat(b.dataset.s);
+  if (world && world.camp && requested > 64){
+    speed = 64;
+    document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x.dataset.s==='64'));
+    toast('В кампании максимальное ускорение — 64×');
+    return;
+  }
+  speed = requested;
   document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on', x===b));
   if (paused) togglePause();
 });
@@ -6138,6 +6183,17 @@ function syncLightButtons(){
 /* ---------------- сборка панелей ---------------- */
 function renderAll(){
   if (!world) return;
+  // В кампании 480× недоступно: скрываем кнопку и страхуем состояние скорости.
+  const turboButton = document.querySelector('.spd[data-s="480"]');
+  if (turboButton) turboButton.hidden = !!world.camp;
+  if (world.camp && speed > 64){
+    speed = 64;
+    document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='64'));
+  }
+  const speed64Button = document.querySelector('.spd[data-s="64"]');
+  if (speed64Button) speed64Button.title = world.camp
+    ? 'Максимальная скорость кампании — 64×'
+    : 'Ускорение 64×';
   if (world.alarmPing){ toast(world.alarmPing.text); world.alarmPing = null; }
   renderTop(); renderGauges(); renderFinance(); renderAlerts();
   renderDiagnosis(); renderGoals(); renderMissions(); renderStock(); renderTanks(); renderContracts(); renderMail(); renderNet(); renderLog();
