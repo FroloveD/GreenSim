@@ -245,7 +245,8 @@ function applyLoadedWorld(pack, silent){
   if (!world.has.autoTimer && world.auto) ['lamp','water','co2','full'].forEach(k=>{ if(world.auto[k]) world.auto[k].on=false; });
   if (world.camp && world.tutorialEnabled === undefined) world.tutorialEnabled = true;
   world.tutorialEnabled = !!(world.camp && world.tutorialEnabled);
-  tutorStep = 0; resetTutorFlags();
+  tutorStep = Math.max(0, Math.min(TUTOR.length, Number.isInteger(world.tutorialStep) ? world.tutorialStep : 0));
+  resetTutorFlags();
   tutorDone = !world.tutorialEnabled || !!world.tutorialCompleted;
   // пока вкладка была закрыта, время шло: догоняем по реальным часам (максимум 3 суток)
   let away = null;
@@ -512,6 +513,7 @@ function startGame(){
   if (pending.weather === 'real') refreshRealWeather(false);
   world.tutorialEnabled = !!(pending.campaign && pending.tutorialEnabled);
   world.tutorialCompleted = false;
+  world.tutorialStep = 0;
   tutorStep = 0; tutorDone = !world.tutorialEnabled; resetTutorFlags();
   cam.plant = 0; cam.mode = 'free'; paused = false; speed = 4;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
@@ -733,7 +735,7 @@ function renderClimateControls(){
       input.oninput=()=>{
         world.ctrl[key]=parseFloat(input.value);
         value.textContent=fmt(world.ctrl[key]);
-        if (world.camp && world.tutorialEnabled && key==='heatSet') tutorFlags.climate=true;
+        if (world.camp && world.tutorialEnabled && tutorStep===TUTOR.length-1 && key==='heatSet') tutorFlags.climate=true;
       };
       input.onchange=()=>saveNow(true);
       input.dataset.bound='1';
@@ -1760,7 +1762,12 @@ function tutorTick(){
   tutorFlags.buyThermo = !!world.has.alarm;
   tutorFlags.buySticky = !!world.has.sticky;
   // Обучение идёт по действиям игрока, а не по календарю.
+  const previousStep = tutorStep;
   while (tutorStep < TUTOR.length && TUTOR[tutorStep].done()) tutorStep++;
+  if (tutorStep !== previousStep){
+    world.tutorialStep = tutorStep;
+    saveNow(true);
+  }
   if (tutorStep >= TUTOR.length){
     tutorDone = true; world.tutorialCompleted = true;
     $('tutor').classList.remove('on');
@@ -2052,7 +2059,7 @@ function showOnboarding(step){
 function setCampaignTutorEnabled(enabled, restart){
   if (!world || !world.camp){ toast('Обучение доступно в кампании'); return; }
   world.tutorialEnabled=!!enabled;
-  if (enabled && restart){ tutorStep=0; tutorDone=false; world.tutorialCompleted=false; resetTutorFlags(); }
+  if (enabled && restart){ tutorStep=0; world.tutorialStep=0; tutorDone=false; world.tutorialCompleted=false; resetTutorFlags(); }
   if (!enabled){ tutorDone=true; clearTutorTarget(); $('tutor').classList.remove('on'); }
   else { tutorDone=false; setPage('greenhouse'); renderTutor(); }
   saveNow(true);
