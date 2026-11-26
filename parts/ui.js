@@ -741,6 +741,17 @@ function renderClimateControls(){
       input.dataset.bound='1';
     }
   });
+  [['ghHeatToggle','heatManualOn','Отопление'],['ghVentToggle','ventManualOn','Проветривание']].forEach(([id,key,label])=>{
+    const btn=$(id); if(!btn) return;
+    const on=!!world.ctrl[key];
+    btn.textContent=label+': '+(on?'вкл':'выкл');
+    btn.classList.toggle('good',on);
+    btn.setAttribute('aria-pressed',String(on));
+    if(!btn.dataset.bound){
+      btn.onclick=()=>{ world.ctrl[key]=!world.ctrl[key]; renderClimateControls(); saveNow(true); };
+      btn.dataset.bound='1';
+    }
+  });
   const co2=$('ghCo2'), co2Hint=$('ghCo2Hint'), co2Control=$('ghCo2Control');
   const co2Label=document.querySelector('label[for="ghCo2"]');
   if(co2Label) co2Label.dataset.tip=world.has.co2
@@ -1404,7 +1415,7 @@ function renderSettings(){
         if (k.id==='lamp')  nowText = a.on ? (inWindow(now, a.from, a.to) ? 'сейчас в окне · лампа по расписанию' : 'вне окна · лампа выключена') : '';
         if (k.id==='water') nowText = a.on ? (inWindow(now, a.from, a.to) ? `сейчас в окне · цель ${a.target}%` : 'вне окна · полива нет') : '';
         if (k.id==='co2')   nowText = a.on ? (inWindow(now, a.from, a.to) ? 'клапан открыт для цели' : 'вне окна · клапан закрыт') : '';
-        if (k.id==='full')  nowText = a.on ? 'автопилот: свет по кроне, влага по датчику, CO₂ у цели' : '';
+        if (k.id==='full')  nowText = a.on ? 'автопилот: свет, влага, CO₂, отопление и проветривание по климатическим уставкам' : '';
         return `<div class="row"><label>${k.name}
             <div class="hint">${ok ? k.note : '<span style="color:var(--warn)">'+why+'</span>'}</div>
             ${nowText ? `<div class="hint" style="color:var(--acc)">${nowText}</div>` : ''}
