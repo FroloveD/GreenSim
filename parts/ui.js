@@ -1515,12 +1515,28 @@ function tutorFold(min){
   box.classList.toggle('min', !!min);
   const b = $('tutorFold'); if (b) b.textContent = min ? 'развернуть' : 'свернуть';
 }
+function clearTutorTarget(){
+  document.querySelectorAll('.tutor-target').forEach(el=>el.classList.remove('tutor-target'));
+}
+function tutorTarget(){
+  const selectors = [
+    '.camBar',
+    '#btnHarvest',
+    '[data-p="stock"]',
+    page==='settings' ? (world.has.co2 ? '#s_co2' : '#settingsBody .card') : '[data-tab="settings"]',
+    '#btnWaterQuick',
+    page==='shop' ? '#shopBody' : '[data-tab="shop"]',
+    '#btnPred'
+  ];
+  return document.querySelector(selectors[tutorStep] || '');
+}
 function renderTutor(){
   const box = $('tutor');
   if (!box) return;
-  if (tutorDone || !world || page !== 'greenhouse' || tutorStep >= TUTOR.length){ box.classList.remove('on'); return; }
+  clearTutorTarget();
+  if (tutorDone || !world || tutorStep >= TUTOR.length){ box.classList.remove('on'); return; }
   $('tutorStep').textContent = `Шаг ${tutorStep+1} из ${TUTOR.length}`;
-  // новый шаг — снова разворачиваем и через 9 секунд сворачиваем сами
+  // Новый шаг: разворачиваем подсказку и даём игроку время прочитать её.
   if (tutorFoldStep !== tutorStep){
     tutorFoldStep = tutorStep; tutorFold(false);
     clearTimeout(tutorFoldT);
@@ -1530,6 +1546,11 @@ function renderTutor(){
   $('tutorDots').innerHTML = TUTOR.map((_,i)=>
     `<i class="${i<tutorStep?'done':i===tutorStep?'on':''}"></i>`).join('');
   box.classList.add('on');
+  const target = tutorTarget();
+  if (target){
+    target.classList.add('tutor-target');
+    if (target.id==='s_co2') target.closest('.card')?.classList.add('tutor-target');
+  }
 }
 function tutorTick(){
   if (!world || tutorDone) return;
@@ -1543,7 +1564,7 @@ function tutorTick(){
   }
   renderTutor();
 }
-$('tutorSkip').onclick = ()=>{ tutorDone = true; $('tutor').classList.remove('on'); toast('Обучение пропущено'); };
+$('tutorSkip').onclick = ()=>{ tutorDone = true; clearTutorTarget(); $('tutor').classList.remove('on'); toast('Обучение пропущено'); };
 $('tutorFold').onclick = ()=>{
   const box = $('tutor');
   tutorFold(!box.classList.contains('min'));
