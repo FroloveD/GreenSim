@@ -2569,9 +2569,79 @@ function rebuildGraph(w){
   return w;
 }
 
+// Безопасный вывод данных сохранения в HTML. Используйте для строк,
+// которые вставляются через innerHTML или в HTML-атрибуты.
+function escapeHTML(value){
+  return String(value===null||value===undefined?'':value).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[ch]);
+}
+
+// Проверяем импорт до миграций и восстановления графа: файл сохранения недоверенный.
+function assertSavePayload(pack){
+  const record=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+  if(!record(pack)||!record(pack.world)) throw new Error('нет корректных данных мира');
+  const stack=[{value:pack,depth:0}],seen=new Set();let nodes=0;
+  while(stack.length){
+    const item=stack.pop(),v=item.value;
+    if(v===null||typeof v!=='object'){
+      if(typeof v==='string'&&v.length>200000) throw new Error('слишком длинное текстовое поле');
+      continue;
+    }
+    if(seen.has(v)) continue;
+    seen.add(v);
+    if(++nodes>300000) throw new Error('сохранение слишком сложное');
+    if(item.depth>64) throw new Error('слишком глубокая структура сохранения');
+    if(!Array.isArray(v)){
+      const proto=Object.getPrototypeOf(v);
+      if(proto!==Object.prototype&&proto!==null) throw new Error('недопустимый тип объекта в сохранении');
+    }else if(v.length>100000) throw new Error('слишком большой массив в сохранении');
+    for(const key of Object.keys(v)){
+      if(key.length>256||key==='__proto__'||key==='prototype'||key==='constructor')
+        throw new Error('недопустимое поле в сохранении');
+      stack.push({value:v[key],depth:item.depth+1});
+    }
+  }
+  const w=pack.world;
+  const checkText=(v,label,max=20000)=>{
+    if(typeof v!=='string'||v.length>max) throw new Error('некорректное поле '+label);
+  };
+  if(w.mail!==undefined){
+    if(!Array.isArray(w.mail)||w.mail.length>250) throw new Error('некорректный список писем');
+    for(const m of w.mail){
+      if(!record(m)) throw new Error('некорректное письмо');
+      checkText(m.id,'mail.id',120);checkText(m.subj,'mail.subj',500);checkText(m.body,'mail.body',12000);
+      if(!Array.isArray(m.opts)||m.opts.length>8) throw new Error('некорректные варианты письма');
+      for(const o of m.opts){
+        if(!record(o)) throw new Error('некорректный вариант письма');
+        checkText(o.label,'mail.opts.label',500);
+        if(o.desc!==undefined) checkText(o.desc,'mail.opts.desc',1200);
+      }
+    }
+  }
+  if(w.log!==undefined){
+    if(!Array.isArray(w.log)||w.log.length>10000) throw new Error('некорректный журнал событий');
+    for(const l of w.log){
+      if(!record(l)) throw new Error('некорректная запись журнала');
+      checkText(l.t,'log.t',300);checkText(l.m,'log.m',3000);
+      if(l.k!==undefined) checkText(l.k,'log.k',80);
+    }
+  }
+  if(w.contracts!==undefined){
+    if(!Array.isArray(w.contracts)||w.contracts.length>200) throw new Error('некорректный список контрактов');
+    for(const c of w.contracts){
+      if(!record(c)) throw new Error('некорректный контракт');
+      if(c.label!==undefined) checkText(c.label,'contract.label',500);
+      if(c.id!==undefined&&typeof c.id!=='string'&&typeof c.id!=='number') throw new Error('некорректный id контракта');
+    }
+  }
+  return pack;
+}
+
 function deserializeWorld(text){
+  if(typeof text==='string'&&text.length>12*1024*1024) throw new Error('файл сохранения превышает 12 МБ');
   const pack = (typeof text === 'string') ? JSON.parse(text) : text;
-  if (!pack || !pack.world) throw new Error('нет данных мира');
+  assertSavePayload(pack);
   if (pack.v !== SAVE_VERSION && pack.v !== 1)
     throw new Error('версия сохранения '+pack.v+' не поддерживается');
   const w = pack.world;
