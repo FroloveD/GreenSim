@@ -183,7 +183,7 @@
   @media (max-width:760px){
     #dashGrid{grid-template-columns:1fr}
     #dashGrid .col.left{display:none}
-    .metrics .metric:nth-child(n+4){display:none}
+    .metrics .metric.profit{display:none}
   }
 
   /* ================= BORDERLANDS: комикс-обводка, жёлтый, ржавчина ================= */
@@ -242,6 +242,14 @@
   .btn.warn{background:var(--acc2);color:#1a0d04}
   .btn:disabled{opacity:.45;box-shadow:none;transform:none}
   .camBar button.on{background:var(--acc);color:#1a1206}
+  .camBar>button{width:34px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+  .camBar>button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .camBar>button:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+  .metric.climate b{font-size:11px;color:#8fd7ff}
+  .metric.climate span{font-size:8px}
+  .diagnosis-details{display:grid;gap:4px;margin-top:6px;padding:6px 7px;background:rgba(255,194,26,.08);border:1px solid rgba(255,194,26,.22);border-left:3px solid var(--acc)}
+  .diagnosis-detail{font-size:10.5px;line-height:1.4;color:#f0dfc3}
+  .diagnosis-detail b{display:inline-block;min-width:82px;color:var(--acc);font-size:9px;text-transform:uppercase;letter-spacing:.35px}
   /* полосы и графики */
   .g .bar{height:7px;background:#0f0b07;border:1.5px solid var(--ink);border-radius:3px}
   .g .bar i{background:repeating-linear-gradient(115deg,var(--acc) 0 6px,#e0a100 6px 12px)}
@@ -306,7 +314,7 @@
     .metrics{gap:9px}
     #toast{bottom:172px}
     #dashGrid{grid-template-columns:186px 1fr;inset:calc(var(--topH) + 16px) 8px 62px}
-    .metrics .metric:nth-child(4){display:none}
+    .metrics .metric.profit{display:none}
     #dashGrid .col.right{position:fixed;right:8px;top:calc(var(--topH) + 16px);bottom:62px;width:min(400px,50vw);
       display:flex;flex-direction:column;gap:6px;overflow-y:auto;padding:0;z-index:48;
       transform:translateX(calc(100% + 20px));transition:transform .2s ease;pointer-events:auto}
@@ -335,7 +343,9 @@
     .metric{min-width:0}
     .metric b{font-size:11.5px}
     .metric span{font-size:8px;letter-spacing:.4px}
-    .metrics .metric:nth-child(4),.metrics .metric:nth-child(5){display:none}
+    .metrics .metric.profit{display:none}
+    .metric.climate{min-width:76px}
+    .metric.climate b{font-size:10px}
     .speeds{margin-left:auto;gap:3px}
     .speeds button{padding:4px 6px;font-size:10px;box-shadow:1px 1px 0 var(--ink)}
     #btnPanels,#btnPred,#btnSave{display:none}
@@ -382,7 +392,7 @@
 
   /* ---- верхняя панель: не даём кнопкам уезжать за край ---- */
   @media (max-width:1500px){
-    .metrics .metric:nth-child(4){display:none}   /* прибыль/сут — есть в «Экономике» */
+    .metrics .metric.profit{display:none}   /* прибыль/сут — есть в «Экономике»; климат оставляем */
     #btnSave{display:none}
     .speeds{gap:3px}
     .speeds button{padding:5px 7px}
@@ -625,7 +635,9 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     .tabs{flex:0 0 auto}
     .tabs button{padding:5px 7px;font-size:10px}
     .metrics{width:auto;min-width:0;margin-left:auto;gap:6px;flex-wrap:nowrap}
-    .metrics .metric:nth-child(2),.metrics .metric:nth-child(4),.metrics .metric:nth-child(5){display:none}
+    .metrics .metric:nth-child(2),.metrics .metric.profit{display:none}
+    .metric.climate{min-width:76px}
+    .metric.climate b{font-size:10px}
     .metric b{font-size:10.5px}
     .speeds{gap:2px}
     .speeds button{padding:4px 5px;font-size:9px}
@@ -894,8 +906,9 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     <div class="metric"><b id="tDay">Д 1</b><span id="tSeason">из 90</span></div>
     <div class="metric"><b id="tDate">1 апр</b><span id="tHour">06:00</span></div>
     <div class="metric money"><b id="tMoney">10 000 €</b><span>баланс</span></div>
-    <div class="metric"><b id="tProfit">0 €</b><span>прибыль/сут</span></div>
-    <div class="metric"><b id="tCrop">🍅 томат</b><span id="tYield">0 кг</span></div>
+    <div class="metric climate"><b id="tClimate">22° · 65%</b><span>климат · °C / RH</span></div>
+    <div class="metric profit"><b id="tProfit">0 €</b><span>прибыль/сут</span></div>
+    <div class="metric crop"><b id="tCrop">🍅 томат</b><span id="tYield">0 кг</span></div>
     <div class="speeds">
       <button id="btnPause">⏸</button>
       <button class="spd" data-s="1">1×</button>
@@ -996,11 +1009,12 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
       <div class="spacer"></div>
       <div class="panel camPanel" style="align-self:center;padding:6px 8px">
         <div class="camBar" id="camBar">
-          <button data-view="top">Сверху</button>
-          <button data-view="front">Фронт</button>
-          <button data-view="bed">Грядка</button>
-          <button data-view="plant">Растение</button>
-          <button data-view="free" class="on">Свободно</button><button id="btnLayer" title="Раскрасить листья по освещённости (клавиша L)">Слой света</button>
+          <button data-view="top" aria-label="Вид сверху" title="Вид сверху"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4-9-4Zm0 5 9 5 9-5M3 17l9 5 9-5"/></svg></button>
+          <button data-view="front" aria-label="Фронтальный вид" title="Фронтальный вид"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 9h16M12 3v18"/></svg></button>
+          <button data-view="bed" aria-label="Вид на грядку" title="Вид на грядку"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19h18M5 17c0-5 2-8 5-9M10 8c-1-3 1-5 4-5 0 3-1 5-4 5Zm1 9c0-4 2-7 6-9M15 8c0-3 2-5 5-5 1 3-2 5-5 5Z"/></svg></button>
+          <button data-view="plant" aria-label="Фокус на растении" title="Фокус на растении"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21v-9m0 4C5 16 3 11 4 5c6 0 10 3 8 11Zm0-3c0-6 4-10 9-10 1 6-2 10-9 10Z"/></svg></button>
+          <button data-view="free" class="on" aria-label="Свободная камера" title="Свободная камера"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-28 12 12)"/><path d="m18 4 2 1-1 2"/></svg></button>
+          <button id="btnLayer" aria-label="Слой освещённости" title="Раскрасить листья по освещённости (клавиша L)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1m0-15.6-2.1 2.1M6.3 17.7l-2.1 2.1"/></svg></button>
           <span class="camNav" title="Поворот камеры — то же, что тянуть мышью или пальцем">
             <button data-cam="left" aria-label="Повернуть влево"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M7 1L2 5l5 4z" fill="currentColor"/></svg></button>
             <button data-cam="right" aria-label="Повернуть вправо"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l5 4-5 4z" fill="currentColor"/></svg></button>
@@ -1277,9 +1291,12 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
 <!-- контекстное обучение кампании: интерфейсные шаги -->
 <div id="tutor">
-  <div class="ttl"><span id="tutorStep">Шаг 1 из 7</span>
-    <span class="acts"><button id="tutorFold" title="Свернуть/развернуть подсказку">свернуть</button>
-    <button id="tutorSkip" title="Пропустить обучение">пропустить</button></span></div>
+  <div class="ttl"><span id="tutorStep">Шаг 1 из 8</span>
+    <span class="acts">
+      <button id="tutorFold" title="Свернуть/развернуть подсказку">свернуть</button>
+      <button id="tutorNext" title="Перейти к следующему шагу без выполнения текущего">шаг →</button>
+      <button id="tutorSkip" title="Пропустить всё обучение">всё</button>
+    </span></div>
   <div id="tutorText"></div>
   <div class="dots" id="tutorDots"></div>
 </div>

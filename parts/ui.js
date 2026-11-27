@@ -667,6 +667,9 @@ function renderTop(){
   const hh = Math.floor(world.hour), mm = Math.floor((world.hour-hh)*60);
   $('tHour').textContent = String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
   $('tMoney').textContent = money(world.money);
+  // Компактный климат всегда рядом с балансом и текущей культурой.
+  $('tClimate').textContent = world.temp.toFixed(1) + '° · ' + Math.round(world.rh) + '%';
+  $('tClimate').title = 'Температура воздуха: ' + world.temp.toFixed(1) + ' °C · относительная влажность: ' + Math.round(world.rh) + ' %';
   // минус на балансе должен быть виден, а не «−0»
   $('tMoney').style.color = world.money < -0.004 ? 'var(--bad)' : '';
   syncTopH();
@@ -1049,14 +1052,14 @@ function renderDiagnosis(){
   const body = d.items.length
     ? d.items.map((it,i)=>{
         const cls = it.sev==='bad'?'bad':it.sev==='warn'?'warn':'ok';
-        const details = [it.why ? `<div class="hint"><b>Причина:</b> ${it.why}</div>` : '',
-                         it.risk ? `<div class="hint"><b>Последствие:</b> ${it.risk}</div>` : '',
-                         it.action ? `<div class="hint"><b>Действие:</b> ${it.action}</div>` : ''].filter(Boolean).join('');
+        const details = [
+          it.why ? `<div class="diagnosis-detail"><b>Почему:</b> ${it.why}</div>` : '',
+          it.risk ? `<div class="diagnosis-detail"><b>Чем грозит:</b> ${it.risk}</div>` : '',
+          it.action ? `<div class="diagnosis-detail"><b>Что делать:</b> ${it.action}</div>` : ''
+        ].filter(Boolean).join('');
         return `<div class="alert ${cls}" style="margin-bottom:5px">
           <div>${it.text}</div>
-          ${details ? `<details style="margin-top:4px"><summary style="cursor:pointer">Почему это происходит и чем грозит</summary>
-            <div style="margin-top:5px;padding:5px 0 0 8px;display:grid;gap:5px">${details}</div>
-          </details>` : ''}
+          ${details ? `<div class="diagnosis-details">${details}</div>` : ''}
         </div>`;
       }).join('')
     : `<div class="alert ok">Ограничений не выявлено: свет, питание и климат в рабочем диапазоне</div>`;
@@ -1792,7 +1795,38 @@ function tutorTick(){
   }
   renderTutor();
 }
-$('tutorSkip').onclick = ()=>{ tutorDone = true; if(world){ world.tutorialEnabled=false; world.tutorialCompleted=true; saveNow(true); } clearTutorTarget(); $('tutor').classList.remove('on'); toast('Обучение кампании отключено'); };
+function skipTutorStep(){
+  if (!world || !world.camp || !world.tutorialEnabled || tutorDone) return;
+  tutorStep = Math.min(TUTOR.length, tutorStep + 1);
+  world.tutorialStep = tutorStep;
+  clearTutorTarget();
+  if (tutorStep >= TUTOR.length){
+    tutorDone = true;
+    world.tutorialEnabled = false;
+    world.tutorialCompleted = true;
+    $('tutor').classList.remove('on');
+    toast('Последний шаг пропущен · обучение завершено');
+  } else {
+    renderTutor();
+    toast('Шаг пропущен');
+  }
+  saveNow(true);
+}
+function skipAllTutor(){
+  if (!world || !world.camp || !world.tutorialEnabled || tutorDone) return;
+  if (!window.confirm('Пропустить всё обучение кампании? Все оставшиеся шаги будут отмечены как завершённые. Это действие можно будет отменить только повторным включением обучения в настройках.')) return;
+  tutorStep = TUTOR.length;
+  tutorDone = true;
+  world.tutorialStep = tutorStep;
+  world.tutorialEnabled = false;
+  world.tutorialCompleted = true;
+  clearTutorTarget();
+  $('tutor').classList.remove('on');
+  saveNow(true);
+  toast('Всё обучение пропущено');
+}
+$('tutorNext').onclick = skipTutorStep;
+$('tutorSkip').onclick = skipAllTutor;
 $('tutorFold').onclick = ()=>{
   const box = $('tutor');
   tutorFold(!box.classList.contains('min'));

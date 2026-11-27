@@ -113,9 +113,13 @@ function buildView(){
     return {ortho:true, kind:'top', S, cx:2, cy:1.5};
   }
   if (cam.mode === 'front'){
-    // вписываем и ширину (4 м), и высоту конструкции (~3.3 м)
+    // Масштаб вписывает теплицу по ширине, но вертикальная привязка идёт к кроне,
+    // а не к крыше: при приближении растение остаётся в центре кадра.
     const S = Math.min(W/5.4, (H*0.80)/3.5)*cam.zoom;
-    return {ortho:true, kind:'front', S, cx:2, baseY:Math.min(H*0.90, H*0.5 + 3.3*S*0.5)};
+    const focusY = Math.max(0.5, Math.min(C.ridgeY||1.6,
+      plantBaseY(world) + 0.06 + p.nPhy*C.internode*0.8)*0.55);
+    const baseY = H*0.54 + focusY*S;
+    return {ortho:true, kind:'front', S, cx:2, baseY};
   }
   const pp = clamp(cam.pitch, PITCH_MIN, PITCH_MAX);
   const d = cam.dist/cam.zoom;
