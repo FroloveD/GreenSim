@@ -446,6 +446,19 @@
 /* Main menu and modular settings */
 body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!important}
 #mainMenu{z-index:80;background:radial-gradient(ellipse at 50% 20%,rgba(74,112,70,.22),transparent 58%),var(--bg)}
+.story-overlay{z-index:110;background:radial-gradient(ellipse at 50% 15%,rgba(74,112,70,.24),transparent 62%),rgba(5,10,7,.97)}
+.story-sheet{width:min(700px,96vw)!important;max-height:90vh;padding:clamp(20px,4vw,38px)!important}
+.story-sheet .menu-title{line-height:1.12;margin:12px 0 16px}
+.story-sheet p{font-size:13px;line-height:1.7;color:var(--txt);margin:12px 0}
+.story-sheet .story-lead{font-size:15px;color:#f1e4ca}
+.story-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}
+.story-grid>div{display:flex;flex-direction:column;gap:5px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.story-grid b{color:var(--acc);font-size:13px}
+.story-grid span{color:var(--dim);font-size:12px;line-height:1.5}
+.story-sheet .story-foot{border-left:3px solid var(--acc);padding:8px 0 8px 12px;color:var(--dim)}
+.story-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:20px}
+.story-actions .btn{min-width:140px}
+@media(max-width:560px){.story-grid{grid-template-columns:1fr}.story-sheet{padding:18px!important}.story-sheet .menu-title{font-size:27px}}
 #mainMenu .menu-sheet{width:min(560px,94vw);max-height:90vh;overflow:auto;padding:clamp(22px,5vw,42px);border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 20px 70px #0008}
 .menu-kicker{font-size:11px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
 .menu-title{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:.04em;margin:8px 0 4px}
@@ -525,7 +538,33 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 </head>
 <body>
 <canvas id="scene"></canvas>
-<div id="mainMenu" class="modal on"><div class="menu-sheet">
+<div id="introScreen" class="modal on story-overlay"><div class="sheet story-sheet">
+  <div class="menu-kicker">GREENSim · СИМУЛЯТОР ТЕПЛИЧНОГО ХОЗЯЙСТВА</div>
+  <div class="menu-title">Выращивайте. Управляйте. Развивайте.</div>
+  <p class="story-lead">GreenSim — симулятор, в котором вы строите тепличное хозяйство с нуля: от первых растений на небольшой площади до полноценного производства.</p>
+  <div class="story-grid">
+    <div><b>🌱 Выращивание</b><span>Выбирайте культуры, следите за ростом, питанием, водой и состоянием растений.</span></div>
+    <div><b>🌤 Климат</b><span>Управляйте температурой, влажностью, светом, вентиляцией и отоплением.</span></div>
+    <div><b>⚙ Хозяйство</b><span>Покупайте оборудование, планируйте расходы, продавайте урожай и заключайте контракты.</span></div>
+    <div><b>📈 Развитие</b><span>Проходите кампанию с историями и решениями или создавайте собственный сезон в свободной игре.</span></div>
+  </div>
+  <p class="story-foot">Здесь важны не только урожай и прибыль. Каждое решение влияет на климат, здоровье растений и устойчивость вашего хозяйства.</p>
+  <div class="story-actions"><button class="btn good" id="introContinue">Перейти к игре</button></div>
+</div></div>
+<div id="campaignPrologue" class="modal story-overlay"><div class="sheet story-sheet">
+  <div class="menu-kicker">GREENSim · КАМПАНИЯ</div>
+  <div class="menu-title">С чего начинается хозяйство</div>
+  <p>Большое дело редко начинается с большой теплицы. У вас есть небольшой балкон, немного стартовых денег и желание попробовать себя в выращивании.</p>
+  <p>Тётя Роза уже много лет занимается растениями. Она согласилась помочь советом, но сразу предупредила: готовых решений не будет. Придётся самому разобраться, как устроены полив, свет, питание и микроклимат, научиться считать расходы и отвечать за качество урожая.</p>
+  <p>Первый этап — всего <b>4 м²</b> и <b>100 €</b>. Этого достаточно, чтобы заложить первые посадки, проверить свои решения и заслужить доверие первых покупателей.</p>
+  <p>Если получится наладить работу на балконе, появится возможность переехать в комнату, затем — в настоящую теплицу. Впереди письма наставника, неожиданные предложения, непростые решения и развитие собственного дела.</p>
+  <p class="story-foot">Начните с малого. Следите за растениями. Не теряйте контроль над экономикой. Остальное зависит от вас.</p>
+  <div class="story-actions">
+    <button class="btn" id="campaignPrologueBack">Назад</button>
+    <button class="btn good" id="campaignPrologueContinue">Начать кампанию</button>
+  </div>
+</div></div>
+<div id="mainMenu" class="modal"><div class="menu-sheet">
   <div class="menu-kicker">GreenSim · симулятор тепличного хозяйства</div>
   <div class="menu-title">НОВАЯ ИГРА</div><p class="menu-subtitle">Выберите режим</p>
   <div class="menu-actions">
