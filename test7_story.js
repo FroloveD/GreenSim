@@ -114,5 +114,21 @@ for (const m of M.MAILBOX) {
   check('задание про клапан пропущено, пока его нет', !w.has.co2 && (!M.MISSIONS[w.missionIdx] || M.MISSIONS[w.missionIdx].id !== 'm1'));
 }
 
+/* 10. Цены магазина: сложность и малые фасовки балкона */
+{
+  const easy = M.makeWorld({ profile:'balcony', crop:'lettuce', seed:19, campaign:true, difficulty:'easy' });
+  const normal = M.makeWorld({ profile:'balcony', crop:'lettuce', seed:19, campaign:true, difficulty:'normal' });
+  const hard = M.makeWorld({ profile:'balcony', crop:'lettuce', seed:19, campaign:true, difficulty:'hard' });
+  const item = id => shopItem(id);
+  check('лёгкая сложность снижает цену магазина на 20%', Math.abs(M.shopItemCost(easy,item('thermo'))-9.6)<0.001);
+  check('обычная сложность сохраняет базовую цену', M.shopItemCost(normal,item('thermo'))===12);
+  check('жёсткая сложность повышает цену магазина на 10%', Math.abs(M.shopItemCost(hard,item('thermo'))-13.2)<0.001);
+  check('балконные фасовки доступны с первой главы', ['fert2','water1','seeds10','treatPestMini','treatFungiMini'].every(id=>M.gearLocked(normal,item(id))===false));
+  check('крупные фасовки расходников открываются с комнаты', ['fert20','water','seeds','treatPest','treatFungi'].every(id=>M.gearLocked(normal,item(id))===true));
+  check('цены малых фасовок не требуют промышленного бюджета', ['fert2','water1','seeds10','treatPestMini','treatFungiMini'].every(id=>M.shopItemCost(normal,item(id))<=10));
+  const before=normal.money, stock=normal.stock.fertKg, cost=M.shopItemCost(normal,item('fert2'));
+  const bought=M.buyItem(normal,'fert2');
+  check('покупка малого удобрения списывает цену и добавляет 2 кг', bought.ok && Math.abs(normal.money-(before-cost))<0.001 && normal.stock.fertKg===stock+2);
+}
 console.log(fails ? `\nпровалено: ${fails}` : '\nвсе проверки сюжета прошли');
 process.exit(fails ? 1 : 0);
