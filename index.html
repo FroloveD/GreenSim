@@ -1398,11 +1398,11 @@ for (const k in CROP_LIGHT) Object.assign(CROPS[k], CROP_LIGHT[k]);
    priceF — множитель цены реализации, driftF — скорость дрейфа датчиков,
    eventF — частота погодных событий.                                     */
 const DIFFICULTY = {
-  easy: { id:'easy', name:'Лёгкая', fixedF:0.70, failF:0.55, priceF:1.12, driftF:0.6, eventF:0.8,
+  easy: { id:'easy', name:'Лёгкая', fixedF:0.70, failF:0.55, priceF:1.12, shopF:0.80, driftF:0.6, eventF:0.8,
           note:'прощает ошибки: дешевле содержание, реже аварии, цена выше' },
-  normal: { id:'normal', name:'Обычная', fixedF:1.00, failF:1.00, priceF:1.00, driftF:1.0, eventF:1.0,
+  normal: { id:'normal', name:'Обычная', fixedF:1.00, failF:1.00, priceF:1.00, shopF:1.00, driftF:1.0, eventF:1.0,
           note:'базовый баланс: как в жизни, без поблажек и без издевательств' },
-  hard: { id:'hard', name:'Жёсткая', fixedF:1.25, failF:1.60, priceF:0.95, driftF:1.5, eventF:1.25,
+  hard: { id:'hard', name:'Жёсткая', fixedF:1.25, failF:1.60, priceF:0.95, shopF:1.10, driftF:1.5, eventF:1.25,
           note:'тонкая маржа: аварии чаще, датчики врут злее, оптовая цена ниже' }
 };
 
@@ -1615,21 +1615,26 @@ function netTick(w){
    why — объяснение «зачем это вообще», человеческим языком. В свободном сезоне
    ограничений нет, но подпись «зачем» остаётся: она полезна и там.        */
 const GEAR = {
-  thermo:     {ch:0, why:'Датчик врёт — вы об этом не знаете. Второй прибор рядом покажет расхождение, и будет видно, когда пора калибровать.'},
-  sticky:     {ch:0, why:'Клещ заводится в сухом тёплом воздухе и сначала незаметен. Ловушки ловят его до того, как он съест листья.'},
+  thermo:     {ch:0, why:'Недорогой комнатный прибор показывает температуру и влажность независимо от игровых датчиков.'},
+  sticky:     {ch:0, why:'Небольшой набор ловушек помогает заметить вредителей на ранней стадии, не покупая большой комплект.'},
   ledStrip:   {ch:0, why:'В пасмурный день растение не набирает сахар. Лента добавляет 60 µmol прямо на грядку; включается вручную в «Параметрах», будильник напомнит.'},
   windowFilm: {ch:0, why:'Зимой балкон теряет тепло через рамы быстрее, чем растение успевает расти. Плёнка в два слоя срезает потери почти на треть и стоит копейки.'},
   heaterMini: {ch:0, why:'Штатного «тепла» на балконе 0,08 кВт — это ничто при −10 °C. Обогреватель 0,6 кВт держит ночь, но электричество идёт в расходы.'},
   strip2:     {ch:0, why:'Короткий день зимой не закрывается одной лентой. Вторая добавляет +50% света к полосе — при том же таймере.'},
-  water:      {ch:0, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
-  fert20:     {ch:0, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
+  water:      {ch:1, why:'Полив и подпитка. Без воды устьица закрываются, и весь свет становится бесполезен.'},
+  fert2:      {ch:0, why:'Двухкилограммовая фасовка рассчитана на горшки и небольшую балконную грядку.'},
+  water1:     {ch:0, why:'Покупайте воду небольшими партиями, чтобы не замораживать деньги в запасе.'},
+  seeds10:    {ch:0, why:'Небольшая упаковка семян не занимает склад и не требует закупать сотню растений.'},
+  treatPestMini:{ch:0, why:'Малый флакон рассчитан на домашнее количество растений.'},
+  treatFungiMini:{ch:0, why:'Небольшая упаковка для локальной обработки нескольких растений.'},
+  fert20:     {ch:1, why:'Еда для растений: без азота, фосфора и калия рост встаёт, сколько бы света ни было.'},
   whSection:  {ch:0, why:'Склад не резиновый: нет места — урожай останется на грядке. Каждая секция тянет содержание, поэтому расширяйте под объём.'},
   calib:      {ch:0, why:'Калибровка сбрасывает дрейф датчиков. Раз в месяц дешевле, чем принимать решения по вранью.'},
-  treatPest:  {ch:0, why:'Когда клещ уже завёлся, обработка сбивает его до безопасного уровня.'},
-  treatFungi: {ch:0, why:'Серая гниль на плодах: фунгицид снимает половину, но качество партии просядет на несколько дней.'},
+  treatPest:  {ch:1, why:'Когда клещ уже завёлся, обработка сбивает его до безопасного уровня.'},
+  treatFungi: {ch:1, why:'Серая гниль на плодах: фунгицид снимает половину, но качество партии просядет на несколько дней.'},
 
-  circFan:    {ch:1, why:'Гниль начинается с застоя воздуха. Обдув сушит лист и подводит CO₂ к устьицам — первое, что окупается в комнате.'},
-  handDose:   {ch:1, why:'Без EC/pH вы кормите на глаз. Ручной метр даёт +6% усвоения и стоит втрое дешевле автодозирования.'},
+  circFan:    {ch:0, why:'Пара небольших клип-вентиляторов перемешивает воздух вокруг горшков без промышленной вентиляции.'},
+  handDose:   {ch:0, why:'Карманный тестер и pH-полоски дают базовый контроль раствора без лабораторного прибора.'},
   humid:      {ch:1, why:'В жару воздух сухой, устьица закрываются. Туман поднимает влажность — но тратит воду.'},
   film:       {ch:1, why:'Плёнка на окно — дешёвый термоэкран: −32% теплопотерь ночью, без покупки настоящего экрана.'},
   secondSensor:{ch:1, why:'Первый датчик врёт молча. Второй комплект показывает расхождение — это защита от «полива вслепую».'},
@@ -3225,7 +3230,7 @@ function makeWorld(opts){
   const w = {
     seed, rngState: seed, profile: P.id, crop: C.id,
     weather: opts.weather||'normal', cloudBias: opts.weather==='cloudy'?0.22:0, tempBias: opts.weather==='hot'?2.5:0,
-    profilePriceF: P.priceF*D.priceF, diffPriceF: D.priceF, area,
+    profilePriceF: P.priceF*D.priceF, diffPriceF: D.priceF, diffShop: D.shopF, area,
     diffId: D.id, diffFixed: D.fixedF, diffFail: D.failF, diffDrift: D.driftF, diffEvent: D.eventF,
     plantScale: 1, day:1, hour:6, doy:startDoy, startDoy, site, over:false, seasonDays: opts.campaign ? 210 : CFG.seasonDays,
     money: P.start, startMoney: P.start, loan: 0, loanRate: 0.06,
@@ -3601,34 +3606,41 @@ function newDay(w){
 /* ---------------- Магазин: покупки ---------------- */
 // noScale — приборы с фиксированной ценой (термометр, ИБП, ловушки), не зависят от площади
 function upgradeCost(w, base, noScale){ return Math.round(base*(noScale?1:PROFILES[w.profile].upgF)); }
+/* Коэффициент магазина отдельно от постоянных расходов и цены урожая:
+   лёгкая сложность снижает покупки на 20%, обычная оставляет базу, жёсткая повышает на 10%. */
+function shopPriceFactor(w){ return (w && Number.isFinite(w.diffShop)) ? w.diffShop : 1; }
+function shopItemCost(w, it){
+  const raw = it.price ? it.price(w) : upgradeCost(w, it.base, it.noScale);
+  return Math.max(0, Math.round(raw * shopPriceFactor(w) * 100) / 100);
+}
 
 const SHOP_ITEMS = () => ([
-  {group:'Бюджетный старт (реальные цены)', items:[
-    {id:'thermo', noScale:true, name:'Термометр-гигрометр с сигналом', base:28,
+  {group:'Доступно для дома и балкона', items:[
+    {id:'thermo', noScale:true, name:'Цифровой термогигрометр', base:12,
      desc:'контрольный прибор рядом с датчиком: покажет, если тот врёт',
      buy:w=>{ w.has.alarm = true; }},
-    {id:'sticky', noScale:true, name:'Клейкие ловушки, 10 шт', base:45,
+    {id:'sticky', noScale:true, name:'Клейкие ловушки, набор 5 шт', base:8,
      desc:'−25% риск паутинного клеща',
      buy:w=>{ w.has.sticky = true; }},
     {id:'rain', noScale:true, dynamic:true, bucket:'water', name:'Бочка дождевой воды 200 л', base:90,
      desc:'+40 м³ запаса воды (полив и подпитка)',
      buy:w=>{ w.stock.waterM3 += 40; }},
-    {id:'circFan', noScale:true, name:'Вентилятор обдува кроны, 2 шт', base:120,
+    {id:'circFan', noScale:true, name:'Клип-вентиляторы для кроны, 2 шт', base:24,
      desc:'сушит лист и подводит CO₂: −риск гнили',
      buy:w=>{ w.has.circFan = true; }},
-    {id:'handDose', noScale:true, name:'Ручной EC/pH-метр', base:160,
+    {id:'handDose', noScale:true, name:'Карманный EC/TDS-метр + pH-полоски', base:22,
      desc:'+6% к усвоению питания (дешевле автодозирования)',
      buy:w=>{ w.has.handDose = true; }},
-    {id:'ledStrip', noScale:true, name:'LED-лента 2×50 Вт на грядку', base:220,
+    {id:'ledStrip', noScale:true, name:'Компактная LED-фитолента 2×50 Вт', base:65,
      desc:'+60 µmol/м²·с досветки, включается вручную (будильник напомнит)',
      buy:w=>{ w.has.ledStrip = true; }},
-    {id:'windowFilm', noScale:true, name:'Плёнка на рамы (2 слоя)', base:70,
+    {id:'windowFilm', noScale:true, name:'Теплосберегающая плёнка на рамы', base:18,
      desc:'−28% теплопотерь: зимой на балконе это разница между «стоит» и «растёт»',
      buy:w=>{ w.has.windowFilm = true; }},
-    {id:'heaterMini', noScale:true, name:'Обогреватель 0,6 кВт', base:190,
+    {id:'heaterMini', noScale:true, name:'Компактный обогреватель 0,6 кВт', base:45,
      desc:'+0,6 кВт тепла: держит ночную температуру у порога культуры (ест электричество)',
      buy:w=>{ w.has.heatBoost = true; }},
-    {id:'strip2', noScale:true, name:'Вторая LED-лента (+50% света)', base:160,
+    {id:'strip2', noScale:true, name:'Вторая компактная LED-лента (+50%)', base:45,
      desc:'+30 µmol к ленте: короткий зимний день перестаёт быть приговором',
      req:w=>!!w.has.ledStrip, buy:w=>{ w.has.strip2 = true; }},
     {id:'humid', noScale:true, name:'Увлажнитель-туман 5 л/ч', base:260,
@@ -3646,6 +3658,18 @@ const SHOP_ITEMS = () => ([
     {id:'climatePC', noScale:true, name:'Климат-контроллер с логами', base:690,
      desc:'точнее держит T и RH: меньше колебаний и стресса; нужен для полной автоматизации',
      buy:w=>{ w.has.climatePC = true; }}
+  ]},
+  {group:'Малые фасовки для балкона', items:[
+    {id:'fert2', noScale:true, dynamic:true, bucket:'fert', bulk:2.4, name:'Удобрение NPK + микро, 2 кг', base:6,
+     desc:'небольшая упаковка для нескольких горшков · 2,4 л склада', buy:w=>{ w.stock.fertKg += 2; }},
+    {id:'water1', noScale:true, dynamic:true, bucket:'water', name:'Вода, 1 м³', base:2,
+     desc:'небольшая закупка вместо большой партии на 100 м³', buy:w=>{ w.stock.waterM3 += 1; }},
+    {id:'seeds10', noScale:true, dynamic:true, bucket:'seed', bulk:0.24, name:'Семена/рассада, 10 шт', base:8,
+     desc:'маленькая упаковка для нескольких горшков · 0,24 л склада', buy:w=>{ w.stock.seeds += 10; }},
+    {id:'treatPestMini', noScale:true, dynamic:true, bucket:'treat', name:'Био-средство от клеща, 100 мл', base:9,
+     req:w=>w.pest.active, desc:'малый флакон для домашнего объёма · снижает вредителя до 10%', buy:w=>{ w.pest.level=0.1; if(w.pest.level<0.15) w.pest.active=false; }},
+    {id:'treatFungiMini', noScale:true, dynamic:true, bucket:'treat', name:'Средство от серой гнили, 100 мл', base:10,
+     req:w=>w.disease>0.15, desc:'малый флакон для нескольких растений · снижает гниль на 50%', buy:w=>{ w.disease=Math.max(0,w.disease-0.5); w.gradePenaltyDays=5; }}
   ]},
   {group:'Оборудование (профессиональное)', items:[
     {id:'led', name:'LED-досветка', base:2800, desc:'190 µmol/м²·с, включается вручную',
@@ -3740,7 +3764,7 @@ function buyItem(w, id){
       const order = ['heater','fan','lamp','dosing','co2','sensor'];
       const broken = order.filter(k=>w.equip[k] && !w.equip[k].ok);
       if (!broken.length) return {ok:false, msg:'Всё работает'};
-      const priceOf = k => w.has.insurance ? Math.round(EQUIP_DEFS[k].repair*0.4) : EQUIP_DEFS[k].repair;
+      const priceOf = k => Math.round((w.has.insurance ? EQUIP_DEFS[k].repair*0.4 : EQUIP_DEFS[k].repair)*shopPriceFactor(w));
       let total = 0, fixed = [];
       for (const k of broken){
         const p = priceOf(k);
@@ -3762,7 +3786,7 @@ function buyItem(w, id){
       const r = addSection(w);
       return r.ok ? {ok:true, msg:`Склад: ${w.wh.sections} секций (−${money(r.cost)})`} : {ok:false, msg:r.msg};
     }
-    const cost = it.price ? it.price(w) : upgradeCost(w, it.base, it.noScale);
+    const cost = shopItemCost(w, it);
     if (w.money < cost) return {ok:false, msg:'Недостаточно средств'};
     // место на складе: расходники не бесконечны
     if (it.bulk){
@@ -5368,7 +5392,7 @@ function buildStart(){
   $('diffPick').innerHTML = Object.values(DIFFICULTY).map(d=>`
     <div class="card" data-diff="${d.id}" style="cursor:pointer;${d.id===pending.difficulty?'border-color:var(--acc)':''}">
       <div class="h"><b>${d.name}</b></div>
-      <div class="d">${d.note}<br>постоянные ×${d.fixedF.toFixed(2)} · аварии ×${d.failF.toFixed(1)} · цена ×${d.priceF.toFixed(2)}</div>
+      <div class="d">${d.note}<br>постоянные ×${d.fixedF.toFixed(2)} · аварии ×${d.failF.toFixed(1)} · цена урожая ×${d.priceF.toFixed(2)} · магазин ×${d.shopF.toFixed(2)}</div>
     </div>`).join('');
   // 5. локация старта: климат берём из норм по точке (открытые данные)
   if ($('sitePick')) $('sitePick').innerHTML = SITE_LIST.map(x=>{
@@ -6191,6 +6215,7 @@ function shopTopLine(){
   const tr = marketTrend(world, world.crop);
   return `Баланс: <b style="color:var(--acc2)">${money(world.money)}</b> · ` +
     `склад: <b>${Math.round(whUsedL(world))}/${whCap(world)} л</b> · ` +
+    `покупки: <b>×${shopPriceFactor(world).toFixed(2)}</b> · ` +
     `цена дня: <b style="color:var(--acc)">${money2(priceToday(world))}/кг</b> ` +
     (tr>0.01?'<span style="color:#a8e05a">▲ растёт</span>':(tr<-0.01?'<span style="color:var(--bad)">▼ падает</span>':''));
 }
@@ -6213,9 +6238,9 @@ function renderShop(){
       }
       const owned = OWNED[it.id] ? OWNED[it.id](world) : false;
       const reqOk = !it.req || it.req(world);
-      let price = it.price ? it.price(world) : upgradeCost(world, it.base, it.noScale);
+      let price = shopItemCost(world, it);
       if (it.id==='repair'){
-        let t = 0; for (const k in world.equip) if (!world.equip[k].ok) t += EQUIP_DEFS[k].repair;
+        let t = 0; for (const k in world.equip) if (!world.equip[k].ok) t += Math.round(EQUIP_DEFS[k].repair*shopPriceFactor(world));
         price = t;
       }
       const noRoom = it.bulk && whFreeL(world) < it.bulk;
