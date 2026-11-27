@@ -382,7 +382,7 @@ const CHAPTERS = [
 
 /* Письма наставника: приходят в почту, когда выполнено условие.
    Выбор влияет на стартовые условия следующей главы.               */
-function campaignPrice(w, base){ return Math.max(1, Math.round(base * (1 + Math.max(0, Math.min(3, (w.camp&&w.camp.ch)||0))*0.65)); }
+function campaignPrice(w, base){ const chapter=clamp((w.camp&&w.camp.ch)||0,0,3); return Math.max(1, Math.round(base * (1 + chapter * 0.65))); }
 
 const MAILBOX = [
   {id:'intro', subj:'«С балкона начинают все» — тётя Роза',
@@ -528,7 +528,7 @@ const MAILBOX = [
    when:w=>w.camp && w.camp.ch>=2 && w.day>=25 && w.camp.seen.includes('gear2') && !w.camp.seen.includes('backupPlan'),
    body:'Сергей предупредил: на прошлой неделе в районе на несколько часов отключали электричество. В большой теплице это уже не бытовая неприятность — остановка насосов и климатического оборудования может испортить результат нескольких недель. Полноценная резервная система дорогая, но хотя бы план действий должен быть: контакты сервиса, порядок ручного управления и список оборудования, которое нельзя оставлять без питания. Можно оплатить подготовку такого плана и проверку критичных узлов. Или пока ограничиться памяткой и надеяться, что перебои обойдут стороной.',
    opts:[
-     {label:'Подготовить резервный план (−{cost})',cost:180,desc:'Проверка критичных узлов и контакты аварийного сервиса',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,180);if(w.money<cost){w.camp.story.backup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на резервный план — подготовка отложена',k:'warn'});return;}w.money-=cost;w.camp.story.backup=true;campaignRep(w,2,'подготовлен план бесперебойной работы теплицы');w.log.unshift({t:'Д'+w.day,m:'Подготовлен план действий при отключении электричества (−'+money(180)+')',k:'hl'});}},
+     {label:'Подготовить резервный план (−{cost})',cost:180,desc:'Проверка критичных узлов и контакты аварийного сервиса',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,180);if(w.money<cost){w.camp.story.backup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на резервный план — подготовка отложена',k:'warn'});return;}w.money-=cost;w.camp.story.backup=true;campaignRep(w,2,'подготовлен план бесперебойной работы теплицы');w.log.unshift({t:'Д'+w.day,m:'Подготовлен план действий при отключении электричества (−'+money(cost)+')',k:'hl'});}},
      {label:'Составить бесплатную памятку самому',desc:'Без затрат, но без проверки оборудования',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.backup=false;campaignRep(w,0,'составлена базовая памятка на случай перебоев');w.log.unshift({t:'Д'+w.day,m:'Составлена памятка на случай перебоев питания',k:''});}}
    ]},
   {id:'cafeReturn', subj:'«Кафе готово обсудить регулярные закупки» — тётя Роза',
@@ -1815,10 +1815,11 @@ function answerMail(w, id, optIdx){
   o.apply && o.apply(w);
   const addedLogs = Math.max(0,w.log.length-logBefore);
   for(let i=0;i<addedLogs;i++) if(w.log[i]) w.log[i].cat='campaign';
-  mm.read = true; mm.answered = optIdx; mm.result = o.label;
+  const shownLabel = (mm.opts && mm.opts[optIdx] && mm.opts[optIdx].label) || o.label;
+  mm.read = true; mm.answered = optIdx; mm.result = shownLabel;
   w.camp.seen.push(id);
   w.camp.decisions = w.camp.decisions || [];
-  w.camp.decisions.unshift({id,subj:m.subj,result:o.label,day:w.day,repDelta:(Number.isFinite(w.rep)?w.rep:repBefore)-repBefore});
+  w.camp.decisions.unshift({id,subj:m.subj,result:shownLabel,day:w.day,repDelta:(Number.isFinite(w.rep)?w.rep:repBefore)-repBefore});
   w.camp.decisions = w.camp.decisions.slice(0,50);
   w.mail = w.mail.filter(x=>x.answered===undefined);
   return true;
