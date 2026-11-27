@@ -20,6 +20,7 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 let world = null;
 let activeSensorTip = '';
 let financeDetailsOpen = false;
+let logFilter = 'all';
 let dashboardPrefsApplied = false;
 const DASHBOARD_PREFS_KEY = 'vg_dashboard_panels_v1';
 let page = 'greenhouse';
@@ -1271,8 +1272,26 @@ function renderMail(){
   } else {
     html += `<div class="hint">Писем нет.</div>`;
   }
+  const decisions = world.camp.decisions || [];
+  html += `<div class="hint" style="margin-top:10px;border-top:1px solid var(--line2);padding-top:8px"><b>Решения кампании</b></div>`;
+  if(decisions.length){
+    html += decisions.slice(0,6).map(d=>`<div class="hint" style="margin:4px 0"><b>Д${d.day}</b> · ${escapeHTML(d.subj)}<br>Выбор: ${escapeHTML(d.result)}${d.repDelta? ' · репутация '+(d.repDelta>0?'+':'')+d.repDelta:''}</div>`).join('');
+  }else html += '<div class="hint">Пока нет принятых решений. Ответы на письма будут сохраняться здесь.</div>';
   if (setHTML('mail', html))
     document.querySelectorAll('[data-mail]').forEach(b=>press(b, ()=>openMail(b.dataset.mail)));
+}
+function renderCampaignArchive(){
+  const items = MAILBOX.map(m=>`<button class="btn" data-mail-preview="${escapeHTML(m.id)}" style="display:block;width:100%;text-align:left;margin:4px 0;white-space:normal">${escapeHTML(m.subj)}</button>`).join('');
+  $('mailBox').innerHTML = `<div class="row" style="justify-content:space-between"><h2 style="margin:0">Архив писем кампании</h2><button class="btn" data-mail-preview-close>Закрыть</button></div><div class="hint">Можно перечитать любое письмо. Архив не меняет ход кампании и не повторяет выборы.</div>${items}`;
+  $('mailModal').classList.add('on');
+  document.querySelectorAll('[data-mail-preview]').forEach(b=>press(b,()=>openMailPreview(b.dataset.mailPreview)));
+  document.querySelectorAll('[data-mail-preview-close]').forEach(b=>b.onclick=()=> $('mailModal').classList.remove('on'));
+}
+function openMailPreview(id){
+  const m=MAILBOX.find(x=>x.id===id); if(!m)return;
+  $('mailBox').innerHTML=`<div class="row" style="justify-content:space-between"><span class="hint">Архив · без повторного выбора</span><button class="btn" data-mail-archive-back>К списку</button></div><h2>${escapeHTML(m.subj)}</h2><p style="white-space:normal">${escapeHTML(m.body).replace(/\\n/g,'<br>')}</p><div class="hint">Это архивная копия письма. Прочтение не меняет сохранение и не повторяет решение.</div>`;
+  $('mailModal').classList.add('on');
+  const back=$('mailBox').querySelector('[data-mail-archive-back]');if(back)back.onclick=renderCampaignArchive;
 }
 function openMail(id){
   const m = world.mail.find(x=>x.id===id);
@@ -1292,7 +1311,11 @@ function openMail(id){
 }
 
 function renderLog(){
-  $('log').innerHTML = world.log.slice(0,16).map(l=>`<div class="${escapeHTML(l.k||'')}">${escapeHTML(l.t)} · ${escapeHTML(l.m)}</div>`).join('');
+  const entries = world.log.filter(l=>logFilter==='all' || (logFilter==='campaign' ? l.cat==='campaign' : l.cat!=='campaign')).slice(0,40);
+  const filters = [['all','Все'],['campaign','Кампания'],['other','Остальное']];
+  $('log').innerHTML = `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px">${filters.map(([id,label])=>`<button class="btn ${logFilter===id?'good':''}" data-log-filter="${id}" style="font-size:10px;padding:4px 7px">${label}</button>`).join('')}</div>`+
+    (entries.length?entries.map(l=>`<div class="${escapeHTML(l.k||'')}">${escapeHTML(l.t)} · ${escapeHTML(l.m)}</div>`).join(''):'<div class="hint">Записей в этой категории пока нет.</div>');
+  document.querySelectorAll('[data-log-filter]').forEach(b=>b.onclick=()=>{logFilter=b.dataset.logFilter;renderLog();});
 }
 
 /* ---------------- магазин ---------------- */
@@ -1386,6 +1409,12 @@ function renderSettings(){
     <div style="height:8px"></div>`;
   $('settingsBody').innerHTML = `
   <div class="setgrid">
+    <div class="card">
+      <div class="h"><b>История кампании и интерфейс</b></div>
+      <div class="hint">Перечитывайте сюжетные письма без повторного применения решений. Настройки панелей можно вернуть к исходному виду.</div>
+      <div class="row"><label>Архив писем тёти Розы<div class="hint">Все письма кампании, включая уже прочитанные.</div></label><button class="btn" id="btnCampaignArchive">Открыть архив</button></div>
+      <div class="row"><label>Расположение и свёрнутость панелей<div class="hint">Сбросить пользовательский порядок и раскрыть все панели.</div></label><button class="btn" id="btnResetPanels">Сбросить вид панелей</button></div>
+    </div>
     <div class="card">
       <div class="h"><b>Система выращивания</b></div>
       <div class="d" style="color:var(--txt)">${sysOf(world).name}</div>
@@ -1728,6 +1757,23 @@ function renderSettings(){
   if ($('btnObAgain')) $('btnObAgain').onclick = ()=>showOnboarding(0);
   if ($('btnTutorToggle')) $('btnTutorToggle').onclick = ()=>setCampaignTutorEnabled(!world.tutorialEnabled, true);
   if ($('btnTutorAgain')) $('btnTutorAgain').onclick = ()=>showTutorAgain();
+  if ($('btnCampaignArchive')) $('btnCampaignArchive').onclick = renderCampaignArchive;
+  if ($('btnResetPanels')) $('btnResetPanels').onclick = ()=>{
+    try{localStorage.removeItem(DASHBOARD_PREFS_KEY);}catch(e){}
+    const col=document.querySelector('#dashGrid .col.left');
+    if(col){
+      const order=['climate','why','risks','finance'];
+      const map=new Map(Array.from(col.querySelectorAll(':scope > [data-panel-key]')).map(el=>[el.dataset.panelKey,el]));
+      order.forEach(key=>{const el=map.get(key);if(el)col.appendChild(el);});
+    }
+    document.querySelectorAll('[data-panel-fold]').forEach(btn=>{
+      const target=$(btn.dataset.foldTarget);if(target)target.hidden=false;
+      btn.setAttribute('aria-expanded','true');
+      const icon=btn.querySelector('.fold-icon');if(icon)icon.textContent='−';
+      const panel=btn.closest('[data-panel-key]');if(panel)panel.classList.remove('is-collapsed');
+    });
+    dashboardPrefsApplied=true;toast('Вид панелей восстановлен');
+  };
   moneyLabels();
   $('btnRestart').onclick = ()=>{ renderResumeBox(); $('start').classList.add('on'); setPage('greenhouse'); };
   $('btnSaveNow').onclick = ()=>{ saveNow(false); renderSettings(); };
