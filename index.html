@@ -3525,7 +3525,7 @@ function carrySnapshot(w){
             co2Kg: Math.max(0, Math.round((w.stock.co2Kg||0))),
             waterM3: Math.max(0, Math.round((w.stock.waterM3||0))),
             seeds: Math.max(0, Math.round((w.stock.seeds||0)))},
-    camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice()} : null,
+    camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice(), story: Object.assign({}, w.camp.story||{})} : null,
     houses: ((w.net&&w.net.houses)||[]).map(h=>({crop:h.crop, price:h.price})),
     rep,
     prev: {harvestedKg: Math.round(w.harvestedKg||0), revenue: Math.round(w.revenue||0),
@@ -3544,11 +3544,11 @@ function applyCarry(w, c){
   for (const k in (c.upg||{})) if (c.upg[k]) w.upg[k] = true;
   if (c.sections) w.wh.sections = Math.max(w.wh.sections, c.sections|0);
   if (c.stock) for (const k in c.stock) if (w.stock[k] !== undefined) w.stock[k] = Math.max(w.stock[k], c.stock[k]);
-  if (c.camp && w.camp){ w.camp.ch = Math.min(3, c.camp.ch|0); w.camp.seen = (c.camp.seen||[]).slice(); }
+  if (c.camp && w.camp){ w.camp.ch = Math.min(3, c.camp.ch|0); w.camp.seen = (c.camp.seen||[]).slice(); w.camp.story = Object.assign({}, c.camp.story||{}); }
   if (c.houses && c.houses.length && w.net)
     w.net.houses = c.houses.map(h=>({crop:h.crop, price:h.price, day:1}));
   w.rep = c.rep|0;
-  w.repF = 1 + Math.min(0.06, (w.rep||0)*0.0015);
+  w.repF = 1 + clamp((w.rep||0)*0.0015, -0.06, 0.06);
   w.seasons = c.seasons|0 || 2;
   w.carry = {rep:w.rep, seasons:w.seasons, money:w.money, prev:c.prev||null, at:c.at||Date.now()};
   // перенос в кампании: глава не откатывается назад
