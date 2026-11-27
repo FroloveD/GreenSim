@@ -518,13 +518,13 @@ function startGame(){
   world.tutorialCompleted = false;
   world.tutorialStep = 0;
   tutorStep = 0; tutorDone = !world.tutorialEnabled; resetTutorFlags();
-  cam.plant = 0; cam.mode = 'free'; paused = false; speed = 4;
+  cam.plant = 0; cam.mode = 'free'; paused = false; speed = 1;
   acc = 0; lastT = performance.now(); endShown = false; fc = null;
   $('start').classList.remove('on');
   $('mainMenu').classList.remove('on'); $('mainSettings').classList.remove('on');
   document.body.classList.remove('menu-open');
   $('pred').classList.remove('on');
-  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='4'));
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='1'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent='⏸';
   setPage('greenhouse');
   renderAll();
@@ -2441,7 +2441,7 @@ function startNextSeason(){
   if (prev.realWeather && prev.realWeather.t) world.realWeather = prev.realWeather;
   if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
   document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
-  endShown = false; paused = false; speed = 4; acc = 0; lastT = performance.now(); fc = null;
+  endShown = false; paused = false; speed = 1; acc = 0; lastT = performance.now(); fc = null;
   document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='4'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
   setPage('greenhouse'); renderAll(); saveNow(true);
