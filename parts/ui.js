@@ -262,6 +262,7 @@ function applyLoadedWorld(pack, silent){
   cam.plant = 0; cam.mode = 'free'; acc = 0; paused = false; endShown = false; fc = null;
   $('tutor').classList.remove('on');
   $('start').classList.remove('on');
+  $('campaignPrologue').classList.remove('on');
   $('mainMenu').classList.remove('on');
   $('mainSettings').classList.remove('on');
   document.body.classList.remove('menu-open');
@@ -2094,8 +2095,27 @@ function openNewGame(mode){
   pending.campaign=mode==='campaign';
   pending.tutorialEnabled=!!pending.campaign;
   pending.profile=pending.campaign?'balcony':'farm';
-  $('mainMenu').classList.remove('on'); $('start').classList.add('on'); buildStart();
+  $('mainMenu').classList.remove('on');
+  if (pending.campaign){
+    $('campaignPrologue').classList.add('on');
+  } else {
+    $('start').classList.add('on');
+    buildStart();
+  }
 }
+$('introContinue').onclick=()=>{
+  $('introScreen').classList.remove('on');
+  $('mainMenu').classList.add('on');
+};
+$('campaignPrologueBack').onclick=()=>{
+  $('campaignPrologue').classList.remove('on');
+  $('mainMenu').classList.add('on');
+};
+$('campaignPrologueContinue').onclick=()=>{
+  $('campaignPrologue').classList.remove('on');
+  $('start').classList.add('on');
+  buildStart();
+};
 $('menuCampaign').onclick=()=>openNewGame('campaign');
 $('menuFree').onclick=()=>openNewGame('free');
 $('menuContinue').onclick=()=>loadFromStorage();
