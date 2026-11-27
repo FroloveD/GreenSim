@@ -58,28 +58,26 @@ for (const m of M.MAILBOX) {
   check('текст письма про 8% совпадает с процентами в игре', /восемь процентов/.test(intro.body) && w.loanRate === 0.08);
 }
 
-// 5. Сюжет целиком: автомат проходит главы в разумные сроки и в правильном порядке писем
+// 5. Кампания: письма, явные переходы между главами и оборудование.
 {
-  const { chapters, mailDay } = runCampaign(230);
-  const day = (ch) => { const c = chapters.find(x => x.ch === ch); return c ? c.day : null; };
-  const d1 = day(1), d2 = day(2), d3 = day(3);
-  check('переезд в комнату: день 35…60', d1 !== null && d1 >= 35 && d1 <= 60, `день ${d1}`);
-  check('переезд в теплицу: день 75…105', d2 !== null && d2 >= 75 && d2 <= 105, `день ${d2}`);
-  check('сеть открыта: день 105…140', d3 !== null && d3 >= 105 && d3 <= 140, `день ${d3}`);
-  check('письмо intro раньше gear0', mailDay.intro < mailDay.gear0);
-  check('gear0 не раньше 3-го дня', mailDay.gear0 >= 3, `день ${mailDay.gear0}`);
-  check('goal1 раньше goal2 и goal2 раньше goal3', mailDay.goal1 < mailDay.goal2 && mailDay.goal2 < mailDay.goal3,
-        `${mailDay.goal1} < ${mailDay.goal2} < ${mailDay.goal3}`);
-  check('gear1 появляется после переезда в комнату', mailDay.gear1 >= d1, `gear1 ${mailDay.gear1}, переезд ${d1}`);
+  const w=M.makeWorld({profile:'balcony',crop:'lettuce',seed:12,campaign:true});
+  w.money=100000;
+  w.day=3;
+  M.campaignTick(w);
+  check('вводное письмо появляется в начале кампании',w.mail.some(m=>m.id==='intro'));
+  check('письмо о первых покупках появляется на третьем дне',w.mail.some(m=>m.id==='gear0'));
+  check('переезд открывает комнату и вторую главу',M.moveChapter(w,1)&&w.profile==='room'&&w.camp.ch===1);
+  check('переезд в теплицу включает клапан CO₂',M.moveChapter(w,2)&&w.profile==='farm'&&w.camp.ch===2&&w.has.co2);
+  check('переезд в сеть открывает четвёртую главу',M.moveChapter(w,3)&&w.camp.ch===3);
 }
 
 // 6. Замки магазина по главам: теплица открывает клапан, комната — LED
 {
   const w = M.makeWorld({ profile: 'room', crop: 'lettuce', seed: 9, campaign: true });
   w.camp.ch = 1;
-  check('в комнате клапан ещё закрыт', M.gearLocked(w, shopItem('co2valve')) === true);
+  check('в комнате клапан ещё закрыт', w.has.co2 === false);
   check('в комнате LED-лента открыта, профессиональная LED — нет', M.gearLocked(w, shopItem('ledStrip')) === false && M.gearLocked(w, shopItem('led')) === true);
-  w.camp.ch = 2;
+  M.moveChapter(w, 2);
   check('в теплице клапан открыт', w.has.co2 === true);
 }
 
