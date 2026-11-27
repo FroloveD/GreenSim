@@ -7436,7 +7436,7 @@ function startNextSeason(){
   if (world.camp && carry.camp && carry.camp.ch > 0) moveChapter(world, carry.camp.ch, true);
   document.querySelectorAll('.modal.on').forEach(m=>{ if (m.id !== 'start') m.classList.remove('on'); });
   endShown = false; paused = false; speed = 1; acc = 0; lastT = performance.now(); fc = null;
-  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='4'));
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='1'));
   $('btnPause').classList.remove('on'); $('btnPause').textContent = '⏸';
   setPage('greenhouse'); renderAll(); saveNow(true);
   toast(`Сезон ${world.seasons}: хозяйство перенесено · репутация ${world.rep} · баланс ${money(world.money)}`);
