@@ -1456,6 +1456,20 @@ const MAILBOX = [
      {label:'Разобрать претензии и компенсировать сбои (−'+money(70)+')',desc:'Потратить средства на восстановление доверия',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<70){w.camp.story.trustRepair=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на работу с претензиями покупателей',k:'warn'});return;}w.money-=70;w.camp.story.trustRepair=true;campaignRep(w,5,'разобраны претензии и восстановлен контакт с покупателями');}},
      {label:'Отложить разбор претензий',desc:'Сохранить деньги, но оставить вопросы покупателей открытыми',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.trustRepair=false;campaignRep(w,-2,'претензии покупателей оставлены без ответа');}}
    ]},
+  {id:'networkPartner', subj:'«Партнёр предлагает совместную сеть» — тётя Роза',
+   when:w=>w.camp && w.camp.ch===3 && w.rep>=12 && w.camp.story && w.camp.story.premiumBuyer===true && !w.camp.seen.includes('networkPartner'),
+   body:'Твои новые покупатели передали контакты региональному дистрибьютору. Он готов объединить графики закупок нескольких магазинов и дать тебе более предсказуемый сбыт. Но партнёр попросит прозрачную отчётность и регулярные объёмы. Можно вложиться в запуск совместной логистики или сохранить независимость. Это решение определит, каким будет масштабирование дальше.',
+   opts:[
+     {label:'Запустить совместную логистику (−'+money(250)+')',desc:'Усилить сбыт и закрепить партнёрство',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<250){w.camp.story.networkPartner=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило средств на запуск совместной логистики',k:'warn'});return;}w.money-=250;w.camp.story.networkPartner=true;campaignRep(w,5,'заключено партнёрство по региональной логистике');}},
+     {label:'Остаться независимым производителем',desc:'Не брать новые обязательства и сохранить контроль',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.networkPartner=false;campaignRep(w,1,'сохранена независимость при устойчивых продажах');}}
+   ]},
+  {id:'supplierCrisis', subj:'«Поставщик задерживает важную партию» — тётя Роза',
+   when:w=>w.camp && w.camp.ch===3 && w.rep<=-5 && w.camp.story && w.camp.story.trustRepair!==true && !w.camp.seen.includes('supplierCrisis'),
+   body:'Поставщик расходников предупредил о задержке. Он не уверен, что сможет отгрузить всё вовремя: за последние месяцы было слишком много срочных изменений и неподтверждённых заявок. Можно оплатить резервную закупку у другого поставщика и восстановить рабочие отношения. Или переждать задержку, рискуя сорвать собственный график.',
+   opts:[
+     {label:'Сделать резервную закупку (−'+money(160)+')',desc:'Снизить риск остановки работ и вернуть доверие поставщика',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<160){w.camp.story.supplierBackup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило средств на резервную закупку',k:'warn'});return;}w.money-=160;w.camp.story.supplierBackup=true;campaignRep(w,4,'организована резервная закупка и согласован график с поставщиком');}},
+     {label:'Ждать основную поставку',desc:'Не тратить деньги, но принять риск задержки',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.supplierBackup=false;campaignRep(w,-2,'задержка поставщика оставлена без решения');}}
+   ]},
   {id:'netDone', subj:'«У тебя теперь сеть» — тётя Роза',
    when:w=>w.camp && w.camp.ch===3 && (w.net?w.net.houses.length:0)>=3 && chapterSales(w)>=CHAPTERS[3].goal && !w.camp.seen.includes('netDone'),
    body:'Три теплицы, свои люди, свои контракты. Я сегодня прошла мимо того самого балкона, с которого всё началось, и вспомнила '+
