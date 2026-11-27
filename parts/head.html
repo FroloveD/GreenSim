@@ -65,22 +65,13 @@
   #dashGrid .col,#center,#center .spacer{pointer-events:none}
   #page-greenhouse .panel,#page-greenhouse .camBar,#page-greenhouse .quickBar,#page-greenhouse .bottomBar{pointer-events:auto}
   .col{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:100%}
-  /* ЛЕВЫЙ столбец неподвижен: у панелей фиксированные доли высоты, а меняющееся
-     содержимое (риски, диагностика, строки экономики) скроллится внутри своей
-     панели. Иначе каждая новая строка сдвигала всё, что ниже, и попасть по
-     кнопке повторно было нельзя. */
+  /* Левая колонка: панели делят доступную высоту, пользователь может
+     свернуть их или поменять порядок. Содержимое прокручивается внутри панели. */
   #dashGrid .col.left{overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
-  #dashGrid .col.left>.panel{overflow:hidden;display:flex;flex-direction:column;min-height:0;justify-content:flex-start;align-items:stretch}
-  #dashGrid .col.left>[data-p="climate"]{flex:0 0 auto}
-  #dashGrid .col.left>[data-p="why"]{flex:0 0 124px;min-height:100px}
-  #dashGrid .col.left>[data-p="finance"]{flex:0 1 116px;min-height:58px;max-height:160px;margin-top:auto}
-  #dashGrid .col.left>[data-p="risks"]{flex:0 1 150px;min-height:90px}
-  /* высоты внутренних блоков заданы явно: тогда даже смена числа строк
-     не двигает ни плашку, ни её содержимое */
-  #dashGrid .col.left #gauges,#dashGrid .col.left #gaugeDetails{flex:0 0 auto}
-  #dashGrid .col.left #diagnosis{flex:1 1 auto;min-height:58px;max-height:90px}
-  #dashGrid .col.left #finance{flex:1 1 0;min-height:0}
-  #dashGrid .col.left #alerts{flex:1 1 auto;min-height:48px;max-height:calc(100% - 24px)}
+  #dashGrid .col.left>.panel{overflow:hidden;display:flex;flex:1 1 0;flex-direction:column;min-height:64px;justify-content:flex-start;align-items:stretch}
+  #dashGrid .col.left>[data-p="climate"]{flex:1.35 1 0;min-height:92px}
+  #dashGrid .col.left>.panel.is-collapsed{flex:0 0 auto!important;min-height:0;height:auto}
+  #dashGrid .col.left .panel-body{flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin}
   #dashGrid .col.left #gauges,#dashGrid .col.left #gaugeDetails,#dashGrid .col.left #diagnosis,
   #dashGrid .col.left #finance,#dashGrid .col.left #alerts{overflow-y:auto;scrollbar-width:thin}
   #dashGrid .col.left #alerts .alert{margin-bottom:4px}
@@ -523,7 +514,16 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   /* ---- сворачиваемые панели и контекстные подсказки ---- */
   .panel-fold{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;padding:0;border:0;background:transparent;color:var(--dim);font:600 10.5px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:uppercase;letter-spacing:.6px;text-align:left;cursor:pointer}
   .panel-fold:hover{color:var(--txt)}
+  .panel-head{display:flex;align-items:center;gap:5px;flex:0 0 auto;min-width:0;margin-bottom:5px}
+  .panel-head .panel-fold{flex:1 1 auto;min-width:0;min-height:22px;font-size:10.5px;color:var(--txt)}
+  .panel-head .panel-fold .fold-icon{font-size:13px;color:var(--acc);min-width:13px;text-align:center}
+  .panel-order{display:flex;gap:2px;flex:0 0 auto}
+  .panel-order button{width:21px;height:21px;padding:0;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--dim);font:11px/1 sans-serif;cursor:pointer}
+  .panel-order button:hover{border-color:var(--acc);color:var(--txt)}
+  .panel-order button:disabled{opacity:.25;cursor:default}
+  .panel-body[hidden]{display:none!important}
   .fold-content[hidden]{display:none!important}
+  #dashGrid .col.left>.panel.is-collapsed .panel-head{margin-bottom:0}
   .finance-summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--dim);margin:3px 0 6px}
   .finance-summary b{font:600 11px var(--mono);color:var(--txt);margin-left:3px}
   .finance-fold{font-size:9.5px;margin:4px 0 2px;text-transform:none;letter-spacing:0}
@@ -719,10 +719,17 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 <div id="page-greenhouse" class="page on">
   <div id="dashGrid">
     <div class="col left">
-      <div class="panel" data-p="climate">
-        <button type="button" class="panel-fold climate-fold" data-fold-target="climateDetails" aria-expanded="true">
-          <span>Климат (по датчикам)</span><span class="fold-icon">−</span>
-        </button>
+      <div class="panel" data-p="climate" data-panel-key="climate">
+        <div class="panel-head">
+          <button type="button" class="panel-fold" data-fold-target="climatePanelBody" data-panel-fold="climate" aria-expanded="true">
+            <span>Климат (по датчикам)</span><span class="fold-icon">−</span>
+          </button>
+          <div class="panel-order">
+            <button type="button" data-panel-move="up" aria-label="Переместить климат выше" title="Выше">↑</button>
+            <button type="button" data-panel-move="down" aria-label="Переместить климат ниже" title="Ниже">↓</button>
+          </div>
+        </div>
+        <div id="climatePanelBody" class="panel-body">
         <div id="gauges"></div>
         <div id="climateDetails" class="fold-content">
         <div id="gaugeDetails"></div>
@@ -749,18 +756,43 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
         </div>
         <div class="hint" id="driftHint"></div>
         </div>
+        </div>
       </div>
-      <div class="panel" data-p="why">
-        <h2>Почему так</h2>
-        <div id="diagnosis"></div>
+      <div class="panel" data-p="why" data-panel-key="why">
+        <div class="panel-head">
+          <button type="button" class="panel-fold" data-fold-target="whyPanelBody" data-panel-fold="why" aria-expanded="true">
+            <span>Почему так</span><span class="fold-icon">−</span>
+          </button>
+          <div class="panel-order">
+            <button type="button" data-panel-move="up" aria-label="Переместить «Почему так» выше" title="Выше">↑</button>
+            <button type="button" data-panel-move="down" aria-label="Переместить «Почему так» ниже" title="Ниже">↓</button>
+          </div>
+        </div>
+        <div id="whyPanelBody" class="panel-body"><div id="diagnosis"></div></div>
       </div>
-      <div class="panel" data-p="risks">
-        <h2>Риски</h2>
-        <div id="alerts"></div>
+      <div class="panel" data-p="risks" data-panel-key="risks">
+        <div class="panel-head">
+          <button type="button" class="panel-fold" data-fold-target="risksPanelBody" data-panel-fold="risks" aria-expanded="true">
+            <span>Риски</span><span class="fold-icon">−</span>
+          </button>
+          <div class="panel-order">
+            <button type="button" data-panel-move="up" aria-label="Переместить риски выше" title="Выше">↑</button>
+            <button type="button" data-panel-move="down" aria-label="Переместить риски ниже" title="Ниже">↓</button>
+          </div>
+        </div>
+        <div id="risksPanelBody" class="panel-body"><div id="alerts"></div></div>
       </div>
-      <div class="panel" data-p="finance">
-        <h2>Экономика</h2>
-        <div id="finance"></div>
+      <div class="panel" data-p="finance" data-panel-key="finance">
+        <div class="panel-head">
+          <button type="button" class="panel-fold" data-fold-target="financePanelBody" data-panel-fold="finance" aria-expanded="true">
+            <span>Экономика</span><span class="fold-icon">−</span>
+          </button>
+          <div class="panel-order">
+            <button type="button" data-panel-move="up" aria-label="Переместить экономику выше" title="Выше">↑</button>
+            <button type="button" data-panel-move="down" aria-label="Переместить экономику ниже" title="Ниже">↓</button>
+          </div>
+        </div>
+        <div id="financePanelBody" class="panel-body"><div id="finance"></div></div>
       </div>
     </div>
 
