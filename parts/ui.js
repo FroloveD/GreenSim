@@ -1402,13 +1402,13 @@ function renderSettings(){
     </div>
     <div class="card" id="soundCard">
       <div class="h"><b>Звук и атмосфера</b></div>
-      <div class="d" style="color:var(--txt)" id="soundState">\${SFX.on?'эффекты включены':'эффекты выключены'} · \${Math.round(SFX.vol*100)}%</div>
+      <div class="d" style="color:var(--txt)" id="soundState">${SFX.on?'эффекты включены':'эффекты выключены'} · ${Math.round(SFX.vol*100)}%</div>
       <div class="row"><label>Звуки действий и интерфейса<div class="hint">Сбор, покупки, вода и игровые события. Клавиша Z включает или выключает эффекты.</div></label>
-        <button class="btn \${SFX.on?'good':''}" id="btnSndSet">\${SFX.on?'вкл':'выкл'}</button></div>
+        <button class="btn ${SFX.on?'good':''}" id="btnSndSet">${SFX.on?'вкл':'выкл'}</button></div>
       <div class="row"><label for="sndPreset">Фоновая атмосфера<div class="hint">Негромкий непрерывный фон. Выбор сохраняется автоматически.</div></label>
-        <select id="sndPreset" style="max-width:230px">\${SOUND_PRESETS.map(p=>'<option value="'+p.id+'" '+(SFX.preset===p.id?'selected':'')+'>'+p.label+'</option>').join('')}</select></div>
-      <div class="row"><label for="sndVol">Общая громкость</label><b id="sndVolValue">\${Math.round(SFX.vol*100)}%</b></div>
-      <input type="range" id="sndVol" min="0" max="100" step="5" value="\${Math.round(SFX.vol*100)}">
+        <select id="sndPreset" style="max-width:230px">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'" '+(SFX.preset===p.id?'selected':'')+'>'+p.label+'</option>').join('')}</select></div>
+      <div class="row"><label for="sndVol">Общая громкость</label><b id="sndVolValue">${Math.round(SFX.vol*100)}%</b></div>
+      <input type="range" id="sndVol" min="0" max="100" step="5" value="${Math.round(SFX.vol*100)}">
       <div class="row"><label>Проверка эффектов</label><button class="btn" id="btnSndTest">прослушать</button></div>
       <div class="hint">Фоновый звук запускается после первого действия игрока — это ограничение браузера. Его можно отключить отдельно от звуков интерфейса.</div>
     </div>
@@ -1526,7 +1526,7 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Клавиши</b></div>
-      \${[['Пробел','пауза / реальное время'],['1–5','переключение камер'],['← → ↑ ↓','сдвиг камеры'],['+ / −','приближение и отдаление'],['R','сброс ракурса'],['L','слой освещения'],['Z','звук вкл./выкл.'],['Ctrl + S','сохранить сезон']]
+      ${[['Пробел','пауза / реальное время'],['1–5','переключение камер'],['← → ↑ ↓','сдвиг камеры'],['+ / −','приближение и отдаление'],['R','сброс ракурса'],['L','слой освещения'],['Z','звук вкл./выкл.'],['Ctrl + S','сохранить сезон']]
         .map(([k,d])=>'<div class="kv"><span>'+d+'</span><b>'+k+'</b></div>').join('')}
       <div class="hint" style="margin-top:6px">Горячие клавиши не перехватывают ввод в полях.</div>
     </div>
