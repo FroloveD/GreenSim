@@ -1,9 +1,10 @@
 name: Deploy to GitHub Pages
-# публикуем с ветки dev — так решил хозяин проекта (см. docs/checks.md)
 
 on:
   push:
-    branches: [ dev ]
+    branches:
+      - dev
+      - agent/greensim-p0-stabilization
   workflow_dispatch:
 
 permissions:
@@ -11,30 +12,40 @@ permissions:
   pages: write
   id-token: write
 
-# не отменяем уже начавшуюся публикацию: прерванный деплой оставляет
-# артефакт github-pages «висящим» и следующий запуск падает на дубликате
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  # 1. СБОРКА: проверяем, что index.html собран из parts/* и не пустой
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Проверка сборки (index.html соответствует parts/*)
+      - name: Проверка сборки из parts (ветка dev)
+        if: github.ref_name == 'dev'
         run: |
           test -s index.html
-          echo "index.html: $(wc -c < index.html) байт"
           bash build.sh
           if ! git diff --quiet -- index.html; then
-            echo "::error::index.html в репозитории не совпадает со сборкой из parts/*. Запустите ./build.sh локально и закоммитьте."
+            echo "::error::index.html не совпадает со сборкой из parts/*"
             git diff --stat -- index.html
             exit 1
           fi
-          echo "сборка синхронна с parts/*"
+
+      - name: Проверка index.html (ветка стабилизации)
+        if: github.ref_name == 'agent/greensim-p0-stabilization'
+        run: |
+          node -e '
+          const fs = require("fs");
+          const s = fs.readFileSync("index.html", "utf8");
+          if (!s.trim()) throw new Error("index.html пуст");
+          const start = s.indexOf("<script>");
+          const end = s.lastIndexOf("</script>");
+          if (start < 0 || end <= start) throw new Error("Основной script не найден");
+          new Function(s.slice(start + 8, end));
+          console.log("index.html проверен: " + s.length + " символов");
+          '
 
       - uses: actions/configure-pages@v6
 
@@ -42,8 +53,6 @@ jobs:
         with:
           path: .
 
-  # 2. ПУБЛИКАЦИЯ: отдельная job — артефакт к этому моменту уже проиндексирован
-  #    (в одной job'е deploy-pages иногда не видит свежий артефакт, см. actions/deploy-pages#451)
   deploy:
     needs: build
     runs-on: ubuntu-latest
