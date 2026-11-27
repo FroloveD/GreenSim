@@ -47,5 +47,5 @@ check('escapeHTML нейтрализует теги и атрибуты собы
   check('старый формат v1 продолжает загружаться',
     M.deserializeWorld(legacy).world.day===w.day);
 }
-console.log(fails?\`\\nпровалено проверок безопасности: ${fails}\`:'\\nвсе проверки безопасности прошли');
+console.log(fails ? '\nпровалено проверок безопасности: '+fails : '\nвсе проверки безопасности прошли');
 process.exit(fails?1:0);
