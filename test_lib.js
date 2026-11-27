@@ -6,11 +6,20 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, 'parts', 'core.js'), 'utf8');
 const a = src.indexOf('// === SIM CORE START ==='), b = src.indexOf('// === SIM CORE END ===');
 const M = new Function(src.slice(a, b) + `
+  const setLampState = (w, on) => {
+    if (!!w.ctrl.lampEnabled !== !!on) toggleLamp(w);
+    return !!w.ctrl.lampEnabled;
+  };
+  const craftF = (w, crop) => {
+    const c = CROPS[crop], market = w.market && w.market.mult ? (w.market.mult[crop] || 1) : 1;
+    const base = c ? c.price * (w.profilePriceF || 1) * market : 0;
+    return base > 0 ? priceToday(w, crop) / base : 1;
+  };
   return {makeWorld, stepWorld, harvestAll, sellHarvest, buyItem, answerMail, pushMail, campaignTick,
-          hasLight, setLampState, priceToday, lotQuality, moveChapter, chapterSales, gearLocked, shopPriceFactor, shopItemCost,
+          hasLight, toggleLamp, setLampState, priceToday, lotQuality, moveChapter, chapterSales, gearLocked, shopPriceFactor, shopItemCost,
           MAILBOX, CHAPTERS, PROFILES, CROPS, MISSIONS, SHOP, GEAR,
           serializeWorld, deserializeWorld, escapeHTML, assertSavePayload, offerContracts, signContract, deliverContract, checkContracts,
-          netBuy, netTotal, netTick, homeCO2, craftF, CFG, WH, addLot, lotQuality};`)();
+          netBuy, netTotal, netTick, craftF, CFG, WH, addLot};`)();
 
 // Ответы игрока-автомата на письма наставника: 1 — «обойтись своими» (без долга), остальное — переезд/принять.
 const MAIL_CHOICE = { intro: 1 };
