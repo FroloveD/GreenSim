@@ -22,8 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Проверка сборки из parts (ветка dev)
-        if: github.ref_name == 'dev'
+      - name: Сборка и проверка index.html из parts/*
+        if: github.ref_name == 'dev' || github.ref_name == 'agent/greensim-p0-stabilization'
         run: |
           test -s index.html
           bash build.sh
@@ -32,20 +32,6 @@ jobs:
             git diff --stat -- index.html
             exit 1
           fi
-
-      - name: Проверка index.html (ветка стабилизации)
-        if: github.ref_name == 'agent/greensim-p0-stabilization'
-        run: |
-          node -e '
-          const fs = require("fs");
-          const s = fs.readFileSync("index.html", "utf8");
-          if (!s.trim()) throw new Error("index.html пуст");
-          const start = s.indexOf("<script>");
-          const end = s.lastIndexOf("</script>");
-          if (start < 0 || end <= start) throw new Error("Основной script не найден");
-          new Function(s.slice(start + 8, end));
-          console.log("index.html проверен: " + s.length + " символов");
-          '
 
       - uses: actions/configure-pages@v6
 
