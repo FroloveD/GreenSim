@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="cache-control" content="no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
 <meta name="build" content="2026-11-26 · скорости от реального часа, гидропоника, камера">
@@ -520,6 +520,87 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   @media(hover:hover) and (pointer:fine){.sensor-label:hover:after,.sensor-label:focus:after{display:block}}
   @media(hover:none),(pointer:coarse){.sensor-label.tip-open:after{display:block}}
   .tutor-shop-buy{border:2px solid #54e58a!important;outline:2px solid rgba(84,229,138,.55)!important;outline-offset:1px;box-shadow:0 0 0 4px rgba(84,229,138,.2),0 0 18px rgba(84,229,138,.24)!important}
+
+
+  /* ---- финальная адаптация сенсорных экранов ---- */
+  @media (max-width:720px){
+    #top{top:calc(5px + env(safe-area-inset-top));left:6px;right:6px}
+    #dashGrid{
+      top:calc(var(--topH) + 10px + env(safe-area-inset-top));
+      right:6px;bottom:calc(58px + env(safe-area-inset-bottom));left:6px;
+    }
+    #dock{
+      left:6px;right:6px;bottom:calc(7px + env(safe-area-inset-bottom));
+      display:none;gap:5px;padding:5px;scrollbar-width:none;
+      overscroll-behavior-x:contain;touch-action:pan-x;
+    }
+    #dock::-webkit-scrollbar{display:none}
+    body.on-gh.narrow #dock{display:flex}
+    #dock button{
+      flex:0 0 auto;min-width:66px;min-height:40px;padding:6px 8px;
+      font-size:10px;scroll-snap-align:start;touch-action:manipulation;
+    }
+    #dashGrid .col.left,#dashGrid .col.right{
+      left:6px;right:6px;bottom:calc(58px + env(safe-area-inset-bottom));
+      max-height:min(52dvh,440px);overscroll-behavior:contain;
+      padding-bottom:3px;
+    }
+    #dashGrid .col .panel.sel{padding:9px 10px}
+    #center{gap:6px}
+    #center > .panel{
+      min-width:0;max-width:100%;overflow:hidden;
+      padding:5px 6px;align-self:stretch!important;
+    }
+    #center .camBar{
+      flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;
+      overscroll-behavior-x:contain;scrollbar-width:none;
+      touch-action:pan-x;gap:5px;padding:2px 2px 5px;
+    }
+    #center .camBar::-webkit-scrollbar{display:none}
+    #center .camBar button{flex:0 0 auto;min-height:38px;padding:7px 9px}
+    #center .camNav{flex:0 0 auto}
+    #center .quickBar{
+      flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;
+      overscroll-behavior-x:contain;scrollbar-width:none;
+      touch-action:pan-x;gap:6px;padding:5px 2px 7px;
+    }
+    #center .quickBar::-webkit-scrollbar{display:none}
+    #center .quickBar .btn{
+      flex:0 0 auto;min-width:112px;min-height:40px;
+      padding:7px 9px;font-size:10px;
+    }
+    #sceneHint{display:none}
+    #toast{top:calc(var(--topH) + 8px + env(safe-area-inset-top));bottom:auto}
+    #tutor{top:calc(var(--topH) + 8px + env(safe-area-inset-top))}
+    .modal{padding:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom))}
+    .modal .sheet{max-height:calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+    input[type=range]{min-height:24px;touch-action:pan-y}
+    .btn,.camBar button,.tabs button,.speeds button{touch-action:manipulation}
+  }
+
+  /* В альбомной ориентации освобождаем высоту под саму теплицу. */
+  @media (max-width:900px) and (max-height:560px) and (orientation:landscape){
+    :root{--topH:54px}
+    #top{top:calc(4px + env(safe-area-inset-top));padding:4px 6px;gap:5px;flex-wrap:nowrap}
+    .tabs{flex:0 0 auto}
+    .tabs button{padding:5px 7px;font-size:10px}
+    .metrics{width:auto;min-width:0;margin-left:auto;gap:6px;flex-wrap:nowrap}
+    .metrics .metric:nth-child(2),.metrics .metric:nth-child(4),.metrics .metric:nth-child(5){display:none}
+    .metric b{font-size:10.5px}
+    .speeds{gap:2px}
+    .speeds button{padding:4px 5px;font-size:9px}
+    #dashGrid{
+      top:calc(var(--topH) + 7px + env(safe-area-inset-top));
+      bottom:calc(52px + env(safe-area-inset-bottom));
+    }
+    #dock{bottom:calc(5px + env(safe-area-inset-bottom));padding:3px}
+    #dock button{min-height:36px;min-width:62px;padding:4px 7px}
+    #dashGrid .col.left,#dashGrid .col.right{
+      bottom:calc(52px + env(safe-area-inset-bottom));max-height:54dvh;
+    }
+    #center .camBar button{min-height:34px;padding:5px 8px}
+    #center .quickBar .btn{min-height:36px}
+  }
 
 </style>
 </head>
