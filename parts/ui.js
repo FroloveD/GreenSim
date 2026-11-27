@@ -2265,15 +2265,65 @@ function bindDashboardDetails(){
     const pos=list.indexOf(owner);
     control.disabled=(control.dataset.panelMove==='up'&&pos===0)||(control.dataset.panelMove==='down'&&pos===list.length-1);
   });
+  const sensorTip=$('sensorTooltip')||(()=>{
+    const node=document.createElement('div');
+    node.id='sensorTooltip';
+    node.setAttribute('role','tooltip');
+    document.body.appendChild(node);
+    return node;
+  })();
+  const placeSensorTip=el=>{
+    if(!el||!sensorTip.classList.contains('on')) return;
+    const r=el.getBoundingClientRect();
+    const margin=12, width=sensorTip.offsetWidth, height=sensorTip.offsetHeight;
+    let left=Math.max(margin,Math.min(r.left,window.innerWidth-width-margin));
+    let top=r.bottom+8;
+    if(top+height>window.innerHeight-margin) top=Math.max(margin,r.top-height-8);
+    sensorTip.style.left=left+'px';
+    sensorTip.style.top=top+'px';
+  };
+  const showSensorTip=(el,pinned)=>{
+    if(!el) return;
+    sensorTip.textContent=el.dataset.tip||el.dataset.tipKey||'';
+    sensorTip.classList.add('on');
+    sensorTip.dataset.owner=el.dataset.tipKey||'';
+    if(pinned) activeSensorTip=el.dataset.tipKey||'';
+    placeSensorTip(el);
+  };
+  const hideSensorTip=()=>{
+    activeSensorTip='';
+    sensorTip.classList.remove('on');
+    sensorTip.dataset.owner='';
+  };
   document.querySelectorAll('.sensor-label').forEach(el=>{
     if(el.dataset.tipBound) return;
     el.dataset.tipBound='1';
-    el.addEventListener('click',()=>{ activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey; document.querySelectorAll('.sensor-label').forEach(node=>node.classList.toggle('tip-open',node.dataset.tipKey===activeSensorTip)); });
+    el.addEventListener('mouseenter',()=>{ if(!activeSensorTip) showSensorTip(el,false); });
+    el.addEventListener('mouseleave',()=>{ if(!activeSensorTip) sensorTip.classList.remove('on'); });
+    el.addEventListener('focus',()=>showSensorTip(el,false));
+    el.addEventListener('blur',()=>{ if(!activeSensorTip) sensorTip.classList.remove('on'); });
+    el.addEventListener('click',e=>{
+      e.preventDefault();
+      if(activeSensorTip===el.dataset.tipKey) hideSensorTip();
+      else showSensorTip(el,true);
+    });
     el.addEventListener('keydown',e=>{
-      if(e.key==='Enter'||e.key===' '){e.preventDefault();activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey;el.classList.toggle('tip-open',activeSensorTip===el.dataset.tipKey);}
-      if(e.key==='Escape'){activeSensorTip='';el.classList.remove('tip-open');}
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();if(activeSensorTip===el.dataset.tipKey)hideSensorTip();else showSensorTip(el,true);}
+      if(e.key==='Escape') hideSensorTip();
     });
   });
+  if(activeSensorTip){
+    const owner=Array.from(document.querySelectorAll('.sensor-label')).find(el=>el.dataset.tipKey===activeSensorTip);
+    if(owner) showSensorTip(owner,true); else hideSensorTip();
+  }
+  if(!document.documentElement.dataset.sensorTipGlobal){
+    document.documentElement.dataset.sensorTipGlobal='1';
+    document.addEventListener('pointerdown',e=>{
+      if(!e.target.closest('.sensor-label') && activeSensorTip) hideSensorTip();
+    });
+    window.addEventListener('resize',()=>{ if(activeSensorTip){const owner=Array.from(document.querySelectorAll('.sensor-label')).find(el=>el.dataset.tipKey===activeSensorTip);if(owner)placeSensorTip(owner);}});
+    window.addEventListener('scroll',()=>{ if(activeSensorTip){const owner=Array.from(document.querySelectorAll('.sensor-label')).find(el=>el.dataset.tipKey===activeSensorTip);if(owner)placeSensorTip(owner);}},true);
+  }
 }
 
 /* ---------------- сборка панелей ---------------- */
