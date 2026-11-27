@@ -1939,7 +1939,7 @@ function makeWorld(opts){
     profilePriceF: P.priceF*D.priceF, diffPriceF: D.priceF, diffShop: D.shopF, area,
     diffId: D.id, diffFixed: D.fixedF, diffFail: D.failF, diffDrift: D.driftF, diffEvent: D.eventF,
     plantScale: 1, day:1, hour:6, doy:startDoy, startDoy, site, over:false, seasonDays: opts.campaign ? 210 : CFG.seasonDays,
-    money: P.start, startMoney: P.start, loan: 0, loanRate: 0.06,
+    money: P.start, startMoney: P.start, loan: 0, loanRate: 0.08,
     temp: 16, co2: 520, rh: 75,
     // влажность субстрата: поливает игрок руками, датчик показывает проценты
     moist: SOIL.m0, waterStress: 0, soilDryHours: 0, wateredTodayL: 0, wateredTotalL: 0,
