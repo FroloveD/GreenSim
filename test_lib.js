@@ -18,7 +18,7 @@ const M = new Function(src.slice(a, b) + `
   return {makeWorld, stepWorld, harvestAll, sellHarvest, buyItem, answerMail, pushMail, campaignTick,
           hasLight, toggleLamp, setLampState, priceToday, lotQuality, moveChapter, chapterSales, gearLocked, shopPriceFactor, shopItemCost,
           MAILBOX, CHAPTERS, PROFILES, CROPS, MISSIONS, SHOP, GEAR,
-          serializeWorld, deserializeWorld, escapeHTML, assertSavePayload, offerContracts, signContract, deliverContract, checkContracts,
+          serializeWorld, deserializeWorld, escapeHTML, assertSavePayload, carrySnapshot, applyCarry, campaignPrice, answerMail, campaignTick, pushMail, offerContracts, signContract, deliverContract, checkContracts,
           netBuy, netTotal, netTick, craftF, CFG, WH, addLot};`)();
 
 // Ответы игрока-автомата на письма наставника: 1 — «обойтись своими» (без долга), остальное — переезд/принять.
