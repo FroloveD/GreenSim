@@ -684,22 +684,75 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .menu-footer span{font-size:17px}
   @media(max-width:560px){#mainMenu .playful-menu{padding:24px 18px;border-radius:22px}.menu-garden-art{height:62px}.playful-menu .menu-actions button{min-height:66px;padding:10px 12px}.playful-menu .menu-actions .menu-symbol{width:37px;height:37px;font-size:22px}.playful-menu .menu-title{font-size:36px}}
 
+
+  /* Финальная визуальная тема главного и приветственного экранов.
+     Высокая специфичность защищает оформление от базовых стилей модальных окон. */
+  #mainMenu.modal{background:radial-gradient(ellipse at 50% 0%,rgba(255,194,26,.2),transparent 42%),radial-gradient(ellipse at 8% 90%,rgba(255,138,30,.12),transparent 36%),rgba(9,7,5,.96)!important;backdrop-filter:blur(8px)}
+  #mainMenu.modal>.menu-sheet.playful-menu{box-sizing:border-box!important;width:min(620px,94vw)!important;max-height:92vh!important;padding:clamp(25px,5vw,46px)!important;border:2px solid #ffc21a!important;border-radius:8px 24px 8px 24px!important;background:linear-gradient(145deg,#382719 0%,#21170e 58%,#17110b 100%)!important;box-shadow:12px 12px 0 rgba(255,138,30,.18),0 28px 90px #000c!important;color:#f8ecd6!important}
+  #mainMenu .playful-menu:before{inset:10px!important;border:1px dashed rgba(255,194,26,.34)!important;border-radius:4px 17px 4px 17px!important}
+  #mainMenu .playful-menu .menu-garden-art{height:88px!important;margin:0 0 12px!important;border-bottom:1px solid rgba(255,194,26,.2)}
+  #mainMenu .playful-menu .menu-garden-art .garden-sun{right:14%!important;top:0!important;color:#ffc21a!important;font-size:42px!important}
+  #mainMenu .playful-menu .menu-garden-art .garden-sprout{font-size:62px!important}
+  #mainMenu .playful-menu .menu-garden-art .garden-flower{left:17%!important;color:#ff8a8a!important;font-size:32px!important}
+  #mainMenu .playful-menu .menu-garden-art .garden-leaf{right:28%!important;color:#b4d66c!important;font-size:42px!important}
+  #mainMenu .playful-menu .menu-kicker{color:#ffc21a!important;font-weight:800!important;letter-spacing:.16em!important}
+  #mainMenu .playful-menu .menu-title{font-size:clamp(35px,6vw,54px)!important;line-height:1.02!important;letter-spacing:-.04em!important;color:#fff0d0!important;margin:14px 0 10px!important;text-transform:uppercase;text-shadow:3px 3px 0 #9b4b18}
+  #mainMenu .playful-menu .menu-title em{color:#ffc21a!important;font-style:normal}
+  #mainMenu .playful-menu .menu-subtitle{max-width:440px!important;color:#e0c9a6!important;font-size:14px!important;line-height:1.55!important;margin:0 0 22px!important}
+  #mainMenu .playful-menu .menu-actions{gap:11px!important}
+  #mainMenu .playful-menu .menu-actions button{box-sizing:border-box;min-height:76px!important;padding:13px 16px!important;border:1px solid rgba(255,194,26,.28)!important;border-radius:5px 15px 5px 15px!important;background:rgba(255,239,205,.07)!important;color:#fff0d0!important}
+  #mainMenu .playful-menu .menu-actions button:hover{transform:translate(2px,-2px)!important;border-color:#ffc21a!important;background:rgba(255,194,26,.16)!important;box-shadow:4px 4px 0 rgba(255,138,30,.2)}
+  #mainMenu .playful-menu .menu-actions .menu-symbol{width:46px!important;height:46px!important;border-radius:8px!important;background:rgba(255,194,26,.14)!important;font-size:27px!important}
+  #mainMenu .playful-menu .menu-actions button b{color:#fff4dc!important;font-size:16px!important}
+  #mainMenu .playful-menu .menu-actions button small{color:#d3b993!important;font-size:11px!important}
+  #mainMenu .playful-menu .menu-actions .menu-card-campaign{border:2px solid #ffc21a!important;background:linear-gradient(100deg,rgba(255,194,26,.2),rgba(255,138,30,.07))!important}
+  #mainMenu .playful-menu .menu-card-arrow{color:#ffc21a!important;font-size:25px!important}
+  #mainMenu .playful-menu .menu-footer{color:#d3b993!important;border-color:rgba(255,194,26,.28)!important}
+  #introScreen.modal{background:radial-gradient(ellipse at 50% 12%,rgba(255,194,26,.2),transparent 48%),rgba(7,6,5,.97)!important;backdrop-filter:blur(8px)}
+  #introScreen .intro-sheet{box-sizing:border-box!important;width:min(760px,95vw)!important;max-height:92vh!important;overflow:auto!important;padding:clamp(22px,4vw,42px)!important;border:2px solid #ffc21a!important;border-radius:8px 25px 8px 25px!important;background:linear-gradient(145deg,#382719,#21170e 65%,#17110b)!important;box-shadow:12px 12px 0 rgba(255,138,30,.16),0 28px 90px #000c!important;color:#f8ecd6!important}
+  #introScreen .intro-scene{height:142px;position:relative;overflow:hidden;margin:-4px -4px 22px;border-bottom:2px solid rgba(255,194,26,.38);background:linear-gradient(180deg,#344d42 0%,#81935d 68%,#bd9b52 100%);border-radius:6px 18px 4px 18px}
+  #introScreen .intro-scene:after{content:"";position:absolute;left:0;right:0;bottom:0;height:34px;background:repeating-linear-gradient(90deg,transparent 0 38px,rgba(27,48,28,.55) 39px 42px),linear-gradient(0deg,#293b25,#506b39);clip-path:polygon(0 45%,100% 0,100% 100%,0 100%)}
+  #introScreen .intro-sun{position:absolute;right:13%;top:14px;font-size:42px;color:#ffd45a;text-shadow:0 0 28px #ffdb75}
+  #introScreen .intro-cloud{position:absolute;color:#f7edcf;font-size:36px;opacity:.85}
+  #introScreen .intro-cloud-one{left:18%;top:18px}
+  #introScreen .intro-cloud-two{left:42%;top:4px;font-size:26px}
+  #introScreen .intro-plant{position:absolute;z-index:2;left:50%;bottom:18px;transform:translateX(-50%);font-size:83px;filter:drop-shadow(0 6px 4px #172314)}
+  #introScreen .intro-pot{position:absolute;z-index:3;left:calc(50% - 18px);bottom:11px;width:36px;height:17px;overflow:hidden;color:#b65c32;font-size:0;background:#b65c32;border:2px solid #74391f;border-radius:3px 3px 8px 8px}
+  #introScreen .intro-spark{position:absolute;color:#fff0a6;font-size:24px}
+  #introScreen .intro-spark-one{left:31%;top:56px}
+  #introScreen .intro-spark-two{right:30%;top:70px}
+  #introScreen .intro-eyebrow{display:flex;align-items:center;gap:9px;color:#ffc21a;font-size:10px;font-weight:800;letter-spacing:.16em}
+  #introScreen .intro-dot{width:8px;height:8px;border-radius:50%;background:#ffc21a;box-shadow:0 0 0 4px rgba(255,194,26,.16)}
+  #introScreen .intro-heading{margin:15px 0 12px;color:#fff0d0;font-size:clamp(34px,6vw,52px);font-weight:900;line-height:1.02;letter-spacing:-.04em;text-transform:uppercase;text-shadow:3px 3px 0 #9b4b18}
+  #introScreen .intro-heading em{color:#ffc21a;font-style:normal}
+  #introScreen .intro-lead{max-width:620px;margin:0 0 22px;color:#e0c9a6;font-size:14px;line-height:1.65}
+  #introScreen .intro-features{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+  #introScreen .intro-feature{min-width:0;display:flex;flex-direction:column;gap:6px;padding:13px 11px;border:1px solid rgba(255,194,26,.25);border-radius:5px 13px 5px 13px;background:rgba(255,239,205,.06)}
+  #introScreen .intro-feature>span{font-size:27px}
+  #introScreen .intro-feature b{color:#fff0d0;font-size:12px}
+  #introScreen .intro-feature small{color:#d3b993;font-size:10px;line-height:1.4}
+  #introScreen .intro-bottom{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:22px;padding-top:16px;border-top:1px dashed rgba(255,194,26,.3)}
+  #introScreen .intro-note{max-width:300px;margin:0;color:#d3b993;font-size:11px;line-height:1.5}
+  #introScreen .intro-start{display:flex;align-items:center;gap:18px;min-height:46px;padding:10px 17px!important;border:1px solid #ffc21a!important;border-radius:5px 12px 5px 12px!important;background:#ffc21a!important;color:#21170e!important;font-weight:900!important}
+  #introScreen .intro-start b{font-size:22px}
+  @media(max-width:620px){#introScreen .intro-features{grid-template-columns:repeat(2,minmax(0,1fr))}#introScreen .intro-bottom{align-items:stretch;flex-direction:column}#introScreen .intro-start{justify-content:space-between}#introScreen .intro-scene{height:116px}}
+
 </style>
 </head>
 <body>
 <canvas id="scene"></canvas>
-<div id="introScreen" class="modal on story-overlay"><div class="sheet story-sheet">
-  <div class="menu-kicker">GREENSim · СИМУЛЯТОР ТЕПЛИЧНОГО ХОЗЯЙСТВА</div>
-  <div class="menu-title">Выращивайте. Управляйте. Развивайте.</div>
-  <p class="story-lead">GreenSim — симулятор, в котором вы строите тепличное хозяйство с нуля: от первых растений на небольшой площади до полноценного производства.</p>
-  <div class="story-grid">
-    <div><b>🌱 Выращивание</b><span>Выбирайте культуры, следите за ростом, питанием, водой и состоянием растений.</span></div>
-    <div><b>🌤 Климат</b><span>Управляйте температурой, влажностью, светом, вентиляцией и отоплением.</span></div>
-    <div><b>⚙ Хозяйство</b><span>Покупайте оборудование, планируйте расходы, продавайте урожай и заключайте контракты.</span></div>
-    <div><b>📈 Развитие</b><span>Проходите кампанию с историями и решениями или создавайте собственный сезон в свободной игре.</span></div>
+<div id="introScreen" class="modal on story-overlay"><div class="sheet story-sheet intro-sheet">
+  <div class="intro-scene" aria-hidden="true"><span class="intro-sun">☀</span><span class="intro-cloud intro-cloud-one">☁</span><span class="intro-cloud intro-cloud-two">☁</span><span class="intro-plant">🌱</span><span class="intro-pot">▰</span><span class="intro-spark intro-spark-one">✦</span><span class="intro-spark intro-spark-two">✧</span></div>
+  <div class="intro-eyebrow"><span class="intro-dot"></span> GREENSim · СИМУЛЯТОР ТЕПЛИЧНОГО ХОЗЯЙСТВА</div>
+  <div class="intro-heading">Маленькая теплица.<br><em>Большая история.</em></div>
+  <p class="intro-lead">Начни с нескольких растений, научись понимать их потребности и постепенно построй своё тепличное хозяйство.</p>
+  <div class="intro-features">
+    <div class="intro-feature"><span>🌿</span><b>Выращивай</b><small>Культуры, уход и урожай</small></div>
+    <div class="intro-feature"><span>☀️</span><b>Настраивай климат</b><small>Свет, вода и температура</small></div>
+    <div class="intro-feature"><span>🛠️</span><b>Развивай хозяйство</b><small>Покупки, техника и финансы</small></div>
+    <div class="intro-feature"><span>🧭</span><b>Выбирай свой путь</b><small>Кампания или свободная игра</small></div>
   </div>
-  <p class="story-foot">Здесь важны не только урожай и прибыль. Каждое решение влияет на климат, здоровье растений и устойчивость вашего хозяйства.</p>
-  <div class="story-actions"><button class="btn good" id="introContinue">Перейти к игре</button></div>
+  <div class="intro-bottom"><p class="intro-note">Каждый день — новые решения. Каждый урожай — результат твоей заботы.</p><button class="btn good intro-start" id="introContinue"><span>Войти в теплицу</span><b>→</b></button></div>
 </div></div>
 <div id="campaignPrologue" class="modal story-overlay"><div class="sheet story-sheet letter-sheet">
   <div class="menu-kicker">ЛИЧНОЕ ПИСЬМО · ОСТАВЛЕНО ТЁТЕЙ РОЗОЙ</div>
