@@ -20,6 +20,8 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 let world = null;
 let activeSensorTip = '';
 let financeDetailsOpen = false;
+let dashboardPrefsApplied = false;
+const DASHBOARD_PREFS_KEY = 'vg_dashboard_panels_v1';
 let page = 'greenhouse';
 let settingsSection = 'grow';
 
@@ -2179,10 +2181,47 @@ function syncLightButtons(){
 }
 
 /* ---------------- компактные панели и подсказки датчиков ---------------- */
+function readDashboardPrefs(){
+  try {
+    const raw=localStorage.getItem(DASHBOARD_PREFS_KEY);
+    const value=raw?JSON.parse(raw):{};
+    return {order:Array.isArray(value.order)?value.order:[],collapsed:value.collapsed&&typeof value.collapsed==='object'?value.collapsed:{}};
+  } catch(e){ return {order:[],collapsed:{}}; }
+}
+function writeDashboardPrefs(prefs){
+  try { localStorage.setItem(DASHBOARD_PREFS_KEY,JSON.stringify(prefs)); } catch(e){}
+}
+function saveDashboardPanelOrder(){
+  const prefs=readDashboardPrefs();
+  prefs.order=Array.from(document.querySelectorAll('#dashGrid .col.left>[data-panel-key]')).map(el=>el.dataset.panelKey);
+  writeDashboardPrefs(prefs);
+}
+function applyDashboardPanelOrder(){
+  if(dashboardPrefsApplied) return;
+  dashboardPrefsApplied=true;
+  const col=document.querySelector('#dashGrid .col.left');
+  if(!col) return;
+  const prefs=readDashboardPrefs();
+  const panels=Array.from(col.querySelectorAll(':scope > [data-panel-key]'));
+  const byKey=new Map(panels.map(el=>[el.dataset.panelKey,el]));
+  prefs.order.forEach(key=>{ const panel=byKey.get(key); if(panel) col.appendChild(panel); });
+}
 function bindDashboardDetails(){
+  applyDashboardPanelOrder();
   document.querySelectorAll('[data-fold-target]').forEach(btn=>{
     if(btn.dataset.bound) return;
     btn.dataset.bound='1';
+    const target=$(btn.dataset.foldTarget);
+    if(btn.dataset.panelFold && target){
+      const prefs=readDashboardPrefs();
+      const collapsed=!!prefs.collapsed[btn.dataset.panelFold];
+      target.hidden=collapsed;
+      btn.setAttribute('aria-expanded',String(!collapsed));
+      const panel=btn.closest('[data-panel-key]');
+      if(panel) panel.classList.toggle('is-collapsed',collapsed);
+      const icon=btn.querySelector('.fold-icon');
+      if(icon) icon.textContent=collapsed?'＋':'−';
+    }
     btn.addEventListener('click',()=>{
       const target=$(btn.dataset.foldTarget);
       if(!target) return;
@@ -2192,7 +2231,39 @@ function bindDashboardDetails(){
       target.hidden=!open;
       const icon=btn.querySelector('.fold-icon');
       if(icon) icon.textContent=open?'−':'＋';
+      const panel=btn.closest('[data-panel-key]');
+      if(panel) panel.classList.toggle('is-collapsed',!open);
+      if(btn.dataset.panelFold){
+        const prefs=readDashboardPrefs();
+        prefs.collapsed[btn.dataset.panelFold]=!open;
+        writeDashboardPrefs(prefs);
+      }
     });
+  });
+  document.querySelectorAll('[data-panel-move]').forEach(btn=>{
+    if(btn.dataset.moveBound) return;
+    btn.dataset.moveBound='1';
+    btn.addEventListener('click',()=>{
+      const panel=btn.closest('[data-panel-key]');
+      if(!panel) return;
+      const siblings=Array.from(panel.parentElement.querySelectorAll(':scope > [data-panel-key]'));
+      const index=siblings.indexOf(panel), direction=btn.dataset.panelMove;
+      if(direction==='up' && index>0) panel.parentElement.insertBefore(panel,siblings[index-1]);
+      else if(direction==='down' && index<siblings.length-1) panel.parentElement.insertBefore(siblings[index+1],panel);
+      saveDashboardPanelOrder();
+      panel.parentElement.querySelectorAll('[data-panel-move]').forEach(control=>{
+        const owner=control.closest('[data-panel-key]');
+        const list=Array.from(panel.parentElement.querySelectorAll(':scope > [data-panel-key]'));
+        const pos=list.indexOf(owner);
+        control.disabled=(control.dataset.panelMove==='up'&&pos===0)||(control.dataset.panelMove==='down'&&pos===list.length-1);
+      });
+    });
+  });
+  document.querySelectorAll('[data-panel-move]').forEach(control=>{
+    const col=control.closest('.col.left'), owner=control.closest('[data-panel-key]');
+    const list=col?Array.from(col.querySelectorAll(':scope > [data-panel-key]')):[];
+    const pos=list.indexOf(owner);
+    control.disabled=(control.dataset.panelMove==='up'&&pos===0)||(control.dataset.panelMove==='down'&&pos===list.length-1);
   });
   document.querySelectorAll('.sensor-label').forEach(el=>{
     if(el.dataset.tipBound) return;
