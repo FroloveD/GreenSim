@@ -419,7 +419,7 @@ function buildStart(){
   $('diffPick').innerHTML = Object.values(DIFFICULTY).map(d=>`
     <div class="card" data-diff="${d.id}" style="cursor:pointer;${d.id===pending.difficulty?'border-color:var(--acc)':''}">
       <div class="h"><b>${d.name}</b></div>
-      <div class="d">${d.note}<br>постоянные ×${d.fixedF.toFixed(2)} · аварии ×${d.failF.toFixed(1)} · цена ×${d.priceF.toFixed(2)}</div>
+      <div class="d">${d.note}<br>постоянные ×${d.fixedF.toFixed(2)} · аварии ×${d.failF.toFixed(1)} · цена урожая ×${d.priceF.toFixed(2)} · магазин ×${d.shopF.toFixed(2)}</div>
     </div>`).join('');
   // 5. локация старта: климат берём из норм по точке (открытые данные)
   if ($('sitePick')) $('sitePick').innerHTML = SITE_LIST.map(x=>{
@@ -1242,6 +1242,7 @@ function shopTopLine(){
   const tr = marketTrend(world, world.crop);
   return `Баланс: <b style="color:var(--acc2)">${money(world.money)}</b> · ` +
     `склад: <b>${Math.round(whUsedL(world))}/${whCap(world)} л</b> · ` +
+    `покупки: <b>×${shopPriceFactor(world).toFixed(2)}</b> · ` +
     `цена дня: <b style="color:var(--acc)">${money2(priceToday(world))}/кг</b> ` +
     (tr>0.01?'<span style="color:#a8e05a">▲ растёт</span>':(tr<-0.01?'<span style="color:var(--bad)">▼ падает</span>':''));
 }
@@ -1264,9 +1265,9 @@ function renderShop(){
       }
       const owned = OWNED[it.id] ? OWNED[it.id](world) : false;
       const reqOk = !it.req || it.req(world);
-      let price = it.price ? it.price(world) : upgradeCost(world, it.base, it.noScale);
+      let price = shopItemCost(world, it);
       if (it.id==='repair'){
-        let t = 0; for (const k in world.equip) if (!world.equip[k].ok) t += EQUIP_DEFS[k].repair;
+        let t = 0; for (const k in world.equip) if (!world.equip[k].ok) t += Math.round(EQUIP_DEFS[k].repair*shopPriceFactor(world));
         price = t;
       }
       const noRoom = it.bulk && whFreeL(world) < it.bulk;
