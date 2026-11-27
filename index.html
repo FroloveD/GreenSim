@@ -1693,6 +1693,8 @@ const CHAPTERS = [
 
 /* Письма наставника: приходят в почту, когда выполнено условие.
    Выбор влияет на стартовые условия следующей главы.               */
+function campaignPrice(w, base){ const chapter=clamp((w.camp&&w.camp.ch)||0,0,3); return Math.max(1, Math.round(base * (1 + chapter * 0.65))); }
+
 const MAILBOX = [
   {id:'intro', subj:'«С балкона начинают все» — тётя Роза',
    when:w=>w.camp && !w.camp.seen.includes('intro'),
@@ -1733,7 +1735,7 @@ const MAILBOX = [
      {label:'Остаться в комнате', desc:'стабильно, но потолок близко', apply:w=>{ w.camp.wait=(w.camp.wait||0)+1; }}
    ]},
   {id:'gear0', subj:'«Что купить на первые деньги» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===0 && w.day>=3 && !w.camp.seen.includes('gear0'),
+   when:w=>w.camp && w.camp.ch>=0 && w.day>=3 && !w.camp.seen.includes('gear0'),
    body:'Слушай главное: на балконе не покупают «всё сразу». В мой первый сезон я потратила почти весь запас на красивую стойку, '+
         'а потом неделю пыталась понять, почему растения вытягиваются и почему показания датчика не совпадают с обычным термометром. '+
         'Сначала — термометр-гигрометр за '+money(28)+': он нужен не для красоты, а чтобы проверять показания и замечать отклонения. '+
@@ -1744,7 +1746,7 @@ const MAILBOX = [
    opts:[{label:'Понятно', desc:'дальше разберусь сам', apply:w=>{}}]},
 
   {id:'firstCustomer', subj:'«Первый постоянный покупатель» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===0 && w.day>=12 && w.camp.seen.includes('gear0') && !w.camp.seen.includes('firstCustomer'),
+   when:w=>w.camp && w.camp.ch>=0 && w.day>=12 && w.camp.seen.includes('gear0') && !w.camp.seen.includes('firstCustomer'),
    body:'Сегодня мне написала Марина из соседнего офиса. Она попробовала твою зелень и спросила, сможешь ли ты приносить одинаковую партию каждую неделю. '+
         'Это хороший знак, но не обещай объём, который пока не можешь собрать. Записывай дату срезки, вес, качество и фактическую цену продажи. '+
         'Через месяц эти записи покажут, что действительно пользуется спросом, а что ты выращиваешь просто потому, что самому нравится. '+
@@ -1752,7 +1754,7 @@ const MAILBOX = [
    opts:[{label:'Записать требования покупателя',desc:'Стабильность важнее обещаний',apply:w=>w.log.unshift({t:'Д'+w.day,m:'Записаны требования первого постоянного покупателя',k:''})}]},
 
   {id:'gear1', subj:'«Комната — другие деньги» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===1 && w.camp.seen.includes('goal1') && !w.camp.seen.includes('gear1'),
+   when:w=>w.camp && w.camp.ch>=1 && w.camp.seen.includes('goal1') && !w.camp.seen.includes('gear1'),
    body:'В комнате 20 м² быстро обнаружится проблема, которой на балконе почти не было: воздух застаивается между полками. '+
         'У моей знакомой Нины однажды сгнила целая нижняя полка — сверху листья выглядели здоровыми, а в глубине кроны неделями держалась сырость. '+
         'Поэтому первое полезное приобретение — обдув кроны: он помогает выравнивать воздух и быстрее сушить листья после испарения. '+
@@ -1762,7 +1764,7 @@ const MAILBOX = [
    opts:[{label:'Запомнил', desc:'сначала обдув и EC-метр', apply:w=>{}}]},
 
   {id:'gear2', subj:'«Теплица — это предприятие» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===2 && w.camp.seen.includes('goal2') && !w.camp.seen.includes('gear2'),
+   when:w=>w.camp && w.camp.ch>=2 && w.camp.seen.includes('goal2') && !w.camp.seen.includes('gear2'),
    body:'Теперь ты отвечаешь не за пару полок, а за 400 м². Я помню, как в первый год на большой теплице сама вставала ночью '+
         'проверять температуру после каждого сообщения о похолодании. Так долго не выдержать. '+
         'Сначала поставь климат-контроль и контроллер таймеров, чтобы система выполняла повторяющиеся действия по заданным правилам. '+
@@ -1773,7 +1775,7 @@ const MAILBOX = [
    opts:[{label:'Принято', desc:'сначала автоматика и защита', apply:w=>{}}]},
 
   {id:'roomSupplier', subj:'«Не экономь на мелочах» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===1 && w.day>=14 && w.camp.seen.includes('gear1') && !w.camp.seen.includes('roomSupplier'),
+   when:w=>w.camp && w.camp.ch>=1 && w.day>=14 && w.camp.seen.includes('gear1') && !w.camp.seen.includes('roomSupplier'),
    body:'Позвонил поставщик субстрата. Предлагает большую скидку, если возьмёшь сразу много мешков. Я бы не торопилась: в комнате мало места, '+
         'а запас, который лежит месяцами, связывает деньги и мешает работать. Сначала посчитай расход на один цикл и оставь небольшой резерв. '+
         'Ещё попроси паспорт партии и проверяй, одинаковы ли свойства материала от поставки к поставке. Дешёвое сырьё с непредсказуемым составом '+
@@ -1781,7 +1783,7 @@ const MAILBOX = [
    opts:[{label:'Заказывать небольшими партиями',desc:'Не замораживать деньги в лишнем запасе',apply:w=>w.log.unshift({t:'Д'+w.day,m:'Выбран осторожный запас субстрата',k:''})}]},
 
   {id:'hydro', subj:'«Земля или вода?» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===1 && w.day>=6 && !w.camp.seen.includes('hydro'),
+   when:w=>w.camp && w.camp.ch>=1 && w.day>=6 && !w.camp.seen.includes('hydro'),
    body:'В комнате можно уйти с земли на воду. Когда-то я попробовала гидропонику в самый неподходящий момент — перед жаркой неделей. '+
         'Раствор нагрелся, аэрация оказалась слабой, и корни начали страдать раньше, чем я заметила проблему по листьям. '+
         'Сама технология даёт точное питание, быстрый контроль состава раствора и экономию воды, но не прощает забытый насос. '+
@@ -1796,7 +1798,7 @@ const MAILBOX = [
    ]},
 
   {id:'greenhouseOrder', subj:'«Большой заказ — большая ответственность» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===2 && w.day>=18 && w.camp.seen.includes('gear2') && !w.camp.seen.includes('greenhouseOrder'),
+   when:w=>w.camp && w.camp.ch>=2 && w.day>=18 && w.camp.seen.includes('gear2') && !w.camp.seen.includes('greenhouseOrder'),
    body:'На этой неделе оптовик попросил подтвердить регулярные поставки. Объём заманчивый, но у него строгая приёмка: одинаковая зрелость, '+
         'чистая тара и точное время доставки. Не соглашайся на весь объём, пока не проверишь, сколько реально собирается за неделю и сколько '+
         'остаётся после собственных нужд и потерь. Я однажды подписала слишком большой заказ и несколько дней искала дополнительную смену. '+
@@ -1820,59 +1822,59 @@ const MAILBOX = [
    ]},
 
   {id:'cafeTrial', subj:'«Кафе за углом просит пробную поставку» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===0 && w.day>=8 && !w.camp.seen.includes('cafeTrial'),
+   when:w=>w.camp && w.camp.ch>=0 && w.day>=8 && !w.camp.seen.includes('cafeTrial'),
    body:'У меня для тебя первая новость из настоящего бизнеса. Небольшое кафе рядом с домом готово попробовать твою зелень. Им важны не красивые обещания, а одинаковый вес, чистая упаковка и поставка к открытию кухни. Они пока не просят большой объём — только тестовую партию. Можно потратить немного денег на упаковку и доставку, зато появится шанс на постоянного покупателя. Или пока продавать напрямую соседям и не связывать оборотные деньги.',
    opts:[
-     {label:'Подготовить тестовую поставку (−'+money(45)+')',desc:'Вложиться в упаковку и логистику; кафе запомнит надёжность',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<45){w.camp.story.cafe=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на тестовую поставку кафе — заказ отложен',k:'warn'});return;}w.money-=45;w.camp.story.cafe=true;campaignRep(w,4,'кафе получило надёжную тестовую поставку');w.log.unshift({t:'Д'+w.day,m:'Подготовлена тестовая поставка для местного кафе (−'+money(45)+')',k:'hl'});}},
+     {label:'Подготовить тестовую поставку (−{cost})',cost:45,desc:'Вложиться в упаковку и логистику; кафе запомнит надёжность',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,45);if(w.money<cost){w.camp.story.cafe=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на тестовую поставку кафе — заказ отложен',k:'warn'});return;}w.money-=cost;w.camp.story.cafe=true;campaignRep(w,4,'кафе получило надёжную тестовую поставку');w.log.unshift({t:'Д'+w.day,m:'Подготовлена тестовая поставка для местного кафе (−'+money(cost)+')',k:'hl'});}},
      {label:'Пока отказаться',desc:'Сохранить деньги и сосредоточиться на выращивании',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.cafe=false;campaignRep(w,-1,'отказ от первой возможности закрепить покупателя');w.log.unshift({t:'Д'+w.day,m:'Решено пока не брать заказ кафе',k:''});}}
    ]},
   {id:'qualityTalk', subj:'«Покупатель заметил разницу между партиями» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===1 && w.day>=18 && w.camp.seen.includes('gear1') && !w.camp.seen.includes('qualityTalk'),
+   when:w=>w.camp && w.camp.ch>=1 && w.day>=18 && w.camp.seen.includes('gear1') && !w.camp.seen.includes('qualityTalk'),
    body:'Марина прислала отзыв: одна партия была сочной и ровной, а следующая заметно отличалась по размеру и свежести. Это не катастрофа — для молодой фермы нормально учиться на обратной связи. Но постоянный покупатель оценивает повторяемость, а не лучший отдельный урожай. Можно потратить деньги на контроль взвешивания, сортировку и упаковку. Второй путь — честно предупредить, что пока поставки нерегулярны, и не брать на себя лишних обязательств.',
    opts:[
-     {label:'Ввести контроль партии (−'+money(85)+')',desc:'Расход сейчас, зато подготовка к более требовательным заказам',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<85){w.camp.story.quality=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на контроль качества — решение отложено',k:'warn'});return;}w.money-=85;w.camp.story.quality=true;campaignRep(w,5,'введён контроль качества партий');w.log.unshift({t:'Д'+w.day,m:'Введён контроль веса и качества партий (−'+money(85)+')',k:'hl'});}},
+     {label:'Ввести контроль партии (−{cost})',cost:85,desc:'Расход сейчас, зато подготовка к более требовательным заказам',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,85);if(w.money<cost){w.camp.story.quality=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на контроль качества — решение отложено',k:'warn'});return;}w.money-=cost;w.camp.story.quality=true;campaignRep(w,5,'введён контроль качества партий');w.log.unshift({t:'Д'+w.day,m:'Введён контроль веса и качества партий (−'+money(cost)+')',k:'hl'});}},
      {label:'Работать без дополнительных расходов',desc:'Не обещать стабильность, пока процесс не отлажен',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.quality=false;campaignRep(w,-3,'покупатель не получил гарантий стабильного качества');w.log.unshift({t:'Д'+w.day,m:'Контроль качества отложен до роста объёмов',k:'warn'});}}
    ]},
   {id:'backupPlan', subj:'«Перед большим сезоном нужен план Б» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===2 && w.day>=25 && w.camp.seen.includes('gear2') && !w.camp.seen.includes('backupPlan'),
+   when:w=>w.camp && w.camp.ch>=2 && w.day>=25 && w.camp.seen.includes('gear2') && !w.camp.seen.includes('backupPlan'),
    body:'Сергей предупредил: на прошлой неделе в районе на несколько часов отключали электричество. В большой теплице это уже не бытовая неприятность — остановка насосов и климатического оборудования может испортить результат нескольких недель. Полноценная резервная система дорогая, но хотя бы план действий должен быть: контакты сервиса, порядок ручного управления и список оборудования, которое нельзя оставлять без питания. Можно оплатить подготовку такого плана и проверку критичных узлов. Или пока ограничиться памяткой и надеяться, что перебои обойдут стороной.',
    opts:[
-     {label:'Подготовить резервный план (−'+money(180)+')',desc:'Проверка критичных узлов и контакты аварийного сервиса',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<180){w.camp.story.backup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на резервный план — подготовка отложена',k:'warn'});return;}w.money-=180;w.camp.story.backup=true;campaignRep(w,2,'подготовлен план бесперебойной работы теплицы');w.log.unshift({t:'Д'+w.day,m:'Подготовлен план действий при отключении электричества (−'+money(180)+')',k:'hl'});}},
+     {label:'Подготовить резервный план (−{cost})',cost:180,desc:'Проверка критичных узлов и контакты аварийного сервиса',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,180);if(w.money<cost){w.camp.story.backup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на резервный план — подготовка отложена',k:'warn'});return;}w.money-=cost;w.camp.story.backup=true;campaignRep(w,2,'подготовлен план бесперебойной работы теплицы');w.log.unshift({t:'Д'+w.day,m:'Подготовлен план действий при отключении электричества (−'+money(cost)+')',k:'hl'});}},
      {label:'Составить бесплатную памятку самому',desc:'Без затрат, но без проверки оборудования',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.backup=false;campaignRep(w,0,'составлена базовая памятка на случай перебоев');w.log.unshift({t:'Д'+w.day,m:'Составлена памятка на случай перебоев питания',k:''});}}
    ]},
   {id:'cafeReturn', subj:'«Кафе готово обсудить регулярные закупки» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===1 && w.camp.story && w.camp.story.cafe===true && w.camp.seen.includes('qualityTalk') && !w.camp.seen.includes('cafeReturn'),
+   when:w=>w.camp && w.camp.ch>=1 && w.camp.story && w.camp.story.cafe===true && w.camp.seen.includes('qualityTalk') && !w.camp.seen.includes('cafeReturn'),
    body:'Хорошая новость: кафе помнит твою тестовую поставку и готово вернуться к разговору. Им понравилось, что ты не обещал невозможного. Теперь они хотят получать короткий отчёт по каждой партии: дата сбора, вес и состояние продукта. Это несложная дисциплина, но именно она превращает разовую продажу в отношения с покупателем. Если ты уже ввёл контроль качества, переговоры пойдут увереннее; если нет — придётся начать с небольшого объёма.',
    opts:[
      {label:'Согласовать регулярные небольшие поставки',desc:'Закрепить покупателя без завышенных объёмов',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.cafeContract=true;campaignRep(w,4,'закреплён постоянный покупатель');w.log.unshift({t:'Д'+w.day,m:'Кафе согласовало регулярные небольшие закупки',k:'hl'});}},
      {label:'Оставить сотрудничество разовым',desc:'Сохранить гибкость производства',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.cafeContract=false;campaignRep(w,0,'сохранены разовые поставки без обязательств');w.log.unshift({t:'Д'+w.day,m:'С кафе оставлены только разовые поставки',k:''});}}
    ]},
   {id:'regionalBuyer', subj:'«Тебя рекомендуют соседним магазинам» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===2 && w.rep>=8 && w.camp.story && w.camp.story.quality===true && w.camp.story.cafeContract===true && !w.camp.seen.includes('regionalBuyer'),
+   when:w=>w.camp && w.camp.ch>=2 && w.rep>=8 && w.camp.story && w.camp.story.quality===true && w.camp.story.cafeContract===true && !w.camp.seen.includes('regionalBuyer'),
    body:'Марина передала твой контакт двум небольшим магазинам. Это уже не случайная удача: кафе подтвердило, что партии приходят вовремя и качество повторяется. Новые покупатели готовы обсуждать регулярные заказы, но сначала хотят увидеть прозрачный учёт. Можно вложиться в журнал партий и согласование графика поставок. Это укрепит доверие, но потребует времени и денег. Или пока расти постепенно, не обещая лишнего.',
    opts:[
-     {label:'Подготовить учёт и график поставок (−'+money(100)+')',desc:'Закрепить рекомендацию и подготовить рост заказов',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<100){w.camp.story.premiumBuyer=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на подготовку новых покупателей',k:'warn'});return;}w.money-=100;w.camp.story.premiumBuyer=true;campaignRep(w,4,'подготовлены документы и график для новых покупателей');}},
+     {label:'Подготовить учёт и график поставок (−{cost})',cost:100,desc:'Закрепить рекомендацию и подготовить рост заказов',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,100);if(w.money<cost){w.camp.story.premiumBuyer=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на подготовку новых покупателей',k:'warn'});return;}w.money-=cost;w.camp.story.premiumBuyer=true;campaignRep(w,4,'подготовлены документы и график для новых покупателей');}},
      {label:'Пока не расширяться',desc:'Сохранить текущий объём и качество',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.premiumBuyer=false;campaignRep(w,0,'сохранён управляемый объём поставок');}}
    ]},
   {id:'trustRepair', subj:'«Покупатели ждут объяснений» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===2 && w.rep<=-3 && !w.camp.seen.includes('trustRepair'),
+   when:w=>w.camp && w.camp.ch>=2 && w.rep<=-3 && !w.camp.seen.includes('trustRepair'),
    body:'Сергей услышал, что несколько покупателей сомневаются в стабильности поставок. Это поправимо, но молчание только усиливает недоверие. Можно выделить деньги на разбор претензий, замену спорной партии и честное уведомление клиентов. Это не гарантирует мгновенного возврата заказов, зато покажет, что ты отвечаешь за результат. Второй вариант — не тратить деньги сейчас и сосредоточиться на производстве.',
    opts:[
-     {label:'Разобрать претензии и компенсировать сбои (−'+money(70)+')',desc:'Потратить средства на восстановление доверия',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<70){w.camp.story.trustRepair=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на работу с претензиями покупателей',k:'warn'});return;}w.money-=70;w.camp.story.trustRepair=true;campaignRep(w,5,'разобраны претензии и восстановлен контакт с покупателями');}},
+     {label:'Разобрать претензии и компенсировать сбои (−{cost})',cost:70,desc:'Потратить средства на восстановление доверия',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,70);if(w.money<cost){w.camp.story.trustRepair=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило денег на работу с претензиями покупателей',k:'warn'});return;}w.money-=cost;w.camp.story.trustRepair=true;campaignRep(w,5,'разобраны претензии и восстановлен контакт с покупателями');}},
      {label:'Отложить разбор претензий',desc:'Сохранить деньги, но оставить вопросы покупателей открытыми',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.trustRepair=false;campaignRep(w,-2,'претензии покупателей оставлены без ответа');}}
    ]},
   {id:'networkPartner', subj:'«Партнёр предлагает совместную сеть» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===3 && w.rep>=12 && w.camp.story && w.camp.story.premiumBuyer===true && !w.camp.seen.includes('networkPartner'),
+   when:w=>w.camp && w.camp.ch>=3 && w.rep>=12 && w.camp.story && w.camp.story.premiumBuyer===true && !w.camp.seen.includes('networkPartner'),
    body:'Твои новые покупатели передали контакты региональному дистрибьютору. Он готов объединить графики закупок нескольких магазинов и дать тебе более предсказуемый сбыт. Но партнёр попросит прозрачную отчётность и регулярные объёмы. Можно вложиться в запуск совместной логистики или сохранить независимость. Это решение определит, каким будет масштабирование дальше.',
    opts:[
-     {label:'Запустить совместную логистику (−'+money(250)+')',desc:'Усилить сбыт и закрепить партнёрство',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<250){w.camp.story.networkPartner=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило средств на запуск совместной логистики',k:'warn'});return;}w.money-=250;w.camp.story.networkPartner=true;campaignRep(w,5,'заключено партнёрство по региональной логистике');}},
+     {label:'Запустить совместную логистику (−{cost})',cost:250,desc:'Усилить сбыт и закрепить партнёрство',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,250);if(w.money<cost){w.camp.story.networkPartner=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило средств на запуск совместной логистики',k:'warn'});return;}w.money-=cost;w.camp.story.networkPartner=true;campaignRep(w,5,'заключено партнёрство по региональной логистике');}},
      {label:'Остаться независимым производителем',desc:'Не брать новые обязательства и сохранить контроль',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.networkPartner=false;campaignRep(w,1,'сохранена независимость при устойчивых продажах');}}
    ]},
   {id:'supplierCrisis', subj:'«Поставщик задерживает важную партию» — тётя Роза',
-   when:w=>w.camp && w.camp.ch===3 && w.rep<=-5 && w.camp.story && w.camp.story.trustRepair!==true && !w.camp.seen.includes('supplierCrisis'),
+   when:w=>w.camp && w.camp.ch>=3 && w.rep<=-5 && w.camp.story && w.camp.story.trustRepair!==true && !w.camp.seen.includes('supplierCrisis'),
    body:'Поставщик расходников предупредил о задержке. Он не уверен, что сможет отгрузить всё вовремя: за последние месяцы было слишком много срочных изменений и неподтверждённых заявок. Можно оплатить резервную закупку у другого поставщика и восстановить рабочие отношения. Или переждать задержку, рискуя сорвать собственный график.',
    opts:[
-     {label:'Сделать резервную закупку (−'+money(160)+')',desc:'Снизить риск остановки работ и вернуть доверие поставщика',apply:w=>{w.camp.story=w.camp.story||{};if(w.money<160){w.camp.story.supplierBackup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило средств на резервную закупку',k:'warn'});return;}w.money-=160;w.camp.story.supplierBackup=true;campaignRep(w,4,'организована резервная закупка и согласован график с поставщиком');}},
+     {label:'Сделать резервную закупку (−{cost})',cost:160,desc:'Снизить риск остановки работ и вернуть доверие поставщика',apply:w=>{w.camp.story=w.camp.story||{};const cost=campaignPrice(w,160);if(w.money<cost){w.camp.story.supplierBackup=false;w.log.unshift({t:'Д'+w.day,m:'Не хватило средств на резервную закупку',k:'warn'});return;}w.money-=cost;w.camp.story.supplierBackup=true;campaignRep(w,4,'организована резервная закупка и согласован график с поставщиком');}},
      {label:'Ждать основную поставку',desc:'Не тратить деньги, но принять риск задержки',apply:w=>{w.camp.story=w.camp.story||{};w.camp.story.supplierBackup=false;campaignRep(w,-2,'задержка поставщика оставлена без решения');}}
    ]},
   {id:'netDone', subj:'«У тебя теперь сеть» — тётя Роза',
@@ -3106,22 +3108,30 @@ function moveChapter(w, idx){
 }
 function pushMail(w, id){
   const m = MAILBOX.find(x=>x.id===id); if (!m || w.mail.some(x=>x.id===id)) return false;
-  w.mail.unshift({id, subj:m.subj, body:m.body, opts:m.opts.map(o=>({label:o.label, desc:o.desc})), read:false});
+  w.mail.unshift({id, subj:m.subj, body:m.body, opts:m.opts.map(o=>({label:typeof o.cost==='number'?o.label.replace('{cost}',money(campaignPrice(w,o.cost))):o.label, desc:o.desc})), read:false});
   return true;
 }
 function campaignRep(w, delta, reason){
   // Репутация кампании влияет на цену реализации через существующий множитель repF.
   w.rep = clamp((Number.isFinite(w.rep) ? w.rep : 0) + delta, -40, 40);
   w.repF = 1 + w.rep * 0.0015;
-  if (reason) w.log.unshift({t:'Д'+w.day,m:'Репутация '+(delta>0?'+':'')+delta+': '+reason+' · итог '+w.rep,k:delta>0?'hl':(delta<0?'warn':'')});
+  if (reason) w.log.unshift({t:'Д'+w.day,m:'Репутация '+(delta>0?'+':'')+delta+': '+reason+' · итог '+w.rep,k:delta>0?'hl':(delta<0?'warn':''),cat:'campaign'});
 }
 function answerMail(w, id, optIdx){
   const m = MAILBOX.find(x=>x.id===id); const mm = w.mail.find(x=>x.id===id);
   if (!m || !mm) return false;
   const o = m.opts[optIdx]; if (!o) return false;
+  const repBefore = Number.isFinite(w.rep) ? w.rep : 0;
+  const logBefore = w.log.length;
   o.apply && o.apply(w);
-  mm.read = true; mm.answered = optIdx; mm.result = o.label;
+  const addedLogs = Math.max(0,w.log.length-logBefore);
+  for(let i=0;i<addedLogs;i++) if(w.log[i]) w.log[i].cat='campaign';
+  const shownLabel = (mm.opts && mm.opts[optIdx] && mm.opts[optIdx].label) || o.label;
+  mm.read = true; mm.answered = optIdx; mm.result = shownLabel;
   w.camp.seen.push(id);
+  w.camp.decisions = w.camp.decisions || [];
+  w.camp.decisions.unshift({id,subj:m.subj,result:shownLabel,day:w.day,repDelta:(Number.isFinite(w.rep)?w.rep:repBefore)-repBefore});
+  w.camp.decisions = w.camp.decisions.slice(0,50);
   w.mail = w.mail.filter(x=>x.answered===undefined);
   return true;
 }
@@ -3289,7 +3299,7 @@ function makeWorld(opts){
     // рынок: множитель цены по культурам, история для графика
     market: { mult: { tomato:1, cherry:1, cucumber:1, lettuce:1 }, hist: { tomato:[], cherry:[], cucumber:[], lettuce:[] } },
     // кампания
-    camp: opts.campaign ? { ch:0, seen:[], wait:0, soldBase:0 } : null,
+    camp: opts.campaign ? { ch:0, seen:[], wait:0, soldBase:0, story:{}, decisions:[] } : null,
     // сеть филиалов (появляется в 4-й главе кампании, доступна и дальше)
     net: { houses: [], cum:{gross:0, opex:0}, netDay:0, won:false },
     // система выращивания: грунт по умолчанию
@@ -4020,8 +4030,9 @@ function carrySnapshot(w){
   const has = {}, upg = {};
   for (const k in w.has) if (w.has[k]) has[k] = true;
   for (const k in w.upg) if (w.upg[k] && typeof w.upg[k] !== 'number') upg[k] = true;
-  const rep = Math.round((w.rep||0) + (w.missionsDone||0)*2 + (w.harvestedKg||0)/40
-                          + (w.contracts||[]).filter(c=>c.done).length*3);
+  const repRaw = Math.round((w.rep||0) + (w.missionsDone||0)*2 + (w.harvestedKg||0)/40
+                             + (w.contracts||[]).filter(c=>c.done).length*3);
+  const rep = clamp(repRaw, -40, 40);
   return {
     at: Date.now(), day: w.day, seasons: (w.seasons||1)+1,
     profile: w.profile, crop: w.crop, sys: w.sys,
@@ -4033,7 +4044,7 @@ function carrySnapshot(w){
             co2Kg: Math.max(0, Math.round((w.stock.co2Kg||0))),
             waterM3: Math.max(0, Math.round((w.stock.waterM3||0))),
             seeds: Math.max(0, Math.round((w.stock.seeds||0)))},
-    camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice(), story: Object.assign({}, w.camp.story||{})} : null,
+    camp: w.camp ? {ch: w.camp.ch|0, seen: (w.camp.seen||[]).slice(), story: Object.assign({}, w.camp.story||{}), decisions:(w.camp.decisions||[]).slice(-50).map(d=>Object.assign({},d))} : null,
     houses: ((w.net&&w.net.houses)||[]).map(h=>({crop:h.crop, price:h.price})),
     rep,
     prev: {harvestedKg: Math.round(w.harvestedKg||0), revenue: Math.round(w.revenue||0),
@@ -4052,10 +4063,10 @@ function applyCarry(w, c){
   for (const k in (c.upg||{})) if (c.upg[k]) w.upg[k] = true;
   if (c.sections) w.wh.sections = Math.max(w.wh.sections, c.sections|0);
   if (c.stock) for (const k in c.stock) if (w.stock[k] !== undefined) w.stock[k] = Math.max(w.stock[k], c.stock[k]);
-  if (c.camp && w.camp){ w.camp.ch = Math.min(3, c.camp.ch|0); w.camp.seen = (c.camp.seen||[]).slice(); w.camp.story = Object.assign({}, c.camp.story||{}); }
+  if (c.camp && w.camp){ w.camp.ch = clamp(c.camp.ch|0,0,3); w.camp.seen = (c.camp.seen||[]).slice(); w.camp.story = Object.assign({}, c.camp.story||{}); w.camp.decisions = Array.isArray(c.camp.decisions)?c.camp.decisions.slice(-50):[]; }
   if (c.houses && c.houses.length && w.net)
     w.net.houses = c.houses.map(h=>({crop:h.crop, price:h.price, day:1}));
-  w.rep = c.rep|0;
+  w.rep = clamp(Number.isFinite(Number(c.rep)) ? Math.round(Number(c.rep)) : 0, -40, 40);
   w.repF = 1 + clamp((w.rep||0)*0.0015, -0.06, 0.06);
   w.seasons = c.seasons|0 || 2;
   w.carry = {rep:w.rep, seasons:w.seasons, money:w.money, prev:c.prev||null, at:c.at||Date.now()};
@@ -5084,6 +5095,7 @@ const num = v => Math.round(v).toLocaleString('ru-RU');
 let world = null;
 let activeSensorTip = '';
 let financeDetailsOpen = false;
+let logFilter = 'all';
 let dashboardPrefsApplied = false;
 const DASHBOARD_PREFS_KEY = 'vg_dashboard_panels_v1';
 let page = 'greenhouse';
@@ -6335,8 +6347,26 @@ function renderMail(){
   } else {
     html += `<div class="hint">Писем нет.</div>`;
   }
+  const decisions = world.camp.decisions || [];
+  html += `<div class="hint" style="margin-top:10px;border-top:1px solid var(--line2);padding-top:8px"><b>Решения кампании</b></div>`;
+  if(decisions.length){
+    html += decisions.slice(0,6).map(d=>`<div class="hint" style="margin:4px 0"><b>Д${d.day}</b> · ${escapeHTML(d.subj)}<br>Выбор: ${escapeHTML(d.result)}${d.repDelta? ' · репутация '+(d.repDelta>0?'+':'')+d.repDelta:''}</div>`).join('');
+  }else html += '<div class="hint">Пока нет принятых решений. Ответы на письма будут сохраняться здесь.</div>';
   if (setHTML('mail', html))
     document.querySelectorAll('[data-mail]').forEach(b=>press(b, ()=>openMail(b.dataset.mail)));
+}
+function renderCampaignArchive(){
+  const items = MAILBOX.map(m=>`<button class="btn" data-mail-preview="${escapeHTML(m.id)}" style="display:block;width:100%;text-align:left;margin:4px 0;white-space:normal">${escapeHTML(m.subj)}</button>`).join('');
+  $('mailBox').innerHTML = `<div class="row" style="justify-content:space-between"><h2 style="margin:0">Архив писем кампании</h2><button class="btn" data-mail-preview-close>Закрыть</button></div><div class="hint">Можно перечитать любое письмо. Архив не меняет ход кампании и не повторяет выборы.</div>${items}`;
+  $('mailModal').classList.add('on');
+  document.querySelectorAll('[data-mail-preview]').forEach(b=>press(b,()=>openMailPreview(b.dataset.mailPreview)));
+  document.querySelectorAll('[data-mail-preview-close]').forEach(b=>b.onclick=()=> $('mailModal').classList.remove('on'));
+}
+function openMailPreview(id){
+  const m=MAILBOX.find(x=>x.id===id); if(!m)return;
+  $('mailBox').innerHTML=`<div class="row" style="justify-content:space-between"><span class="hint">Архив · без повторного выбора</span><button class="btn" data-mail-archive-back>К списку</button></div><h2>${escapeHTML(m.subj)}</h2><p style="white-space:normal">${escapeHTML(m.body).replace(/\\n/g,'<br>')}</p><div class="hint">Это архивная копия письма. Прочтение не меняет сохранение и не повторяет решение.</div>`;
+  $('mailModal').classList.add('on');
+  const back=$('mailBox').querySelector('[data-mail-archive-back]');if(back)back.onclick=renderCampaignArchive;
 }
 function openMail(id){
   const m = world.mail.find(x=>x.id===id);
@@ -6356,7 +6386,11 @@ function openMail(id){
 }
 
 function renderLog(){
-  $('log').innerHTML = world.log.slice(0,16).map(l=>`<div class="${escapeHTML(l.k||'')}">${escapeHTML(l.t)} · ${escapeHTML(l.m)}</div>`).join('');
+  const entries = world.log.filter(l=>logFilter==='all' || (logFilter==='campaign' ? l.cat==='campaign' : l.cat!=='campaign')).slice(0,40);
+  const filters = [['all','Все'],['campaign','Кампания'],['other','Остальное']];
+  $('log').innerHTML = `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px">${filters.map(([id,label])=>`<button class="btn ${logFilter===id?'good':''}" data-log-filter="${id}" style="font-size:10px;padding:4px 7px">${label}</button>`).join('')}</div>`+
+    (entries.length?entries.map(l=>`<div class="${escapeHTML(l.k||'')}">${escapeHTML(l.t)} · ${escapeHTML(l.m)}</div>`).join(''):'<div class="hint">Записей в этой категории пока нет.</div>');
+  document.querySelectorAll('[data-log-filter]').forEach(b=>b.onclick=()=>{logFilter=b.dataset.logFilter;renderLog();});
 }
 
 /* ---------------- магазин ---------------- */
@@ -6450,6 +6484,12 @@ function renderSettings(){
     <div style="height:8px"></div>`;
   $('settingsBody').innerHTML = `
   <div class="setgrid">
+    <div class="card">
+      <div class="h"><b>История кампании и интерфейс</b></div>
+      <div class="hint">Перечитывайте сюжетные письма без повторного применения решений. Настройки панелей можно вернуть к исходному виду.</div>
+      <div class="row"><label>Архив писем тёти Розы<div class="hint">Все письма кампании, включая уже прочитанные.</div></label><button class="btn" id="btnCampaignArchive">Открыть архив</button></div>
+      <div class="row"><label>Расположение и свёрнутость панелей<div class="hint">Сбросить пользовательский порядок и раскрыть все панели.</div></label><button class="btn" id="btnResetPanels">Сбросить вид панелей</button></div>
+    </div>
     <div class="card">
       <div class="h"><b>Система выращивания</b></div>
       <div class="d" style="color:var(--txt)">${sysOf(world).name}</div>
@@ -6792,6 +6832,23 @@ function renderSettings(){
   if ($('btnObAgain')) $('btnObAgain').onclick = ()=>showOnboarding(0);
   if ($('btnTutorToggle')) $('btnTutorToggle').onclick = ()=>setCampaignTutorEnabled(!world.tutorialEnabled, true);
   if ($('btnTutorAgain')) $('btnTutorAgain').onclick = ()=>showTutorAgain();
+  if ($('btnCampaignArchive')) $('btnCampaignArchive').onclick = renderCampaignArchive;
+  if ($('btnResetPanels')) $('btnResetPanels').onclick = ()=>{
+    try{localStorage.removeItem(DASHBOARD_PREFS_KEY);}catch(e){}
+    const col=document.querySelector('#dashGrid .col.left');
+    if(col){
+      const order=['climate','why','risks','finance'];
+      const map=new Map(Array.from(col.querySelectorAll(':scope > [data-panel-key]')).map(el=>[el.dataset.panelKey,el]));
+      order.forEach(key=>{const el=map.get(key);if(el)col.appendChild(el);});
+    }
+    document.querySelectorAll('[data-panel-fold]').forEach(btn=>{
+      const target=$(btn.dataset.foldTarget);if(target)target.hidden=false;
+      btn.setAttribute('aria-expanded','true');
+      const icon=btn.querySelector('.fold-icon');if(icon)icon.textContent='−';
+      const panel=btn.closest('[data-panel-key]');if(panel)panel.classList.remove('is-collapsed');
+    });
+    dashboardPrefsApplied=true;toast('Вид панелей восстановлен');
+  };
   moneyLabels();
   $('btnRestart').onclick = ()=>{ renderResumeBox(); $('start').classList.add('on'); setPage('greenhouse'); };
   $('btnSaveNow').onclick = ()=>{ saveNow(false); renderSettings(); };
