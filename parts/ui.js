@@ -2158,7 +2158,7 @@ function syncLightButtons(){
   const l = $('btnLampQuick');
   if (l){
     l.classList.toggle('good', !!world.ctrl.lampEnabled && hasLight(world));
-    l.textContent = (!!world.ctrl.lampEnabled && hasLight(world)) ? 'Досветка: вкл' : 'Досветка';
+    l.setAttribute('aria-label', (!!world.ctrl.lampEnabled && hasLight(world)) ? 'Выключить досветку' : 'Включить досветку');
     l.title = hasLight(world)
       ? (world.ctrl.lampEnabled ? lightName(world)+' горит — нажмите, чтобы выключить'
                                 : lightName(world)+' выключена — нажмите, чтобы включить')
@@ -2170,7 +2170,7 @@ function syncLightButtons(){
   if (wb){
     const m = Math.round(world.meas && world.meas.moist!==undefined ? world.meas.moist : world.moist || 0);
     const st = soilState(world);
-    wb.textContent = 'Полить ' + m + '%';
+    wb.setAttribute('aria-label', 'Полить грядку. Текущая влажность субстрата: ' + m + '%');
     wb.classList.toggle('warn', st.key === 'dry' || st.key === 'wilt');
     wb.classList.toggle('good', st.key === 'ok');
     wb.title = st.key === 'ok'
