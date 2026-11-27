@@ -528,10 +528,12 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .finance-summary b{font:600 11px var(--mono);color:var(--txt);margin-left:3px}
   .finance-fold{font-size:9.5px;margin:4px 0 2px;text-transform:none;letter-spacing:0}
   .sensor-label{position:relative;display:inline-flex;align-items:center;gap:4px;cursor:help;outline:none}
-  .sensor-label>i{font-style:normal;font-size:8px;opacity:.55}
-  .sensor-label:after{content:attr(data-tip);display:none;position:absolute;z-index:50;left:0;top:calc(100% + 5px);width:min(220px,70vw);padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#101d17;color:var(--txt);font:10px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:none;letter-spacing:0;white-space:normal;box-shadow:0 6px 18px #0008;pointer-events:none}
-  @media(hover:hover) and (pointer:fine){.sensor-label:hover:after,.sensor-label:focus:after{display:block}}
-  @media(hover:none),(pointer:coarse){.sensor-label.tip-open:after{display:block}}
+  .sensor-label>i{font-style:normal;font-size:10px;opacity:1;color:var(--acc)}
+  .sensor-label:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:3px}
+  /* Подсказка вынесена в отдельный fixed-слой JS: overflow панелей её не обрезает. */
+  #sensorTooltip{position:fixed;z-index:120;display:none;width:max-content;max-width:min(340px,calc(100vw - 24px));max-height:min(45vh,260px);overflow-y:auto;padding:10px 12px;border:2px solid var(--acc);border-radius:5px;background:#21180f;color:#fff4df;font:12px/1.55 "Trebuchet MS","Segoe UI",sans-serif;letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere;box-shadow:4px 4px 0 #0a0806,0 10px 28px #000b;pointer-events:none}
+  #sensorTooltip.on{display:block}
+  #sensorTooltip:before{content:"ⓘ ";color:var(--acc);font-weight:900}
   .tutor-shop-buy{border:2px solid #54e58a!important;outline:2px solid rgba(84,229,138,.55)!important;outline-offset:1px;box-shadow:0 0 0 4px rgba(84,229,138,.2),0 0 18px rgba(84,229,138,.24)!important}
 
 
