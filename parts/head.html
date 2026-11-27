@@ -650,6 +650,40 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .letter-sign{text-align:right;margin-top:18px!important}
   .letter-sheet .story-foot{font-size:12px;border-top:1px dashed var(--line);padding-top:12px}
   @media(max-width:560px){.letter-body{font-size:14px;line-height:1.55}}
+
+  /* Быстрые действия: компактные понятные пиктограммы с доступными подписями */
+  .quickBar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .quickBar .quick-icon{width:38px;height:36px;min-width:38px;padding:6px;display:inline-flex;align-items:center;justify-content:center;border-radius:11px}
+  .quickBar .quick-icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .quickBar .quick-icon#btnHarvest{color:#b9f4a2}
+  .quickBar .quick-icon:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  .quickBar #sceneHint{flex:1 1 150px}
+  /* Игровое, более живое главное меню */
+  #mainMenu{background:radial-gradient(ellipse at 50% 12%,rgba(161,205,105,.2),transparent 42%),radial-gradient(ellipse at 15% 85%,rgba(240,178,92,.11),transparent 38%),var(--bg)}
+  #mainMenu .playful-menu{position:relative;width:min(590px,94vw);padding:clamp(25px,5vw,46px);overflow:hidden;border:1px solid rgba(185,220,145,.35);border-radius:26px;background:linear-gradient(155deg,rgba(37,62,43,.98),rgba(15,29,22,.99) 65%);box-shadow:0 24px 90px #0009}
+  .playful-menu:before{content:"";position:absolute;inset:9px;border:1px dashed rgba(201,224,159,.18);border-radius:19px;pointer-events:none}
+  .menu-garden-art{position:relative;height:74px;margin:-5px 0 10px;display:flex;align-items:center;justify-content:center}
+  .menu-garden-art span{position:absolute;display:block;filter:drop-shadow(0 5px 8px #0005)}
+  .garden-sun{right:15%;top:0;font-size:34px;color:#ffd47a}
+  .garden-sprout{font-size:54px;transform:translateY(5px)}
+  .garden-flower{left:18%;bottom:0;font-size:27px;color:#f3a9bd;transform:rotate(-12deg)}
+  .garden-leaf{right:27%;bottom:-4px;font-size:36px;color:#a9d77d;transform:rotate(18deg)}
+  .playful-menu .menu-kicker{color:#b8d99b;letter-spacing:.14em}
+  .playful-menu .menu-title{font-size:clamp(34px,6vw,52px);line-height:1.02;letter-spacing:-.035em;margin:12px 0 10px;color:#fff4d9}
+  .playful-menu .menu-title em{font-style:normal;color:#bce58c}
+  .playful-menu .menu-subtitle{max-width:410px;color:#d0ddc9;font-size:14px;line-height:1.55;margin-bottom:22px}
+  .playful-menu .menu-actions{gap:10px}
+  .playful-menu .menu-actions button{position:relative;min-height:72px;padding:13px 16px;border:1px solid rgba(210,230,192,.18);border-radius:16px;background:rgba(239,246,226,.07);transition:transform .16s,border-color .16s,background .16s}
+  .playful-menu .menu-actions button:hover{transform:translateY(-2px) rotate(-.25deg);border-color:rgba(190,226,148,.65);background:rgba(190,226,148,.13)}
+  .playful-menu .menu-actions .menu-symbol{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:rgba(185,220,145,.13);font-size:25px}
+  .playful-menu .menu-actions button b{font-size:15px;color:#f4f7e9}
+  .playful-menu .menu-actions button small{color:#bdcdb9;font-size:11px;line-height:1.4}
+  .playful-menu .menu-actions .menu-card-campaign{border-color:rgba(190,226,148,.45);background:linear-gradient(100deg,rgba(143,188,99,.2),rgba(239,246,226,.06))}
+  .playful-menu .menu-card-arrow{margin-left:auto;color:#c8e9a5;font-size:22px;opacity:.8}
+  .menu-footer{display:flex;align-items:center;gap:8px;margin-top:20px;padding-top:14px;border-top:1px dashed rgba(210,230,192,.2);color:#b9cbb2;font-size:11px}
+  .menu-footer span{font-size:17px}
+  @media(max-width:560px){#mainMenu .playful-menu{padding:24px 18px;border-radius:22px}.menu-garden-art{height:62px}.playful-menu .menu-actions button{min-height:66px;padding:10px 12px}.playful-menu .menu-actions .menu-symbol{width:37px;height:37px;font-size:22px}.playful-menu .menu-title{font-size:36px}}
+
 </style>
 </head>
 <body>
@@ -687,15 +721,19 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     <button class="btn good" id="campaignPrologueContinue">Я присмотрю. Начать кампанию</button>
   </div>
 </div></div>
-<div id="mainMenu" class="modal"><div class="menu-sheet">
-  <div class="menu-kicker">GreenSim · симулятор тепличного хозяйства</div>
-  <div class="menu-title">НОВАЯ ИГРА</div><p class="menu-subtitle">Выберите режим</p>
+<div id="mainMenu" class="modal"><div class="menu-sheet playful-menu">
+  <div class="menu-garden-art" aria-hidden="true"><span class="garden-sun">☀</span><span class="garden-sprout">🌱</span><span class="garden-flower">✿</span><span class="garden-leaf">❧</span></div>
+  <div class="menu-kicker">GreenSim · твоя маленькая большая теплица</div>
+  <div class="menu-title">Время растить<br><em>большие планы!</em></div>
+  <p class="menu-subtitle">Посади первую семечку. А там — кто знает, до чего дорастёт твоё хозяйство.</p>
   <div class="menu-actions">
-    <button id="menuCampaign"><span class="menu-symbol">▤</span><span><b>Кампания</b><small>История, главы и развитие хозяйства</small></span></button>
-    <button id="menuFree"><span class="menu-symbol">🌱</span><span><b>Свободная игра</b><small>Настройте сезон без сценарных ограничений</small></span></button>
-    <button id="menuContinue" hidden><span class="menu-symbol">▶</span><span><b>Продолжить</b><small>Загрузить последнее сохранение</small></span></button>
-    <button id="menuSettings"><span class="menu-symbol">⚙</span><span><b>Настройки</b><small>Интерфейс и управление</small></span></button>
-  </div></div></div>
+    <button id="menuCampaign" class="menu-card-campaign"><span class="menu-symbol">📖</span><span><b>Начать историю</b><small>Кампания · письма, открытия и неожиданные повороты</small></span><span class="menu-card-arrow">→</span></button>
+    <button id="menuFree"><span class="menu-symbol">🪴</span><span><b>Своя теплица</b><small>Свободная игра · строй хозяйство по своим правилам</small></span><span class="menu-card-arrow">→</span></button>
+    <button id="menuContinue" hidden><span class="menu-symbol">🚪</span><span><b>Продолжить</b><small>Вернуться к последнему сохранению</small></span><span class="menu-card-arrow">→</span></button>
+    <button id="menuSettings"><span class="menu-symbol">🧰</span><span><b>Настройки</b><small>Подкрутить управление и внешний вид</small></span><span class="menu-card-arrow">→</span></button>
+  </div>
+  <div class="menu-footer"><span>🌼</span> Растим не спеша. Ошибаемся, учимся, собираем урожай.</div>
+</div></div>
 <div id="mainSettings" class="modal"><div class="sheet">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h2 style="margin:0">Настройки</h2><button class="btn" id="mainSettingsClose">Закрыть</button></div>
   <div class="card" style="margin-top:12px"><b>Управление камерой</b><p class="hint">Как камера наклоняется при перетаскивании мышью или пальцем.</p><button class="btn" id="menuCameraInvert">Наклон камеры: обычный</button></div>
@@ -833,13 +871,23 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
           </span>
         </div>
       </div>
-      <div class="panel quickBar">
-        <button class="btn good" id="btnHarvest">Собрать урожай</button>
-        <button class="btn" id="btnPrune">Обрезать нижние листья</button>
-        <button class="btn" id="btnWaterQuick" title="Полить грядку: одна доза из бака">Полить</button>
-        <button class="btn" id="btnLampQuick">Досветка</button>
-        <button class="btn" id="btnShadeQuick">Затенение</button>
-        <span class="hint" id="sceneHint">клик по плоду — сбор · по листу — обрезка · по горшку — полив · по лампе — свет</span>
+      <div class="panel quickBar" aria-label="Быстрые действия с растениями">
+        <button class="btn good quick-icon" id="btnHarvest" type="button" aria-label="Собрать урожай" title="Собрать урожай">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16l-1.5 10h-13L4 10Z M3 7h18 M8 10l1 10m7-10-1 10M8 7l2-3m6 3-2-3" /></svg>
+        </button>
+        <button class="btn quick-icon" id="btnPrune" type="button" aria-label="Обрезать нижние листья" title="Обрезать нижние листья">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="m8.2 16.2 11-11M15.8 16.2l-11-11"/></svg>
+        </button>
+        <button class="btn quick-icon" id="btnWaterQuick" type="button" aria-label="Полить грядку" title="Полить грядку: одна доза из бака">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h11a4 4 0 0 1 4 4v5H7a4 4 0 0 1-4-4v-5Zm0 0V7h8l3 3m4 2 3-3 2 2-3 3M8 19v2m6-2v2"/><path d="M18 17c0 1-1 2-2 2"/></svg>
+        </button>
+        <button class="btn quick-icon" id="btnLampQuick" type="button" aria-label="Переключить досветку" title="Переключить досветку">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6m-5 3h4m-5-6a7 7 0 1 1 6 0c-.8.5-1 1.2-1 3h-4c0-1.8-.2-2.5-1-3Z"/><path d="M12 1v2m9 9h-2M5 12H3m15.4-6.4-1.4 1.4M7 7 5.6 5.6"/></svg>
+        </button>
+        <button class="btn quick-icon" id="btnShadeQuick" type="button" aria-label="Переключить затенение" title="Переключить затенение">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v2m0 10v2M1 8h2m10 0h2m-2.1-4.9-1.4 1.4M4.5 11.5l-1.4 1.4m10.8 0-1.4-1.4M4.5 4.5 3.1 3.1M4 18h16M6 15l-2 3m7-3-2 3m7-3-2 3"/></svg>
+        </button>
+        <span class="hint" id="sceneHint">Плод — собрать · лист — обрезать · горшок — полить · лампа — свет</span>
       </div>
     </div>
 
