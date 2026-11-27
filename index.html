@@ -528,10 +528,12 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .finance-summary b{font:600 11px var(--mono);color:var(--txt);margin-left:3px}
   .finance-fold{font-size:9.5px;margin:4px 0 2px;text-transform:none;letter-spacing:0}
   .sensor-label{position:relative;display:inline-flex;align-items:center;gap:4px;cursor:help;outline:none}
-  .sensor-label>i{font-style:normal;font-size:8px;opacity:.55}
-  .sensor-label:after{content:attr(data-tip);display:none;position:absolute;z-index:50;left:0;top:calc(100% + 5px);width:min(220px,70vw);padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#101d17;color:var(--txt);font:10px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:none;letter-spacing:0;white-space:normal;box-shadow:0 6px 18px #0008;pointer-events:none}
-  @media(hover:hover) and (pointer:fine){.sensor-label:hover:after,.sensor-label:focus:after{display:block}}
-  @media(hover:none),(pointer:coarse){.sensor-label.tip-open:after{display:block}}
+  .sensor-label>i{font-style:normal;font-size:10px;opacity:1;color:var(--acc)}
+  .sensor-label:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:3px}
+  /* Подсказка вынесена в отдельный fixed-слой JS: overflow панелей её не обрезает. */
+  #sensorTooltip{position:fixed;z-index:120;display:none;width:max-content;max-width:min(340px,calc(100vw - 24px));max-height:min(45vh,260px);overflow-y:auto;padding:10px 12px;border:2px solid var(--acc);border-radius:5px;background:#21180f;color:#fff4df;font:12px/1.55 "Trebuchet MS","Segoe UI",sans-serif;letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere;box-shadow:4px 4px 0 #0a0806,0 10px 28px #000b;pointer-events:none}
+  #sensorTooltip.on{display:block}
+  #sensorTooltip:before{content:"ⓘ ";color:var(--acc);font-weight:900}
   .tutor-shop-buy{border:2px solid #54e58a!important;outline:2px solid rgba(84,229,138,.55)!important;outline-offset:1px;box-shadow:0 0 0 4px rgba(84,229,138,.2),0 0 18px rgba(84,229,138,.24)!important}
 
 
@@ -7008,15 +7010,65 @@ function bindDashboardDetails(){
     const pos=list.indexOf(owner);
     control.disabled=(control.dataset.panelMove==='up'&&pos===0)||(control.dataset.panelMove==='down'&&pos===list.length-1);
   });
+  const sensorTip=$('sensorTooltip')||(()=>{
+    const node=document.createElement('div');
+    node.id='sensorTooltip';
+    node.setAttribute('role','tooltip');
+    document.body.appendChild(node);
+    return node;
+  })();
+  const placeSensorTip=el=>{
+    if(!el||!sensorTip.classList.contains('on')) return;
+    const r=el.getBoundingClientRect();
+    const margin=12, width=sensorTip.offsetWidth, height=sensorTip.offsetHeight;
+    let left=Math.max(margin,Math.min(r.left,window.innerWidth-width-margin));
+    let top=r.bottom+8;
+    if(top+height>window.innerHeight-margin) top=Math.max(margin,r.top-height-8);
+    sensorTip.style.left=left+'px';
+    sensorTip.style.top=top+'px';
+  };
+  const showSensorTip=(el,pinned)=>{
+    if(!el) return;
+    sensorTip.textContent=el.dataset.tip||el.dataset.tipKey||'';
+    sensorTip.classList.add('on');
+    sensorTip.dataset.owner=el.dataset.tipKey||'';
+    if(pinned) activeSensorTip=el.dataset.tipKey||'';
+    placeSensorTip(el);
+  };
+  const hideSensorTip=()=>{
+    activeSensorTip='';
+    sensorTip.classList.remove('on');
+    sensorTip.dataset.owner='';
+  };
   document.querySelectorAll('.sensor-label').forEach(el=>{
     if(el.dataset.tipBound) return;
     el.dataset.tipBound='1';
-    el.addEventListener('click',()=>{ activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey; document.querySelectorAll('.sensor-label').forEach(node=>node.classList.toggle('tip-open',node.dataset.tipKey===activeSensorTip)); });
+    el.addEventListener('mouseenter',()=>{ if(!activeSensorTip) showSensorTip(el,false); });
+    el.addEventListener('mouseleave',()=>{ if(!activeSensorTip) sensorTip.classList.remove('on'); });
+    el.addEventListener('focus',()=>showSensorTip(el,false));
+    el.addEventListener('blur',()=>{ if(!activeSensorTip) sensorTip.classList.remove('on'); });
+    el.addEventListener('click',e=>{
+      e.preventDefault();
+      if(activeSensorTip===el.dataset.tipKey) hideSensorTip();
+      else showSensorTip(el,true);
+    });
     el.addEventListener('keydown',e=>{
-      if(e.key==='Enter'||e.key===' '){e.preventDefault();activeSensorTip=activeSensorTip===el.dataset.tipKey?'':el.dataset.tipKey;el.classList.toggle('tip-open',activeSensorTip===el.dataset.tipKey);}
-      if(e.key==='Escape'){activeSensorTip='';el.classList.remove('tip-open');}
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();if(activeSensorTip===el.dataset.tipKey)hideSensorTip();else showSensorTip(el,true);}
+      if(e.key==='Escape') hideSensorTip();
     });
   });
+  if(activeSensorTip){
+    const owner=Array.from(document.querySelectorAll('.sensor-label')).find(el=>el.dataset.tipKey===activeSensorTip);
+    if(owner) showSensorTip(owner,true); else hideSensorTip();
+  }
+  if(!document.documentElement.dataset.sensorTipGlobal){
+    document.documentElement.dataset.sensorTipGlobal='1';
+    document.addEventListener('pointerdown',e=>{
+      if(!e.target.closest('.sensor-label') && activeSensorTip) hideSensorTip();
+    });
+    window.addEventListener('resize',()=>{ if(activeSensorTip){const owner=Array.from(document.querySelectorAll('.sensor-label')).find(el=>el.dataset.tipKey===activeSensorTip);if(owner)placeSensorTip(owner);}});
+    window.addEventListener('scroll',()=>{ if(activeSensorTip){const owner=Array.from(document.querySelectorAll('.sensor-label')).find(el=>el.dataset.tipKey===activeSensorTip);if(owner)placeSensorTip(owner);}},true);
+  }
 }
 
 /* ---------------- сборка панелей ---------------- */
