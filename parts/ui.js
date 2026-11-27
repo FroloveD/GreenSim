@@ -261,7 +261,8 @@ function applyLoadedWorld(pack, silent){
     world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`, k:'hl'});
     setTimeout(()=>toast(`Пока вас не было ${hh}: ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`), 700);
   }
-  cam.plant = 0; cam.mode = 'free'; acc = 0; paused = false; endShown = false; fc = null;
+  cam.plant = 0; cam.mode = 'free'; speed = 1; acc = 0; paused = false; endShown = false; fc = null;
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', b.dataset.s==='1'));
   $('tutor').classList.remove('on');
   $('start').classList.remove('on');
   $('campaignPrologue').classList.remove('on');
