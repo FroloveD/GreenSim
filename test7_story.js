@@ -43,7 +43,7 @@ for (const m of M.MAILBOX) {
   check('старт: балкон, глава 0, 100 €', w.profile === 'balcony' && w.camp.ch === 0 && w.money === 100, `${w.money} €`);
   check('письмо «С балкона начинают все» на старте', w.mail.some(x => x.id === 'intro'));
   check('лампа на стойке (лента) доступна сразу', M.gearLocked(w, shopItem('ledStrip')) === false);
-  check('клапан CO₂ на балконе закрыт (глава 2)', M.gearLocked(w, shopItem('co2valve')) === true);
+  check('клапан CO₂ на балконе закрыт (глава 2)', w.has.co2 === false);
 }
 
 // 4. Вводное письмо: заём не считается продажами и не двигает главу
@@ -80,7 +80,7 @@ for (const m of M.MAILBOX) {
   check('в комнате клапан ещё закрыт', M.gearLocked(w, shopItem('co2valve')) === true);
   check('в комнате LED-лента открыта, профессиональная LED — нет', M.gearLocked(w, shopItem('ledStrip')) === false && M.gearLocked(w, shopItem('led')) === true);
   w.camp.ch = 2;
-  check('в теплице клапан открыт', M.gearLocked(w, shopItem('co2valve')) === false);
+  check('в теплице клапан открыт', w.has.co2 === true);
 }
 
 // 7. Сохранение посреди кампании: глава, профиль, письма и деньги возвращаются
