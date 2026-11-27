@@ -7,7 +7,7 @@ const src = fs.readFileSync(path.join(__dirname, 'parts', 'core.js'), 'utf8');
 const a = src.indexOf('// === SIM CORE START ==='), b = src.indexOf('// === SIM CORE END ===');
 const M = new Function(src.slice(a, b) + `
   return {makeWorld, stepWorld, harvestAll, sellHarvest, buyItem, answerMail, pushMail, campaignTick,
-          hasLight, setLampState, priceToday, lotQuality, moveChapter, chapterSales, gearLocked,
+          hasLight, setLampState, priceToday, lotQuality, moveChapter, chapterSales, gearLocked, shopPriceFactor, shopItemCost,
           MAILBOX, CHAPTERS, PROFILES, CROPS, MISSIONS, SHOP, GEAR,
           serializeWorld, deserializeWorld, offerContracts, signContract, deliverContract, checkContracts,
           netBuy, netTotal, netTick, homeCO2, craftF, CFG, WH, addLot, lotQuality};`)();
