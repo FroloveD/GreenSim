@@ -143,7 +143,7 @@ const SFX = (()=>{
   function syncGain(){
     if(master)master.gain.value=sndCfg.on?sndCfg.vol*0.45:0;
     if(!sndCfg.on)stopAmbient();
-    else if(armed&&ctx&&ctx.state==='running')startAmbient();
+    else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length)startAmbient();
   }
   function tone(o){
     const t0 = ctx.currentTime + (o.at||0);
