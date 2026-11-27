@@ -128,5 +128,58 @@ for (const m of M.MAILBOX) {
   const bought=M.buyItem(normal,'fert2');
   check('покупка малого удобрения списывает цену и добавляет 2 кг', bought.ok && Math.abs(normal.money-(before-cost))<0.001 && normal.stock.fertKg===stock+2);
 }
+
+// 8. Письма догоняют игрока после быстрого перехода главы.
+{
+  const w=M.makeWorld({profile:'farm',crop:'tomato',seed:811,campaign:true});
+  w.camp.ch=2; w.day=30; w.camp.seen.push('gear1','gear2');
+  check('qualityTalk доступно в более поздней главе',M.MAILBOX.find(m=>m.id==='qualityTalk').when(w));
+  check('backupPlan доступно после перехода из главы 3',M.MAILBOX.find(m=>m.id==='backupPlan').when(w));
+  w.camp.story={cafe:true};w.camp.seen.push('qualityTalk');
+  check('cafeReturn догоняет игрока в главе 3',M.MAILBOX.find(m=>m.id==='cafeReturn').when(w));
+  w.rep=10;w.camp.story.quality=true;w.camp.story.cafeContract=true;
+  check('regionalBuyer доступно в главе 3',M.MAILBOX.find(m=>m.id==='regionalBuyer').when(w));
+  w.camp.ch=3;w.camp.story.premiumBuyer=true;w.rep=15;
+  check('networkPartner доступно в главе 4',M.MAILBOX.find(m=>m.id==='networkPartner').when(w));
+}
+
+// 9. Перенос сезона сохраняет историю решений и ограничивает репутацию.
+{
+  const source=M.makeWorld({profile:'farm',crop:'tomato',seed:812,campaign:true});
+  source.rep=37;source.missionsDone=8;source.harvestedKg=4000;
+  source.contracts=[{done:true},{done:true}];
+  source.camp.story={cafe:true,quality:true,cafeContract:true,premiumBuyer:true};
+  source.camp.decisions=[{id:'qualityTalk',subj:'Проверка качества',result:'Контроль партии',day:20,repDelta:5}];
+  const carry=M.carrySnapshot(source);
+  check('репутация при переносе ограничена верхним пределом 40',carry.rep===40,carry.rep);
+  check('снимок сезона сохраняет сюжетные флаги',carry.camp.story.cafe&&carry.camp.story.quality&&carry.camp.story.premiumBuyer);
+  check('снимок сезона сохраняет историю решений',carry.camp.decisions.length===1&&carry.camp.decisions[0].id==='qualityTalk');
+  const target=M.makeWorld({profile:'farm',crop:'tomato',seed:813,campaign:true});
+  M.applyCarry(target,carry);
+  check('новый сезон восстанавливает сюжетные флаги и решения',
+    target.camp.story.cafe&&target.camp.story.quality&&target.camp.decisions.length===1);
+  check('репутация нового сезона не превышает 40',target.rep===40&&target.repF<=1.06);
+  const legacy=Object.assign({},carry,{camp:Object.assign({},carry.camp,{story:undefined,decisions:undefined}),rep:68});
+  const oldTarget=M.makeWorld({profile:'farm',crop:'tomato',seed:814,campaign:true});
+  M.applyCarry(oldTarget,legacy);
+  check('старый снимок без истории решений загружается безопасно',oldTarget.camp.decisions.length===0&&oldTarget.rep===40);
+}
+
+// 10. Стоимость сюжетных решений масштабируется по главе и совпадает с оплатой.
+{
+  const w=M.makeWorld({profile:'balcony',crop:'lettuce',seed:815,campaign:true});
+  const base=M.campaignPrice(w,45);
+  w.camp.ch=3;
+  const late=M.campaignPrice(w,45);
+  check('стоимость сюжетного решения растёт с масштабом кампании',late>base&&late===133);
+  w.money=1000;M.pushMail(w,'cafeTrial');
+  const offer=w.mail.find(m=>m.id==='cafeTrial');
+  check('письмо показывает актуальную цену, а не шаблон',offer.opts[0].label.includes(String(late))&&!offer.opts[0].label.includes('{cost}'));
+  const before=w.money;M.answerMail(w,'cafeTrial',0);
+  check('сумма в письме фактически списывается',before-w.money===late);
+  check('выбор записывается в историю кампании',w.camp.decisions[0].id==='cafeTrial'&&w.camp.decisions[0].result.includes(String(late)));
+  check('новые записи выбора получают категорию кампании',w.log.some(l=>l.cat==='campaign'));
+}
+
 console.log(fails ? `\nпровалено: ${fails}` : '\nвсе проверки сюжета прошли');
 process.exit(fails ? 1 : 0);
