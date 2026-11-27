@@ -5036,20 +5036,31 @@ function toast(msg){
 
 
 const SND_KEY = 'vg_sound_v1';
+const SOUND_PRESETS = [
+  {id:'off',label:'Без фонового звука'},
+  {id:'lounge',label:'Лаунж · мягкий эмбиент'},
+  {id:'nature',label:'Природа · птицы и ветер'},
+  {id:'rain',label:'Дождь · спокойный ливень'},
+  {id:'greenhouse',label:'Теплица · вентиляция и воздух'},
+  {id:'night',label:'Ночной сад · сверчки и ветер'}
+];
 const sndCfg = (()=>{
-  const def = {on:true, vol:0.7};
+  const def = {on:true, vol:0.7, preset:'off'};
   try {
     const raw = localStorage.getItem(SND_KEY);
     if (raw){ const o = JSON.parse(raw);
-      return {on: o.on !== false, vol: clamp(o.vol === undefined ? 0.7 : +o.vol, 0, 1)}; }
+      const preset = SOUND_PRESETS.some(p=>p.id===o.preset) ? o.preset : 'off';
+      return {on:o.on!==false,vol:clamp(o.vol===undefined?0.7:+o.vol,0,1),preset};
+    }
   } catch(e){}
   return def;
 })();
 function sndSave(){
-  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on, vol:sndCfg.vol})); } catch(e){}
+  try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on,vol:sndCfg.vol,preset:sndCfg.preset})); } catch(e){}
 }
 const SFX = (()=>{
   let ctx = null, master = null, noiseBuf = null, armed = false;
+  let ambientNodes = [], ambientTimer = 0;
   const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
   const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
   function ensure(){
@@ -5071,12 +5082,62 @@ const SFX = (()=>{
   function arm(){
     ensure();
     if (!ctx) return false;
-    if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch(e){} }
+    if (ctx.state === 'suspended' && ctx.resume) { try { const p=ctx.resume(); if(p&&p.then)p.then(startAmbient).catch(()=>{}); } catch(e){} }
     armed = true;
+    if(ctx.state==='running') startAmbient();
     return true;
   }
+  function stopAmbient(){
+    if(ambientTimer){clearTimeout(ambientTimer);ambientTimer=0;}
+    ambientNodes.forEach(n=>{try{if(n.stop)n.stop();}catch(e){} try{n.disconnect();}catch(e){}});
+    ambientNodes=[];
+  }
+  function addAmbientNoise(freq,type,gain){
+    const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
+    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
+    const g=ctx.createGain();g.gain.value=gain;
+    src.connect(filter);filter.connect(g);g.connect(master);src.start();
+    ambientNodes.push(src,filter,g);
+  }
+  function addAmbientTone(freq,wave,gain){
+    const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=wave;osc.frequency.value=freq;g.gain.value=gain;
+    osc.connect(g);g.connect(master);osc.start();ambientNodes.push(osc,g);
+  }
+  function birdChirp(){
+    if(!sndCfg.on||!['nature','night'].includes(sndCfg.preset)||!ctx||ctx.state!=='running')return;
+    const base=sndCfg.preset==='night'?1700:2100;
+    for(let i=0;i<2;i++){
+      const f=base+Math.random()*850;
+      tone({type:'sine',f0:f,f1:f*(0.8+Math.random()*0.25),dur:0.10,gain:0.018,at:i*0.13});
+    }
+    ambientTimer=setTimeout(birdChirp,sndCfg.preset==='night'?3500+Math.random()*2500:2700+Math.random()*3200);
+  }
+  function startAmbient(){
+    stopAmbient();
+    if(!sndCfg.on||sndCfg.preset==='off'||!ctx||ctx.state!=='running')return;
+    switch(sndCfg.preset){
+      case 'lounge':
+        addAmbientTone(110,'sine',0.020);addAmbientTone(164.8,'triangle',0.010);
+        addAmbientTone(220,'sine',0.006);addAmbientNoise(650,'lowpass',0.002);
+        break;
+      case 'nature':
+        addAmbientNoise(520,'lowpass',0.022);addAmbientNoise(2600,'bandpass',0.003);birdChirp();
+        break;
+      case 'rain':
+        addAmbientNoise(1500,'lowpass',0.030);addAmbientNoise(4200,'highpass',0.006);
+        break;
+      case 'greenhouse':
+        addAmbientTone(58,'sine',0.010);addAmbientTone(116,'sine',0.003);addAmbientNoise(430,'lowpass',0.018);
+        break;
+      case 'night':
+        addAmbientNoise(390,'lowpass',0.018);addAmbientNoise(3000,'highpass',0.003);birdChirp();
+        break;
+    }
+  }
   function syncGain(){
-    if (master) master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
+    if(master)master.gain.value=sndCfg.on?sndCfg.vol*0.45:0;
+    if(!sndCfg.on)stopAmbient();
+    else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length)startAmbient();
   }
   function tone(o){
     const t0 = ctx.currentTime + (o.at||0);
@@ -5174,10 +5235,12 @@ const SFX = (()=>{
     names: ()=>Object.keys(RECIPES),
     get on(){ return sndCfg.on; },
     get vol(){ return sndCfg.vol; },
-    setOn(v){ sndCfg.on = !!v; sndSave(); syncGain(); return sndCfg.on; },
-    setVol(v){ sndCfg.vol = clamp(+v || 0, 0, 1); sndSave(); syncGain(); return sndCfg.vol; },
-    state(){ return { on:sndCfg.on, vol:sndCfg.vol, armed, ctx: !!ctx,
-                      running: !!(ctx && ctx.state === 'running') }; }
+    get preset(){ return sndCfg.preset; },
+    presetLabel(){ return SOUND_PRESETS.find(p=>p.id===sndCfg.preset)?.label||'Без фонового звука'; },
+    setOn(v){ sndCfg.on=!!v; sndSave(); syncGain(); return sndCfg.on; },
+    setVol(v){ sndCfg.vol=clamp(+v||0,0,1); sndSave(); syncGain(); return sndCfg.vol; },
+    setPreset(v){ sndCfg.preset=SOUND_PRESETS.some(p=>p.id===v)?v:'off'; sndSave(); if(armed&&ctx&&ctx.state==='running')startAmbient(); return sndCfg.preset; },
+    state(){ return {on:sndCfg.on,vol:sndCfg.vol,preset:sndCfg.preset,armed,ctx:!!ctx,running:!!(ctx&&ctx.state==='running')}; }
   };
 })();
 function playSfx(name, opt){ try { return SFX.play(name, opt); } catch(e){ return false; } }
@@ -6332,13 +6395,16 @@ function renderSettings(){
       <div class="hint">Переход стоит денег и обнуляет часть гнили: это новый корневой объём, а не пересадка куста.</div>
     </div>
     <div class="card" id="soundCard">
-      <div class="h"><b>Звук</b></div>
-      <div class="d" style="color:var(--txt)" id="soundState">\${SFX.on ? 'включён · громкость '+Math.round(SFX.vol*100)+'%' : 'выключен'}</div>
-      <div class="row"><label>Звуковые эффекты интерфейса
-        <div class="hint">Звук создаётся браузером, дополнительные файлы не нужны. Клавиша Z включает и выключает звук.</div></label>
-        <button class="btn \${SFX.on?'good':''}" id="btnSndSet">\${SFX.on?'вкл':'выкл'}</button></div>
-      <input type="range" id="sndVol" min="0" max="100" step="5" value="\${Math.round(SFX.vol*100)}">
-      <div class="row"><label>Проверка звука</label><button class="btn" id="btnSndTest">проверить</button></div>
+      <div class="h"><b>Звук и атмосфера</b></div>
+      <div class="d" style="color:var(--txt)" id="soundState">${SFX.on?'эффекты включены':'эффекты выключены'} · ${Math.round(SFX.vol*100)}%</div>
+      <div class="row"><label>Звуки действий и интерфейса<div class="hint">Сбор, покупки, вода и игровые события. Клавиша Z включает или выключает эффекты.</div></label>
+        <button class="btn ${SFX.on?'good':''}" id="btnSndSet">${SFX.on?'вкл':'выкл'}</button></div>
+      <div class="row"><label for="sndPreset">Фоновая атмосфера<div class="hint">Негромкий непрерывный фон. Выбор сохраняется автоматически.</div></label>
+        <select id="sndPreset" style="max-width:230px">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'" '+(SFX.preset===p.id?'selected':'')+'>'+p.label+'</option>').join('')}</select></div>
+      <div class="row"><label for="sndVol">Общая громкость</label><b id="sndVolValue">${Math.round(SFX.vol*100)}%</b></div>
+      <input type="range" id="sndVol" min="0" max="100" step="5" value="${Math.round(SFX.vol*100)}">
+      <div class="row"><label>Проверка эффектов</label><button class="btn" id="btnSndTest">прослушать</button></div>
+      <div class="hint">Фоновый звук запускается после первого действия игрока — это ограничение браузера. Его можно отключить отдельно от звуков интерфейса.</div>
     </div>
     <div class="card">
       <div class="h"><b>Свет и экраны</b></div>
@@ -6454,8 +6520,8 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="h"><b>Клавиши</b></div>
-      \${[['Пробел','пауза / реальное время'],['1–5','переключение камер'],['← → ↑ ↓','сдвиг камеры'],['+ / −','приближение и отдаление'],['R','сброс ракурса'],['L','слой освещения'],['Ctrl + S','сохранить сезон']]
-        .map(([k,d])=>\`<div class="kv"><span>\${d}</span><b>\${k}</b></div>\`).join('')}
+      ${[['Пробел','пауза / реальное время'],['1–5','переключение камер'],['← → ↑ ↓','сдвиг камеры'],['+ / −','приближение и отдаление'],['R','сброс ракурса'],['L','слой освещения'],['Z','звук вкл./выкл.'],['Ctrl + S','сохранить сезон']]
+        .map(([k,d])=>'<div class="kv"><span>'+d+'</span><b>'+k+'</b></div>').join('')}
       <div class="hint" style="margin-top:6px">Горячие клавиши не перехватывают ввод в полях.</div>
     </div>
     <div class="card">
@@ -6476,7 +6542,7 @@ function renderSettings(){
       <div class="hint">Сейчас: <b>${CURS[curId].sym} ${CURS[curId].label}</b> — ${CURS[curId].note}. Курс ${curId==='rub'?'1 € = 100 ₽':'базовый'}, цены магазина и отчёты пересчитываются целиком.</div>
     </div>
     <div class="card" id="glossCard">
-      <div class="h" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Словарь терминов</b><button class="btn" id="btnManual" style="padding:2px 8px">Справочник</button></div>
+      <div class="h"><b>Словарь терминов</b></div>
       <div class="hint" style="margin-bottom:6px">Всё, что встречается в интерфейсе, — простыми словами.</div>
       ${[
         ['EC','Насколько «солёная» вода с удобрениями. 2.4 мСм/см для томата — норма. Мало — растение голодает, много — корни обжигаются и перестают пить.'],
@@ -6504,7 +6570,7 @@ function renderSettings(){
         <button class="btn" id="btnObAgain">Обзор интерфейса</button>
         <button class="btn" id="btnManual2">Справочник</button>
       </div>
-      <div class="hint" style="margin-top:6px">Словарь терминов — ниже в карточке «Словарь».</div>
+      <div class="hint" style="margin-top:6px">Термины раскрываются в карточке «Словарь терминов».</div>
     </div>
     <div class="card">
       <div class="h"><b>Сезон</b></div>
@@ -6528,7 +6594,7 @@ function renderSettings(){
       <div style="margin-top:8px"><button class="btn warn" id="btnRestart">Начать заново</button></div>
     </div>
     <div class="card">
-      <div class="h"><b>Модель (справка)</b></div>
+      <div class="h"><b>Параметры модели</b></div>
       <div class="hint">
         Граф органов в сцене: ${world.plants.reduce((s,p)=>s+p.organs.length,0)} узлов.<br>
         Свет: воксельная LAD 0.25 м, 5 лучей на лист.<br>
@@ -6548,7 +6614,7 @@ function renderSettings(){
       {id:'grow',title:'Выращивание',icon:'🌱',test:/^(Система выращивания|Свет и экраны|Свет за сутки \(DLI\)|Питание \(fertigation\))$/},
       {id:'auto',title:'Автоматизация',icon:'⏱',test:/^Таймеры и автоматизация$/},
       {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(Камера|Валюта|Приложение)$/},
-      {id:'help',title:'Обучение и справка',icon:'ⓘ',test:/^(Словарь терминов|Обучение|Модель \(справка\))$/},
+      {id:'help',title:'Обучение и справка',icon:'ⓘ',test:/^(Словарь терминов|Обучение|Параметры модели)$/},
       {id:'save',title:'Сохранение и сезон',icon:'▣',test:/^Сезон$/}
     ];
     const nav=document.createElement('div'); nav.className='settings-nav';
@@ -6578,7 +6644,11 @@ function renderSettings(){
   if ($('btnSndSet')) $('btnSndSet').onclick = ()=>toggleSound();
   if ($('sndVol')) $('sndVol').oninput = ()=>{
     SFX.arm(); SFX.setVol($('sndVol').value/100);
-    const state=$('soundState'); if(state) state.textContent=SFX.on?'включён · громкость '+Math.round(SFX.vol*100)+'%':'выключен';
+    const value=$('sndVolValue'); if(value)value.textContent=Math.round(SFX.vol*100)+'%';
+    const state=$('soundState'); if(state)state.textContent=(SFX.on?'эффекты включены':'эффекты выключены')+' · '+Math.round(SFX.vol*100)+'%';
+  };
+  if ($('sndPreset')) $('sndPreset').onchange = ()=>{
+    SFX.arm();SFX.setPreset($('sndPreset').value);toast('Фоновый звук: '+SFX.presetLabel());
   };
   if ($('btnSndTest')) $('btnSndTest').onclick = ()=>{
     SFX.arm(); if(!SFX.on) SFX.setOn(true);
@@ -6648,7 +6718,6 @@ function renderSettings(){
   };
   $('btnCamReset').onclick = ()=>{ resetCam(); toast('Ракурс сброшен'); };
   document.querySelectorAll('[data-curset]').forEach(b=>b.onclick = ()=>setCurrency(b.dataset.curset));
-  if ($('btnManual')) $('btnManual').onclick = ()=>$('manual').classList.add('on');
   if ($('btnManual2')) $('btnManual2').onclick = ()=>$('manual').classList.add('on');
   if ($('btnObAgain')) $('btnObAgain').onclick = ()=>showOnboarding(0);
   if ($('btnTutorToggle')) $('btnTutorToggle').onclick = ()=>setCampaignTutorEnabled(!world.tutorialEnabled, true);
