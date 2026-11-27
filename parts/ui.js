@@ -1229,7 +1229,7 @@ function renderContracts(){
     const pct = clamp(1-c.leftKg/c.kg,0,1)*100;
     const canDeliver = storeKg(world, c.crop) > 1;
     return `<div style="margin-bottom:7px">
-      <div class="kv"><span>${c.label} ×${c.priceMult}</span><b>${num(c.delivered)}/${num(c.kg)} кг</b></div>
+      <div class="kv"><span>${escapeHTML(c.label)} ×${c.priceMult}</span><b>${num(c.delivered)}/${num(c.kg)} кг</b></div>
       ${(()=>{ const cc = c.crop || world.crop;
         const lock = c.priceLock || CROPS[cc].price*world.profilePriceF*c.priceMult;
         const now = priceToday(world, cc);
@@ -1237,7 +1237,7 @@ function renderContracts(){
                                             : now > lock ? ' — рынок выше, партию лучше продать свободно' : '';
         return `<div class="hint">цена зафиксирована при подписании: ${money2(lock)}/кг${note}</div>`; })()}
       <div class="g"><span>до D${c.deadline}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct|0}%</b></div>
-      <button class="btn" data-deliver="${c.id}" style="margin-top:4px" ${canDeliver?'':'disabled'}>
+      <button class="btn" data-deliver="${escapeHTML(c.id)}" style="margin-top:4px" ${canDeliver?'':'disabled'}>
         Поставить со склада</button>
     </div>`;
   }).join('');
@@ -1266,8 +1266,8 @@ function renderMail(){
       <b>${money(sales)}/${money(ch.goal)}</b></div>`;
   }
   if (world.mail.length){
-    html += world.mail.map(m=>`<button class="btn" data-mail="${m.id}" style="display:block;width:100%;text-align:left;margin-bottom:4px;white-space:normal;line-height:1.3;font-size:10px">
-      ${m.read?'':'<b style="color:var(--acc2)">● </b>'}${m.subj.length>46?m.subj.slice(0,44)+'…':m.subj}</button>`).join('');
+    html += world.mail.map(m=>`<button class="btn" data-mail="${escapeHTML(m.id)}" style="display:block;width:100%;text-align:left;margin-bottom:4px;white-space:normal;line-height:1.3;font-size:10px">
+      ${m.read?'':'<b style="color:var(--acc2)">● </b>'}${escapeHTML(m.subj.length>46?m.subj.slice(0,44)+'…':m.subj)}</button>`).join('');
   } else {
     html += `<div class="hint">Писем нет.</div>`;
   }
@@ -1278,10 +1278,10 @@ function openMail(id){
   const m = world.mail.find(x=>x.id===id);
   if (!m) return;
   m.read = true;
-  $('mailBox').innerHTML = `<h1>${m.subj}</h1><p>${m.body}</p>
+  $('mailBox').innerHTML = `<h1>${escapeHTML(m.subj)}</h1><p>${escapeHTML(m.body).replace(/\n/g,'<br>')}</p>
     <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
       ${m.opts.map((o,i)=>`<button class="btn good" data-answer="${i}" style="text-align:left">
-        ${o.label}${o.desc?`<div class="hint" style="color:#3a2d12">${o.desc}</div>`:''}</button>`).join('')}
+        ${escapeHTML(o.label)}${o.desc?`<div class="hint" style="color:#3a2d12">${escapeHTML(o.desc)}</div>`:''}</button>`).join('')}
     </div>`;
   $('mailModal').classList.add('on');
   document.querySelectorAll('[data-answer]').forEach(b=>press(b, ()=>{
@@ -1292,7 +1292,7 @@ function openMail(id){
 }
 
 function renderLog(){
-  $('log').innerHTML = world.log.slice(0,16).map(l=>`<div class="${l.k||''}">${l.t} · ${l.m}</div>`).join('');
+  $('log').innerHTML = world.log.slice(0,16).map(l=>`<div class="${escapeHTML(l.k||'')}">${escapeHTML(l.t)} · ${escapeHTML(l.m)}</div>`).join('');
 }
 
 /* ---------------- магазин ---------------- */
