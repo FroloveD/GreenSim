@@ -8088,6 +8088,7 @@ requestAnimationFrame(frame);
 window.VG = {
   freeze(v){ frozen = !!v; },
   get world(){ return world; },
+  get speed(){ return speed; },
   start:(opts)=>{ Object.assign(pending, opts||{}); startGame(); return world; },
   page: setPage,
   sim:(hours)=>{ let h=hours||0; while(h>0){ stepWorld(world, Math.min(0.5,h)); h-=0.5; } return world; },
