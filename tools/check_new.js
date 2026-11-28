@@ -11,6 +11,7 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   page.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE: '+m.text()); });
   await page.goto('http://localhost:8080/index.html?n=1', { waitUntil:'domcontentloaded', timeout:60000 });
   await page.waitForTimeout(700);
+  await page.evaluate(()=>document.getElementById('introContinue').click());
   // В новой структуре сначала выбираем режим кампании в главном меню.
   await page.evaluate(()=>{
     openNewGame('campaign');

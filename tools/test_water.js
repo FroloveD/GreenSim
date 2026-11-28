@@ -83,12 +83,20 @@ const ok = (c, m, extra)=>{
       const spot=candidates.find(p=>p.canvas)||candidates[0];
       return {...spot,hit:spot.hit&&spot.hit.kind};
     });
+    await page.evaluate(()=>{
+      window.__scenePointerEvents=[];
+      canvas.addEventListener('pointerdown',()=>window.__scenePointerEvents.push('down'),{once:true});
+      canvas.addEventListener('pointerup',()=>window.__scenePointerEvents.push('up'),{once:true});
+    });
     await page.mouse.click(spot.x, spot.y);
     await page.waitForTimeout(150);
     const after = await page.evaluate(()=>({ moist:+world.moist.toFixed(1),
-      toast: window.__toasts[window.__toasts.length-1]||'' }));
-    ok(spot.hit === 'pot', 'горшок распознаётся как цель клика', spot.hit || 'мимо');
-    ok(Math.abs(after.moist - 45) < 0.6, 'клик по горшку полил грядку', '30% → ' + after.moist + '%');
+      toast: window.__toasts[window.__toasts.length-1]||'',
+      events:window.__scenePointerEvents.slice() }));
+    ok(spot.hit === 'pot', 'горшок распознаётся как цель клика',
+       (spot.hit || 'мимо') + ' · target ' + spot.target + ' · canvas ' + spot.canvas);
+    ok(Math.abs(after.moist - 45) < 0.6, 'клик по горшку полил грядку',
+       '30% → ' + after.moist + '% · события ' + after.events.join(','));
     ok(/Полито/.test(after.toast), 'и сказал об этом', after.toast);
   }
 

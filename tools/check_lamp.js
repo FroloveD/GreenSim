@@ -49,7 +49,7 @@ const ok = (c, m, extra)=>{
     ok(r.afterOne !== r.before, 'кнопка «Досветка» переключает лампу', `${r.before} → ${r.afterOne}`);
     ok(r.afterTwo === r.before, 'повторный клик возвращает как было', `${r.afterOne} → ${r.afterTwo}`);
     ok(!r.sayBuy, 'кнопка не просит купить то, что уже стоит', r.toasts1[0] || '—');
-    ok(/вкл|Досветка/.test(r.label), 'на кнопке видно состояние', r.label);
+    ok(/включить|выключить/i.test(r.label), 'доступная подпись кнопки показывает состояние', r.label);
   }
 
   // 2. клик по светильнику в сцене включает и выключает свет (мышью, не из консоли)
@@ -68,16 +68,21 @@ const ok = (c, m, extra)=>{
       return {...spot,n:candidates.length,hit:spot.hit&&spot.hit.kind};
     });
     ok(spot.n === 4, 'светильники в сцене есть всегда, когда лампа куплена', spot.n + ' шт');
-    ok(spot.hit === 'lamp', 'попадание по светильнику распознаётся', spot.hit || 'мимо');
+    ok(spot.hit === 'lamp', 'попадание по светильнику распознаётся', (spot.hit || 'мимо') + ' · target ' + spot.target + ' · canvas ' + spot.canvas);
 
+    await page.evaluate(()=>{
+      window.__scenePointerEvents=[];
+      canvas.addEventListener('pointerdown',()=>window.__scenePointerEvents.push('down'),{once:true});
+      canvas.addEventListener('pointerup',()=>window.__scenePointerEvents.push('up'),{once:true});
+    });
     const st0 = await page.evaluate(()=>!!world.ctrl.lampEnabled);
     await page.mouse.click(spot.x, spot.y);
     await page.waitForTimeout(120);
-    const st1 = await page.evaluate(()=>({ on: !!world.ctrl.lampEnabled, lit: lightLit(world) }));
+    const st1 = await page.evaluate(()=>({ on: !!world.ctrl.lampEnabled, lit: lightLit(world), events:window.__scenePointerEvents.slice() }));
     await page.mouse.click(spot.x, spot.y);
     await page.waitForTimeout(120);
     const st2 = await page.evaluate(()=>({ on: !!world.ctrl.lampEnabled, lit: lightLit(world) }));
-    ok(st1.on !== st0, 'клик по лампе выключил досветку', `${st0} → ${st1.on}`);
+    ok(st1.on !== st0, 'клик по лампе выключил досветку', `${st0} → ${st1.on} · события ${st1.events.join(',')||'нет'}`);
     ok(!st1.lit, 'лампа действительно погасла, а не только флажок', String(st1.lit));
     ok(st2.on === st0, 'второй клик снова зажёг', `${st1.on} → ${st2.on}`);
   }
