@@ -351,6 +351,9 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
 
   const restored = M.deserializeWorld(legacy);
   ok(restored.v === M.SAVE_VERSION, 'сохранение v1 мигрирует в актуальную версию', restored.v);
+  legacy.world.sys = 'legacy-hydroponic';
+  const legacySystem = M.deserializeWorld(legacy);
+  ok(legacySystem.world.sys === 'soil', 'устаревшая система v1 безопасно мигрирует в грунт');
   ok(restored.world.diffId === 'normal' && restored.world.diffPriceF === 1,
      'неизвестная сложность безопасно заменяется обычной',
      restored.world.diffId + ' / ' + restored.world.diffPriceF);
