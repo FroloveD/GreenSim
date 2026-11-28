@@ -16,6 +16,10 @@ const ok = (c, m, extra)=>{
   const errs = []; page.on('pageerror', e=>errs.push(e.message));
   await page.goto('http://localhost:8080/index.html?water='+Date.now(), { waitUntil:'domcontentloaded', timeout:60000 });
   await page.waitForTimeout(600);
+  // Закрываем заставку до старта модели, чтобы Pointer Events по горшкам
+  // доходили до Canvas, а не оставались на приветственной карточке.
+  await page.evaluate(()=>document.getElementById('introContinue').click());
+  await page.waitForTimeout(150);
 
   // старт: балкон, грунт, томат — лейка есть, бак 15 м³
   await page.evaluate(()=>{

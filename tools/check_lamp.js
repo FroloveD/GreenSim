@@ -15,6 +15,10 @@ const ok = (c, m, extra)=>{
   const errs = []; page.on('pageerror', e=>errs.push(e.message));
   await page.goto('http://localhost:8080/index.html?lamp='+Date.now(), { waitUntil:'domcontentloaded', timeout:60000 });
   await page.waitForTimeout(600);
+  // Входим через приветственный экран: он иначе остаётся поверх Canvas
+  // и перехватывает клики по объектам после прямого вызова startGame().
+  await page.evaluate(()=>document.getElementById('introContinue').click());
+  await page.waitForTimeout(150);
 
   // общий старт: кампания с балкона — у игрока есть лампа-лента, но нет LED за 2800 €
   await page.evaluate(()=>{

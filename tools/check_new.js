@@ -62,7 +62,7 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   });
   await page.waitForTimeout(300);
   await page.evaluate(()=>window.VG.cam('plant'));
-  await page.click('#btnLayer');
+  await page.evaluate(()=>document.getElementById('btnLayer').click());
   await page.waitForTimeout(500);
   await shot(page, '/home/user/shots/51_layer.png');
   // точку наведения считаем по проекции плода: растения теперь стоят в ёмкостях,
