@@ -920,6 +920,48 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     #top .speeds #btnPred,#top .speeds #btnSave,#top .speeds #btnSoundSettings{display:none}
   }
 
+
+  /* Узкая вертикальная панель под верхней строкой даты и баланса. */
+  #center>.controlDock{
+    position:fixed;top:74px;left:50%;transform:translateX(-50%);
+    z-index:45;box-sizing:border-box;
+    width:48px;min-width:48px;max-width:48px;
+    max-height:calc(100dvh - 84px);
+    display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+    gap:4px;padding:4px!important;margin:0;
+    overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-width:none;pointer-events:auto;
+  }
+  #center>.controlDock::-webkit-scrollbar{display:none}
+  #center>.controlDock .camBar,
+  #center>.controlDock .quickBar{
+    box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+    display:flex;flex:0 0 auto;flex-direction:column;flex-wrap:nowrap;
+    align-items:center;justify-content:flex-start;gap:4px;padding:0;
+    overflow:visible;
+  }
+  #center>.controlDock .camBar>button,
+  #center>.controlDock .quickBar>.quick-icon{
+    box-sizing:border-box;flex:0 0 38px;
+    width:38px;min-width:38px;max-width:38px;
+    height:38px;min-height:38px;padding:5px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #center>.controlDock .camBar>button svg,
+  #center>.controlDock .quickBar>.quick-icon svg{
+    width:22px;height:22px;flex:0 0 22px;
+  }
+  #center>.controlDock .camBar .camNav{
+    display:grid;grid-template-columns:repeat(2,18px);
+    gap:3px;justify-content:center;align-self:center;
+    width:39px;min-width:39px;margin:0;
+  }
+  #center>.controlDock .camBar .camNav button{
+    box-sizing:border-box;width:18px;min-width:18px;height:24px;min-height:24px;
+    padding:1px;display:flex;align-items:center;justify-content:center;
+  }
+  #center>.controlDock #sceneHint{display:none!important}
+
 </style>
 </head>
 <body>
