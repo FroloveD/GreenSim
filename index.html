@@ -79,8 +79,11 @@
   #dashGrid .col.left>[data-p="climate"]{flex:1.35 1 0;min-height:92px}
   #dashGrid .col.left>.panel.is-collapsed{flex:0 0 auto!important;min-height:0;height:auto}
   #dashGrid .col.left .panel-body{flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin}
-  #dashGrid .col.left #gauges,#dashGrid .col.left #gaugeDetails,#dashGrid .col.left #diagnosis,
-  #dashGrid .col.left #finance,#dashGrid .col.left #alerts{overflow-y:auto;scrollbar-width:thin}
+  #dashGrid .col.left #gauges,#dashGrid .col.left #gaugeDetails,
+  #dashGrid .col.left #finance{overflow-y:auto;scrollbar-width:thin}
+  /* Длинные списки не растягивают панели: скролл остаётся внутри содержимого. */
+  #dashGrid .col.left #alerts{max-height:52px;min-height:0;overflow-y:auto;scrollbar-width:thin}
+  #dashGrid .col.left #diagnosis{max-height:80px;min-height:0;overflow-y:auto;scrollbar-width:thin}
   #dashGrid .col.left #alerts .alert{margin-bottom:4px}
   #center{display:flex;flex-direction:column;gap:8px;justify-content:space-between}
   #center .spacer{flex:1}
@@ -373,6 +376,9 @@
     body.sheet-open #dashGrid .col.left,body.sheet-open #dashGrid .col.right{display:flex}
     #dashGrid .col .panel{display:none}
     #dashGrid .col .panel.sel{display:block}
+    /* На телефоне выбранная панель открывается отдельной высокой шторкой. */
+    #dashGrid .col.left #alerts{max-height:22vh}
+    #dashGrid .col.left #diagnosis{max-height:28vh}
     #toast{top:calc(var(--topH) + 6px);bottom:auto;font-size:11px;padding:6px 10px;max-width:92vw}
     #tutor{top:calc(var(--topH) + 8px);bottom:auto;width:calc(100vw - 12px);padding:8px 10px}
     #pred{left:6px;right:6px;width:auto;max-height:70vh}
