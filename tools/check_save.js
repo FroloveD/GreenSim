@@ -44,11 +44,12 @@ async function shot(page, file){
   await page.evaluate(()=>{ window.VG.freeze(true); });
   await page.waitForTimeout(300);
   const after = await page.evaluate(()=>({day:VG.world.day, money:Math.round(VG.world.money), kg:Math.round(VG.world.harvestedKg), crop:VG.world.crop,
-     plants:VG.world.plants.length, fruits:VG.world.plants[0].fruits.length, t:VG.world.temp}));
+     plants:VG.world.plants.length, fruits:VG.world.plants[0].fruits.length, t:VG.world.temp,
+     speed:VG.speed, activeSpeed:document.querySelector('.spd.on')?.dataset.s || null}));
   console.log('после загрузки:', JSON.stringify(after));
   const dMoney = Math.abs(after.money-before.money);
   const same = after.day===before.day && dMoney<=3 && after.crop===before.crop
-               && after.plants===8 && after.fruits>0;
+               && after.plants===8 && after.fruits>0 && after.speed===1 && after.activeSpeed==='1';
   console.log((same?'✅ ':'❌ ')+'состояние совпадает', same ? `день ${after.day}, деньги ±${dMoney} €` : JSON.stringify({before, after}));
   if (!same) process.exitCode = 1;
   await shot(page, path.join(SHOTS, '62_after_resume.png'));
