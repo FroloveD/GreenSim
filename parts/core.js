@@ -2712,7 +2712,10 @@ function deserializeWorld(text){
   assertSavePayload(pack);
   if (pack.v !== SAVE_VERSION && pack.v !== 1)
     throw new Error('версия сохранения '+pack.v+' не поддерживается');
-  const w = pack.world;
+  // Миграции выполняются на отдельном графе: входной объект не меняется,
+  // даже если проверка или восстановление завершится исключением.
+  const w = cloneWorld(pack.world);
+  pack.world = w;
   // миграция v1 → v2: склад, рынок, кампания
   w.cost = w.cost || {};
   if (w.cost.storage === undefined) w.cost.storage = 0;
