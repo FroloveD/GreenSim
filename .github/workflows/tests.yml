@@ -5,7 +5,7 @@ name: Автопроверки
 # Любая упавшая проверка роняет job — красный крестик виден прямо в PR/коммите.
 on:
   push:
-    branches: [ main, dev, agent/greensim-p0-stabilization ]
+    branches: [ main, dev, agent/stabilization ]
   pull_request:
   workflow_dispatch:
 
