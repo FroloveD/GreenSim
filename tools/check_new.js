@@ -47,8 +47,13 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   // шаг 4: покупка
   await page.evaluate(()=>{ window.VG.buy('thermo'); });
   await page.waitForTimeout(400);
-  // шаг 5: прогноз
-  await page.click('#btnPred'); await page.click('[data-pred="7"]');
+  // шаг 5: прогноз. Обучающий слой перекрывает часть панели, поэтому
+  // открытие и выбор периода выполняем через DOM click, не через координаты мыши.
+  await page.evaluate(()=>{
+    document.getElementById('btnPred').click();
+    const period=document.querySelector('[data-pred="7"]');
+    if(period) period.click();
+  });
   await page.waitForTimeout(2500);
   const st3 = await page.evaluate(()=>({visible:document.getElementById('tutor').classList.contains('on'),
      text:document.getElementById('tutorText').textContent.slice(0,50)}));
