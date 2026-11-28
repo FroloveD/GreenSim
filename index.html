@@ -3364,6 +3364,18 @@ function catchUp(w, hours){
   return {hours:h, days:w.day-d0, money:w.money-m0, kg:w.harvestedKg-kg0};
 }
 
+
+/* Догон выполняется транзакционно: при ошибке наружу возвращается исходный мир. */
+function catchUpTransactional(w, hours){
+  const candidate = cloneWorld(w);
+  try {
+    const result = catchUp(candidate, hours);
+    return {world:candidate, result, error:null};
+  } catch(error){
+    return {world:w, result:null, error};
+  }
+}
+
 /* ---------------- Контракты, миссии, займы ---------------- */
 function offerContracts(w){
   const C = CROPS[w.crop];
@@ -4100,70 +4112,131 @@ function escapeHTML(value){
 // Проверяем импорт до миграций и восстановления графа: файл сохранения недоверенный.
 function assertSavePayload(pack){
   const record=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
-  if(!record(pack)||!record(pack.world)) throw new Error('нет корректных данных мира');
+  const fail=label=>{ throw new Error('некорректное сохранение: '+label); };
+  const finite=(v,label,min=-1e12,max=1e12)=>{
+    if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max) fail(label);
+  };
+  const text=(v,label,max=20000)=>{
+    if(typeof v!=='string'||v.length>max) fail(label);
+  };
+  const array=(v,label,max)=>{
+    if(!Array.isArray(v)||v.length>max) fail(label);
+  };
+  if(!record(pack)||!record(pack.world)) fail('нет данных мира');
+  if(pack.v!==SAVE_VERSION&&pack.v!==1) fail('неподдерживаемая версия');
+  if(pack.ts!==undefined) finite(pack.ts,'временная метка',0,Number.MAX_SAFE_INTEGER);
+
+  // Общие ограничения глубины/объёма защищают JSON от патологических структур.
   const stack=[{value:pack,depth:0}],seen=new Set();let nodes=0;
   while(stack.length){
     const item=stack.pop(),v=item.value;
-    if(v===null||typeof v!=='object'){
-      if(typeof v==='string'&&v.length>200000) throw new Error('слишком длинное текстовое поле');
-      continue;
-    }
+    if(v===null||typeof v==='boolean') continue;
+    if(typeof v==='number'){ finite(v,'числовое значение'); continue; }
+    if(typeof v==='string'){ if(v.length>200000) fail('слишком длинная строка'); continue; }
+    if(typeof v!=='object') fail('недопустимый тип значения');
     if(seen.has(v)) continue;
     seen.add(v);
-    if(++nodes>300000) throw new Error('сохранение слишком сложное');
-    if(item.depth>64) throw new Error('слишком глубокая структура сохранения');
-    if(!Array.isArray(v)){
+    if(++nodes>300000) fail('слишком сложная структура');
+    if(item.depth>64) fail('слишком глубокая структура');
+    if(Array.isArray(v)){ if(v.length>100000) fail('слишком большой массив'); }
+    else {
       const proto=Object.getPrototypeOf(v);
-      if(proto!==Object.prototype&&proto!==null) throw new Error('недопустимый тип объекта в сохранении');
-    }else if(v.length>100000) throw new Error('слишком большой массив в сохранении');
+      if(proto!==Object.prototype&&proto!==null) fail('недопустимый тип объекта');
+    }
     for(const key of Object.keys(v)){
-      if(key.length>256||key==='__proto__'||key==='prototype'||key==='constructor')
-        throw new Error('недопустимое поле в сохранении');
+      if(key.length>256||key==='__proto__'||key==='prototype'||key==='constructor') fail('недопустимое имя поля');
       stack.push({value:v[key],depth:item.depth+1});
     }
   }
+
   const w=pack.world;
-  const checkText=(v,label,max=20000)=>{
-    if(typeof v!=='string'||v.length>max) throw new Error('некорректное поле '+label);
-  };
-  if(w.mail!==undefined){
-    if(!Array.isArray(w.mail)||w.mail.length>250) throw new Error('некорректный список писем');
-    for(const m of w.mail){
-      if(!record(m)) throw new Error('некорректное письмо');
-      checkText(m.id,'mail.id',120);checkText(m.subj,'mail.subj',500);checkText(m.body,'mail.body',12000);
-      if(!Array.isArray(m.opts)||m.opts.length>8) throw new Error('некорректные варианты письма');
-      for(const o of m.opts){
-        if(!record(o)) throw new Error('некорректный вариант письма');
-        checkText(o.label,'mail.opts.label',500);
-        if(o.desc!==undefined) checkText(o.desc,'mail.opts.desc',1200);
+  if(typeof w.profile!=='string'||!PROFILES[w.profile]) fail('неизвестный профиль');
+  if(typeof w.crop!=='string'||!CROPS[w.crop]) fail('неизвестная культура');
+  if(w.sys!==undefined&& (typeof w.sys!=='string'||!GROW_SYS[w.sys])) fail('неизвестная система выращивания');
+  if(w.diffId!==undefined&&typeof w.diffId!=='string') fail('сложность');
+  for(const [key,min,max] of [
+    ['day',1,1e7],['doy',1,365],['hour',0,24],['money',-1e9,1e12],
+    ['startMoney',-1e9,1e12],['area',0.01,1e7],['seasonDays',1,1e6],
+    ['seed',0,4294967295],['rngState',0,4294967295],['temp',-100,100],
+    ['co2',0,100000],['rh',0,100],['moist',0,100],['plantScale',0,1e6]
+  ]) if(w[key]!==undefined) finite(w[key],'world.'+key,min,max);
+  for(const key of ['day','doy','hour','money','area']) if(w[key]===undefined) fail('отсутствует world.'+key);
+
+  // Эти структуры непосредственно используются симуляцией и рендером.
+  array(w.plants,'список растений',100);
+  if(!w.plants.length) fail('пустой список растений');
+  for(const [i,p] of w.plants.entries()){
+    if(!record(p)) fail('растение #'+i);
+    for(const key of ['leaves','trusses','fruits']) array(p[key],'растение.'+key,5000);
+    for(const [j,tr] of p.trusses.entries()){
+      if(!record(tr)) fail('кисть #'+j);
+      if(tr.fruits!==undefined) array(tr.fruits,'плоды кисти',500);
+    }
+  }
+  for(const key of ['events','contracts','history','log','mail','warranty'])
+    if(w[key]!==undefined) array(w[key],'world.'+key,key==='log'?10000: key==='history'?10000:5000);
+  for(const key of ['stock','cost','ctrl','has','equip','env','meas','drift','auto','wh','market','net'])
+    if(w[key]!==undefined&&!record(w[key])) fail('world.'+key);
+
+  if(w.stock){
+    for(const key of ['fertKg','co2Kg','waterM3','seeds']) if(w.stock[key]!==undefined) finite(w.stock[key],'stock.'+key,0,1e9);
+  }
+  if(w.wh){
+    if(w.wh.sections!==undefined) finite(w.wh.sections,'wh.sections',0,1000);
+    if(w.wh.lots!==undefined){
+      array(w.wh.lots,'партии склада',5000);
+      for(const lot of w.wh.lots){
+        if(!record(lot)||!CROPS[lot.crop]) fail('партия склада');
+        for(const key of ['kg','age','day','shelf','q']) if(lot[key]!==undefined) finite(lot[key],'параметр партии',0,1e9);
       }
     }
   }
-  if(w.log!==undefined){
-    if(!Array.isArray(w.log)||w.log.length>10000) throw new Error('некорректный журнал событий');
-    for(const l of w.log){
-      if(!record(l)) throw new Error('некорректная запись журнала');
-      checkText(l.t,'log.t',300);checkText(l.m,'log.m',3000);
-      if(l.k!==undefined) checkText(l.k,'log.k',80);
+  if(w.market&&w.market.mult){
+    if(!record(w.market.mult)) fail('множители рынка');
+    for(const crop of Object.keys(w.market.mult)){
+      if(!CROPS[crop]) fail('культура рынка');
+      finite(w.market.mult[crop],'множитель рынка',0,1000);
     }
   }
-  if(w.contracts!==undefined){
-    if(!Array.isArray(w.contracts)||w.contracts.length>200) throw new Error('некорректный список контрактов');
-    for(const c of w.contracts){
-      if(!record(c)) throw new Error('некорректный контракт');
-      if(c.label!==undefined) checkText(c.label,'contract.label',500);
-      if(c.id!==undefined&&typeof c.id!=='string'&&typeof c.id!=='number') throw new Error('некорректный id контракта');
+  if(w.camp!==undefined&&w.camp!==null){
+    if(!record(w.camp)) fail('кампания');
+    if(w.camp.ch!==undefined) finite(w.camp.ch,'глава кампании',0,10);
+  }
+  if(w.site!==undefined){
+    if(!record(w.site)) fail('локация');
+    if(w.site.id!==undefined&&typeof w.site.id!=='string') fail('идентификатор локации');
+  }
+  if(w.mail!==undefined) for(const m of w.mail){
+    if(!record(m)) fail('письмо');
+    text(m.id,'mail.id',120);text(m.subj,'mail.subj',500);text(m.body,'mail.body',12000);
+    array(m.opts,'варианты письма',8);
+    for(const o of m.opts){
+      if(!record(o)) fail('вариант письма');
+      text(o.label,'mail.opts.label',500);
+      if(o.desc!==undefined) text(o.desc,'mail.opts.desc',1200);
     }
+  }
+  if(w.log!==undefined) for(const entry of w.log){
+    if(!record(entry)) fail('запись журнала');
+    text(entry.t,'log.t',300);text(entry.m,'log.m',3000);
+    if(entry.k!==undefined) text(entry.k,'log.k',80);
+  }
+  if(w.contracts!==undefined) for(const c of w.contracts){
+    if(!record(c)) fail('контракт');
+    if(c.label!==undefined) text(c.label,'contract.label',500);
+    if(c.crop!==undefined&&!CROPS[c.crop]) fail('культура контракта');
   }
   return pack;
 }
-
 function deserializeWorld(text){
   if(typeof text==='string'&&text.length>12*1024*1024) throw new Error('файл сохранения превышает 12 МБ');
-  const pack = (typeof text === 'string') ? JSON.parse(text) : text;
-  assertSavePayload(pack);
-  if (pack.v !== SAVE_VERSION && pack.v !== 1)
-    throw new Error('версия сохранения '+pack.v+' не поддерживается');
+  const input = (typeof text === 'string') ? JSON.parse(text) : text;
+  assertSavePayload(input);
+  if (input.v !== SAVE_VERSION && input.v !== 1)
+    throw new Error('версия сохранения '+input.v+' не поддерживается');
+  // Клонируем весь пакет: миграции и восстановление графа не мутируют
+  // объект, переданный вызывающим кодом, даже при последующем исключении.
+  const pack = cloneWorld(input);
   const w = pack.world;
   // миграция v1 → v2: склад, рынок, кампания
   w.cost = w.cost || {};
@@ -5652,7 +5725,19 @@ function clearSave(){
   if (page==='settings') renderSettings();
 }
 function applyLoadedWorld(pack, silent){
-  world = pack.world;
+  // Сначала моделируем офлайн-догон на копии. При исключении загружаем
+  // проверенное сохранение без догоняющей симуляции, не оставляя полумир.
+  let loaded = pack.world, away = null, catchUpError = null;
+  try {
+    const hours = (Date.now() - (pack.ts||Date.now()))/3600000;
+    if (hours > 0.05){
+      const transaction = catchUpTransactional(loaded, hours);
+      away = transaction.result;
+      loaded = transaction.world;
+      catchUpError = transaction.error;
+    }
+  } catch(e){ catchUpError = e; }
+  world = loaded;
   // Возобновляем единый AudioContext непосредственно из пользовательского действия «Продолжить».
   if (SFX.on) SFX.arm();
   if (!world.has) world.has = {};
@@ -5662,12 +5747,6 @@ function applyLoadedWorld(pack, silent){
   tutorStep = Math.max(0, Math.min(TUTOR.length, Number.isInteger(world.tutorialStep) ? world.tutorialStep : 0));
   resetTutorFlags();
   tutorDone = !world.tutorialEnabled || !!world.tutorialCompleted;
-  // пока вкладка была закрыта, время шло: догоняем по реальным часам (максимум 3 суток)
-  let away = null;
-  try {
-    const hours = (Date.now() - (pack.ts||Date.now()))/3600000;
-    if (hours > 0.05) away = catchUp(world, hours);
-  } catch(e){}
   if (away && away.hours > 0.1){
     const hh = away.hours < 1 ? Math.round(away.hours*60)+' мин' : away.hours.toFixed(1)+' ч';
     world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`, k:'hl'});
@@ -5685,6 +5764,7 @@ function applyLoadedWorld(pack, silent){
   lastSavedDay = world.day;
   setPage('greenhouse');
   renderAll();
+  if (catchUpError) toast('Офлайн-догон не применён; загружено последнее сохранённое состояние: '+catchUpError.message);
   if (!silent) toast('Сезон загружен: день '+world.day+', '+money(world.money));
 }
 function loadFromStorage(){
