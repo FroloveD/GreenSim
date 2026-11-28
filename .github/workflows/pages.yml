@@ -1,10 +1,10 @@
-name: Deploy to GitHub Pages
+name: Deploy GreenSim versions to GitHub Pages
 
 on:
   push:
     branches:
-      - dev
       - agent/greensim-p0-stabilization
+      - test/pwa-mode-menu-scroll-2026-11-28
   workflow_dispatch:
 
 permissions:
@@ -13,40 +13,82 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: greensim-pages
   cancel-in-progress: false
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout рабочей версии
+        uses: actions/checkout@v7
+        with:
+          ref: agent/greensim-p0-stabilization
+          path: source/agent
+
+      - name: Checkout тестовой версии
+        uses: actions/checkout@v7
+        with:
+          ref: test/pwa-mode-menu-scroll-2026-11-28
+          path: source/test
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Сборка и проверка index.html из parts/*
+      - name: Собрать и проверить обе версии
+        shell: bash
         run: |
-          test -s index.html
-          bash build.sh
-          if ! git diff --quiet -- index.html; then
-            echo "::error::index.html не совпадает со сборкой из parts/*"
-            git diff --stat -- index.html
-            exit 1
-          fi
+          set -euo pipefail
+          mkdir -p dist
+          for version in agent test; do
+            echo "::group::Проверка версии $version"
+            (
+              cd "source/$version"
+              test -s index.html
+              bash build.sh
+              if ! git diff --quiet -- index.html; then
+                echo "::error::index.html не совпадает со сборкой из parts/* в версии $version"
+                git diff --stat -- index.html
+                exit 1
+              fi
+              node test6_economy.js
+              node test7_story.js
+              node test8_security.js
+            )
+            mkdir -p "dist/$version"
+            rsync -a --exclude='.git' --exclude='.github' --exclude='node_modules' "source/$version/" "dist/$version/"
+            echo "::endgroup::"
+          done
 
-      - name: Автотесты экономики, кампании и безопасности
+      - name: Главная страница со ссылками на версии
         run: |
-          node test6_economy.js
-          node test7_story.js
-          node test8_security.js
+          cat > dist/index.html <<'HTML'
+          <!doctype html>
+          <html lang="ru">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <meta name="theme-color" content="#151009">
+            <title>GreenSim — версии</title>
+            <style>
+              *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#151009;color:#f8ecd6;font:16px/1.5 system-ui,sans-serif}
+              main{width:min(560px,calc(100% - 32px));padding:28px;background:#241b11;border:2px solid #0a0806;box-shadow:6px 6px #0a0806}
+              h1{margin:0 0 8px;color:#ffc21a}p{color:#c2a67e}a{display:block;margin-top:12px;padding:14px;background:#342719;color:#ffc21a;text-decoration:none;border:1px solid #80602e}a:hover{background:#46351f}
+            </style>
+          </head>
+          <body><main><h1>GreenSim</h1><p>Выберите версию симулятора:</p>
+            <a href="./agent/">Рабочая версия (agent)</a>
+            <a href="./test/">Тестовая версия (test)</a>
+          </main></body>
+          </html>
+          HTML
 
       - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: .
+          path: dist
 
   deploy:
     needs: build-and-test
