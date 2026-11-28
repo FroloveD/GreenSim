@@ -12,7 +12,7 @@ const M = new Function(src.slice(a,b) + `
           climateTick,CROPS,
           SITES,SITE_LIST,siteById,siteNormals,normAt,todayDoy,doyFromDate,dateFromDoy,
           ORIENTS,outsideClimate,EQUIP_DEFS,WARRANTY,riskTick,fmtDate,
-          serializeWorld,deserializeWorld,assertSavePayload,catchUp,catchUpTransactional,SAVE_VERSION};`)();
+          serializeWorld,deserializeWorld,assertSavePayload,cloneWorld,catchUp,catchUpTransactional,SAVE_VERSION};`)();
 
 let fails = 0;
 const ok = (c, m, extra)=>{ if(!c) fails++; console.log((c?'✅ ':'❌ ')+m+(extra!==undefined?' — '+extra:'')); };
