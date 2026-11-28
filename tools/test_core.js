@@ -184,12 +184,12 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
 // 9. таймеры: свободный сезон даёт всё, кампания — по главам
 {
   const w = M.makeWorld({profile:'farm', crop:'tomato', seed:6});
-  w.has.climatePC = true; w.has.co2 = true;
+  w.has.autoTimer = true; w.has.climatePC = true; w.has.co2 = true;
   ok(M.AUTO_KEYS.every(k=>M.autoAllowed(w,k.id)), 'свободный сезон: все таймеры доступны',
      M.AUTO_KEYS.map(k=>k.id).join(' '));
 
   const c = M.makeWorld({profile:'balcony', crop:'tomato', seed:6, campaign:true});
-  c.has.co2 = true; c.has.climatePC = true;      // оборудование уже куплено: проверяем только главы
+  c.has.autoTimer = true; c.has.co2 = true; c.has.climatePC = true;      // оборудование уже куплено: проверяем только главы
   const ladder = [0,1,2,3].map(ch=>{
     c.camp.ch = ch;
     return M.AUTO_KEYS.filter(k=>M.autoAllowed(c,k.id)).map(k=>k.id).join('+') || '—';
@@ -199,7 +199,8 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
      'кампания открывает таймеры по шагам', ladder.join(' → '));
   c.camp.ch = 0;                                   // на балконе автоматизации ещё нет
   const denyFull = M.setAuto(c, 'full', true);
-  const denyLampCh = M.setAuto(M.makeWorld({profile:'balcony', crop:'tomato', campaign:true}), 'water', true);
+  const noTimer = M.makeWorld({profile:'balcony', crop:'tomato', campaign:true}); noTimer.has.autoTimer = true;
+  const denyLampCh = M.setAuto(noTimer, 'water', true);
   ok(denyFull.ok === false && /главе/i.test(denyFull.msg), 'на балконе автоматизация не раньше срока', denyFull.msg);
   ok(denyLampCh.ok === false && /главе 2/i.test(denyLampCh.msg), 'полив обещан во 2-й главе', denyLampCh.msg);
   c.camp.ch = 3; c.has.climatePC = true;
@@ -209,7 +210,7 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
 // 10. таймеры ставят уставки: свет по окну, полив по датчику, CO₂ в окне
 {
   const w = M.makeWorld({profile:'farm', crop:'tomato', seed:6});
-  w.has.co2 = true; w.stock.co2Kg = 30; w.stock.waterM3 = 50;
+  w.has.autoTimer = true; w.has.co2 = true; w.stock.co2Kg = 30; w.stock.waterM3 = 50;
   M.setAuto(w, 'lamp', true); w.auto.lamp.from = 6; w.auto.lamp.to = 22;
   w.hour = 9;  M.autoTick(w, 0.5); const day = !!w.ctrl.lampEnabled;
   w.hour = 23; M.autoTick(w, 0.5); const night = !!w.ctrl.lampEnabled;
