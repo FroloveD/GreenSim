@@ -461,6 +461,16 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 .story-actions .btn{min-width:140px}
 @media(max-width:560px){.story-grid{grid-template-columns:1fr}.story-sheet{padding:18px!important}.story-sheet .menu-title{font-size:27px}}
 #mainMenu .menu-sheet{width:min(560px,94vw);max-height:90vh;overflow:auto;padding:clamp(22px,5vw,42px);border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 20px 70px #0008}
+.menu-sound-controls{margin-top:14px;padding:13px 15px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
+.menu-sound-head,.menu-sound-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.menu-sound-head{font-weight:700;margin-bottom:10px}
+.menu-sound-row{font-size:12px;color:var(--dim);margin-top:8px}
+.menu-sound-row select{max-width:58%;min-width:145px}
+.menu-sound-row input[type=range]{width:55%;min-width:120px}
+.menu-sound-row label{flex:1}
+#btnSoundToggle,#btnSoundSettings{min-width:34px;padding:6px 8px;font-size:14px}
+@media(max-width:560px){.menu-sound-row{align-items:flex-start;flex-wrap:wrap}.menu-sound-row select,.menu-sound-row input[type=range]{max-width:100%;width:100%}}
+
 .menu-kicker{font-size:11px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
 .menu-title{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:.04em;margin:8px 0 4px}
 .menu-subtitle{color:var(--dim);margin:0 0 24px}
@@ -885,12 +895,22 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     <button id="menuContinue" hidden><span class="menu-symbol">🚪</span><span><b>Продолжить</b><small>Вернуться к последнему сохранению</small></span><span class="menu-card-arrow">→</span></button>
     <button id="menuSettings"><span class="menu-symbol">🧰</span><span><b>Настройки</b><small>Подкрутить управление и внешний вид</small></span><span class="menu-card-arrow">→</span></button>
   </div>
+  <div class="menu-sound-controls" aria-label="Настройки звука">
+    <div class="menu-sound-head"><span>🔊 Звук и атмосфера</span><button class="btn" id="menuSoundToggle" type="button" aria-pressed="true">Вкл</button></div>
+    <div class="menu-sound-row"><label for="menuSoundPreset">Фоновая сцена</label><select id="menuSoundPreset">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'">'+p.label+'</option>').join('')}</select></div>
+    <div class="menu-sound-row"><label for="menuSoundVol">Громкость <b id="menuSoundVolValue">70%</b></label><input id="menuSoundVol" type="range" min="0" max="100" step="5" value="70"></div>
+  </div>
   <div class="menu-footer"><span>🌼</span> Растим не спеша. Ошибаемся, учимся, собираем урожай.</div>
 </div></div>
 <div id="mainSettings" class="modal"><div class="sheet">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h2 style="margin:0">Настройки</h2><button class="btn" id="mainSettingsClose">Закрыть</button></div>
   <div class="card" style="margin-top:12px"><b>Управление камерой</b><p class="hint">Как камера наклоняется при перетаскивании мышью или пальцем.</p><button class="btn" id="menuCameraInvert">Наклон камеры: обычный</button></div>
   <div class="card"><b>Отображение валюты</b><p class="hint">Меняет подписи сумм, но не игровую экономику.</p><select id="menuCurrency"><option value="eur">€ Евро</option><option value="rub">₽ Рубли</option></select></div>
+  <div class="card" id="mainSoundCard"><b>Звук и атмосфера</b>
+    <div class="menu-sound-row"><label>Звуки включены</label><button class="btn" id="settingsSoundToggle" type="button" aria-pressed="true">Вкл</button></div>
+    <div class="menu-sound-row"><label for="settingsSoundPreset">Фоновая сцена</label><select id="settingsSoundPreset">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'">'+p.label+'</option>').join('')}</select></div>
+    <div class="menu-sound-row"><label for="settingsSoundVol">Общая громкость <b id="settingsSoundVolValue">70%</b></label><input id="settingsSoundVol" type="range" min="0" max="100" step="5" value="70"></div>
+  </div>
   <p class="hint">Климат, питание, свет и автоматизация настраиваются отдельно внутри игрового сезона.</p>
 </div></div>
 
@@ -919,6 +939,8 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
       <button class="spd" data-s="480">480×</button>
       <button id="btnPred">Прогноз</button>
       <button id="btnSave" title="Сохранить сезон (Ctrl+S)"><svg width="13" height="13" viewBox="0 0 16 16" style="vertical-align:-2px" aria-hidden="true"><path d="M2 2h9l3 3v9H2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5 2v4h6V2M5 10h6v4H5z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+      <button id="btnSoundToggle" type="button" title="Включить или выключить звук" aria-label="Выключить звук" aria-pressed="true">🔊</button>
+      <button id="btnSoundSettings" type="button" title="Настройки звука" aria-label="Открыть настройки звука">⚙</button>
       <button id="btnHelp">?</button>
     </div>
   </div>

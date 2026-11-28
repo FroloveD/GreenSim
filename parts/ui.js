@@ -301,12 +301,46 @@ const SFX = (()=>{
   };
 })();
 function playSfx(name, opt){ try { return SFX.play(name, opt); } catch(e){ return false; } }
+function syncSoundControls(){
+  const on=SFX.on, vol=Math.round(SFX.vol*100), preset=SFX.preset;
+  const toggleIds=['menuSoundToggle','settingsSoundToggle','btnSoundToggle','btnSndSet'];
+  toggleIds.forEach(id=>{
+    const el=$(id); if(!el)return;
+    const compact=id==='btnSoundToggle';
+    el.textContent=compact?(on?'🔊':'🔇'):(on?'Вкл':'Выкл');
+    el.classList.toggle('good',on);
+    el.setAttribute('aria-pressed',String(on));
+    if(id==='btnSoundToggle')el.setAttribute('aria-label',on?'Выключить звук':'Включить звук');
+  });
+  [['menuSoundPreset','menuSoundVol','menuSoundVolValue'],['settingsSoundPreset','settingsSoundVol','settingsSoundVolValue'],['sndPreset','sndVol','sndVolValue']].forEach(([pid,vid,lid])=>{
+    const p=$(pid),v=$(vid),l=$(lid);
+    if(p)p.value=preset;
+    if(v)v.value=String(vol);
+    if(l)l.textContent=vol+'%';
+  });
+  const state=$('soundState');if(state)state.textContent=(on?'эффекты включены':'эффекты выключены')+' · '+vol+'%';
+}
 function toggleSound(){
   SFX.arm();
   const on=SFX.setOn(!SFX.on);
+  syncSoundControls();
   toast(on?'Звук включён':'Звук выключен');
   if(page==='settings') renderSettings();
   return on;
+}
+function bindSoundControls(){
+  ['menuSoundToggle','settingsSoundToggle','btnSoundToggle','btnSndSet'].forEach(id=>{const el=$(id);if(el)el.onclick=()=>toggleSound();});
+  [['menuSoundPreset','menuSoundVol','menuSoundVolValue'],['settingsSoundPreset','settingsSoundVol','settingsSoundVolValue']].forEach(([pid,vid,lid])=>{
+    const p=$(pid),v=$(vid),l=$(lid);
+    if(p)p.onchange=()=>{SFX.arm();SFX.setPreset(p.value);syncSoundControls();};
+    if(v)v.oninput=()=>{SFX.arm();SFX.setVol(v.value/100);syncSoundControls();};
+  });
+  const toolbarSettings=$('btnSoundSettings');
+  if(toolbarSettings)toolbarSettings.onclick=()=>{
+    $('mainSettings').classList.add('on');
+    setTimeout(()=>{const card=$('mainSoundCard');if(card)card.scrollIntoView({behavior:'smooth',block:'center'});},0);
+  };
+  syncSoundControls();
 }
 
 
@@ -1726,18 +1760,15 @@ function renderSettings(){
   bind('co2','co2Set', v=>v+' ppm');
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
-  if ($('btnSndSet')) $('btnSndSet').onclick = ()=>toggleSound();
   if ($('sndVol')) $('sndVol').oninput = ()=>{
-    SFX.arm(); SFX.setVol($('sndVol').value/100);
-    const value=$('sndVolValue'); if(value)value.textContent=Math.round(SFX.vol*100)+'%';
-    const state=$('soundState'); if(state)state.textContent=(SFX.on?'эффекты включены':'эффекты выключены')+' · '+Math.round(SFX.vol*100)+'%';
+    SFX.arm(); SFX.setVol($('sndVol').value/100); syncSoundControls();
   };
   if ($('sndPreset')) $('sndPreset').onchange = ()=>{
-    SFX.arm();SFX.setPreset($('sndPreset').value);toast('Фоновый звук: '+SFX.presetLabel());
+    SFX.arm();SFX.setPreset($('sndPreset').value);syncSoundControls();toast('Фоновый звук: '+SFX.presetLabel());
   };
   if ($('btnSndTest')) $('btnSndTest').onclick = ()=>{
     SFX.arm(); if(!SFX.on) SFX.setOn(true);
-    SFX.play('buy'); renderSettings();
+    SFX.play('buy'); syncSoundControls(); renderSettings();
   };
   $('btnLampSet').onclick = ()=>{
     const r = toggleLamp(world);
@@ -2324,6 +2355,7 @@ $('menuFree').onclick=()=>openNewGame('free');
 $('menuContinue').onclick=()=>loadFromStorage();
 $('menuSettings').onclick=()=> $('mainSettings').classList.add('on');
 $('mainSettingsClose').onclick=()=> $('mainSettings').classList.remove('on');
+bindSoundControls();
 $('menuCameraInvert').onclick=()=>{ setCamInvertY(!camInvertY); $('menuCameraInvert').textContent=camInvertY?'Наклон камеры: инвертирован':'Наклон камеры: обычный'; };
 $('menuCurrency').onchange=e=>setCurrency(e.target.value);
 
