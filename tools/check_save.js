@@ -36,6 +36,10 @@ async function shot(page, file){
   // перезагрузка страницы: должен появиться баннер «Продолжить»
   await page.reload({ waitUntil:'domcontentloaded' });
   await page.waitForTimeout(900);
+  // После перезагрузки приветственная заставка показывается снова; закрываем её,
+  // чтобы проверить реальную видимость кнопки «Продолжить» в главном меню.
+  await page.click('#introContinue');
+  await page.waitForTimeout(200);
   const banner = await page.evaluate(()=>{ const b=document.getElementById('resumeBox');
     return {shown: !!document.getElementById('btnResume'), text: b ? b.textContent.replace(/\s+/g,' ').slice(0,150) : 'нет' }; });
   console.log('баннер:', JSON.stringify(banner));

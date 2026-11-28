@@ -53,6 +53,9 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   const st3 = await page.evaluate(()=>({visible:document.getElementById('tutor').classList.contains('on'),
      text:document.getElementById('tutorText').textContent.slice(0,50)}));
   console.log('после всех шагов:', JSON.stringify(st3));
+  // Обучение сворачиваем штатной кнопкой, чтобы оно не перекрывало доступ
+  // к панели прогноза и не мешало проверке следующих действий.
+  await page.evaluate(()=>document.getElementById('tutorFold').click());
   // слой света + наведение
   await page.click('#btnPred'); await page.waitForTimeout(300);
   await page.evaluate(()=>window.VG.cam('plant'));

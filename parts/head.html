@@ -64,6 +64,13 @@
   #page-greenhouse{pointer-events:none}
   #dashGrid .col,#center,#center .spacer{pointer-events:none}
   #page-greenhouse .panel,#page-greenhouse .camBar,#page-greenhouse .quickBar,#page-greenhouse .bottomBar{pointer-events:auto}
+  /* Панель управления визуально лежит поверх сцены, но её пустой фон не должен
+     блокировать клики по горшкам и светильникам. Интерактивными остаются кнопки. */
+  #page-greenhouse #controlDock,
+  #page-greenhouse #controlDock .camBar,
+  #page-greenhouse #controlDock .quickBar,
+  #page-greenhouse #controlDock #sceneHint{pointer-events:none}
+  #page-greenhouse #controlDock button{pointer-events:auto}
   .col{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:100%}
   /* Левая колонка: панели делят доступную высоту, пользователь может
      свернуть их или поменять порядок. Содержимое прокручивается внутри панели. */
