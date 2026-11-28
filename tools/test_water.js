@@ -131,7 +131,7 @@ const ok = (c, m, extra)=>{
     const r = await page.evaluate(()=>{
       world.stock.waterM3 = 0.005; world.moist = 25;
       window.__toasts.length = 0;
-      document.getElementById('btnWaterQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
+      document.getElementById('btnWaterQuick').click();
       return { moist:+world.moist.toFixed(1), toast: window.__toasts[0]||'', water:+world.stock.waterM3.toFixed(3) };
     });
     ok(r.moist === 25, 'без воды влага не выросла', r.moist + '%');
