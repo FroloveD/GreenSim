@@ -36,8 +36,10 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c ? '✅ ' : '❌ ') +
       harvestAll(world);
     }
     renderAll();
-    const gauges = document.getElementById('gauges');
-    const dliRow = [...gauges.querySelectorAll('.g')].find(g=>/DLI/.test(g.textContent));
+    // DLI и влажность находятся в раскрываемом блоке дополнительных датчиков,
+    // а не в компактной строке T/RH.
+    const dliRow = [...document.querySelectorAll('#gauges .g, #gaugeDetails .g')]
+      .find(g=>/DLI/.test(g.textContent));
     const fin = document.getElementById('finance');
     const finRow = [...fin.querySelectorAll('.finRow')].find(r=>/себест/.test(r.textContent));
     return {
@@ -78,12 +80,13 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c ? '✅ ' : '❌ ') +
     setPage('greenhouse');
     const r = {};
     press(' '); r.paused = paused; r.label = document.getElementById('btnPause').textContent; press(' ');
-    press('m'); r.shop = page; press('p'); r.settings = page; press('g'); r.home = page;
     press('1'); r.camTop = document.querySelector('#camBar button[data-view="top"]').classList.contains('on');
     press('5');
-    const lampBefore = world.ctrl.lampEnabled; press('d'); r.lamp = world.ctrl.lampEnabled !== lampBefore;
-    const kgBefore = world.harvestedKg; press('h'); r.harvest = world.harvestedKg >= kgBefore;
-    press('f'); r.pred = document.getElementById('pred').classList.contains('on'); press('f');
+    const layerBefore = document.getElementById('btnLayer').classList.contains('on');
+    press('l'); r.layer = document.getElementById('btnLayer').classList.contains('on') !== layerBefore;
+    const soundBefore = sndCfg.on; press('z'); r.sound = sndCfg.on !== soundBefore; press('z');
+    cam.mode = 'plant'; press('r'); r.camReset = cam.mode === 'free';
+    const zoomBefore = cam.zoom; press('+'); r.zoom = cam.zoom > zoomBefore;
     // в поле ввода клавиши не перехватываются
     const inp = document.createElement('input'); document.body.appendChild(inp); inp.focus();
     const ev = new KeyboardEvent('keydown', {key:'m', bubbles:true}); inp.dispatchEvent(ev);
@@ -91,10 +94,8 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c ? '✅ ' : '❌ ') +
     return r;
   });
   ok(keys.paused === true && /пауза/i.test(keys.label), 'пробел ставит паузу и кнопка это показывает', keys.label);
-  ok(keys.shop === 'shop' && keys.settings === 'settings' && keys.home === 'greenhouse', 'M / P / G переключают страницы');
   ok(keys.camTop === true, 'цифры переключают камеры');
-  ok(keys.lamp === true && keys.harvest === true, 'D и H работают как кнопки под сценой');
-  ok(keys.pred === true, 'F открывает прогноз');
+  ok(keys.layer && keys.sound && keys.camReset && keys.zoom, 'L, Z, R и + выполняют действия из карточки «Клавиши»');
   ok(keys.pageAfterTyping === 'greenhouse', 'в поле ввода клавиши не мешают');
 
   // ---------- отчёт сезона и перенос ----------

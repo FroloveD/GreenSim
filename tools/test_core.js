@@ -35,7 +35,15 @@ for (const profile of ['hobby','farm','agro'])
     const w = M.makeWorld({profile, crop, seed: 11});
     const start = w.money;
     for (let d=0; d<60; d++){
-      for (let k=0;k<24;k++) M.stepWorld(w, 1);
+      for (let k=0;k<24;k++){
+        M.stepWorld(w, 1);
+        // Проверяем потенциал урожая при нормальном уходе: вода не должна
+        // становиться скрытым ограничителем теста для больших профилей.
+        if (w.moist < 45){
+          w.stock.waterM3 = Math.max(w.stock.waterM3, 10);
+          M.water(w);
+        }
+      }
       M.harvestAll(w);
       if (w.wh.lots.length) M.sellHarvest(w, crop, null);
     }

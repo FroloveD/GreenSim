@@ -26,6 +26,8 @@ const ctxStub=new Proxy({},{get(t,k){
   return noop;
 },set(){return true;}});
 global.document={
+  // Современный UI хранит флаг однократной привязки датчиков на корневом html-узле.
+  documentElement: makeEl('html'),
   getElementById(id){ return store[id]||(store[id]=makeEl(id)); },
   querySelectorAll(){ return []; },
   querySelector(){ return null; },

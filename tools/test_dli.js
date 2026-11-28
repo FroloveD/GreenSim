@@ -9,6 +9,17 @@ const M = new Function(src.slice(a,b) + `
 let fails = 0;
 const ok = (c, m, extra)=>{ if(!c) fails++; console.log((c?'✅ ':'❌ ')+m+(extra!==undefined?' — '+extra:'')); };
 const close = (a,b,t=0.01)=>Math.abs(a-b)<=t;
+// Убираем конкурирующие причины только в тесте ранжирования диагностики.
+// Модель климата и её реальные штрафы этим не изменяются.
+function neutralizeDiagnosis(w){
+  w.temp=24; w.stress=0; w.moist=55; w.waterStress=0;
+  w.stock.waterM3=20; w.stock.fertKg=20; w.co2=520; w.disease=0;
+  w.pest.active=false; w.ctrl.ecSet=2.4; w.ctrl.phSet=5.8;
+  for(const p of w.plants){
+    p.age=15;
+    for(const lf of p.leaves) lf.area=Math.max(lf.area,0.08);
+  }
+}
 
 // 1. Нормы DLI и фотопериода заданы для всех культур.
 const crops = Object.keys(M.CROPS);
@@ -54,6 +65,7 @@ ok(crops.every(k=>M.CROPS[k].dliMin>0 && M.CROPS[k].dliMin<M.CROPS[k].dliTgt &&
 {
   const w=M.makeWorld({profile:'hobby',crop:'tomato',seed:41,site:'ekb',startDoy:15});
   for(let h=0;h<11;h++) M.stepWorld(w,1);
+  neutralizeDiagnosis(w);
   const item=M.diagnose(w).items.find(x=>/^DLI /.test(x.text));
   ok(!!item, 'дефицит DLI попадает в диагностику', item && item.text);
   ok(!!(item&&item.why&&item.risk&&item.action), 'сообщение содержит почему, риск и что сделать');
@@ -63,7 +75,10 @@ ok(crops.every(k=>M.CROPS[k].dliMin>0 && M.CROPS[k].dliMin<M.CROPS[k].dliTgt &&
 {
   const w=M.makeWorld({profile:'hobby',crop:'tomato',seed:51,site:'ekb',startDoy:15});
   w.hour=0; w.has.ledStrip=true; w.ctrl.lampEnabled=true;
-  for(let h=0;h<24;h++) M.stepWorld(w,1);
+  // 50 ч нужны, чтобы в истории уже был полный 24-часовой фотопериод
+  // с круглосуточной лампой; первый неполный день не даёт такого предупреждения.
+  for(let h=0;h<50;h++) M.stepWorld(w,1);
+  neutralizeDiagnosis(w);
   const item=M.diagnose(w).items.find(x=>/Фотопериод/.test(x.text));
   ok(!!item, 'слишком длинный фотопериод обнаруживается', item && item.text);
 }

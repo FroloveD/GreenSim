@@ -35,7 +35,7 @@ const ok = (c, m, extra)=>{
       const hasLamp = hasLight(world), hasLed = !!world.has.led;
       const before = !!world.ctrl.lampEnabled;
       window.__toasts.length = 0;
-      document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
+      document.getElementById('btnLampQuick').click();
       const afterOne = !!world.ctrl.lampEnabled;
       const toasts1 = window.__toasts.slice();
       document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
@@ -96,7 +96,7 @@ const ok = (c, m, extra)=>{
   {
     const r = await page.evaluate(()=>{
       world.ctrl.lampEnabled = false; renderAll(); renderSettings();
-      document.getElementById('btnLampSet').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
+      document.getElementById('btnLampSet').click();
       const afterSet = !!world.ctrl.lampEnabled;
       const btnLabel = document.getElementById('btnLampSet').textContent.trim();
       const quick = document.getElementById('btnLampQuick').classList.contains('good');

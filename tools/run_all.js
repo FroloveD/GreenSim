@@ -90,8 +90,10 @@ const FAIL_RE = /❌|ПРОВАЛЕНО|ОШИБКА ВЫПОЛНЕНИЯ|NaN=д
     rows.push({ n:t.n, ok:!bad, ms, tail: tail.slice(0,90) });
     console.log(`${bad?'❌':'✅'} ${t.n.padEnd(42,' ')} ${String((ms/1000).toFixed(1)).padStart(5)} с  ${tail}`);
     if (bad){
-      const lines = out.trim().split('\n').filter(l=>/❌|ПРОВАЛЕНО|ОШИБКА|Error/.test(l)).slice(0,6);
-      lines.forEach(l=>console.log('      '+l.trim().slice(0,140)));
+      // При тайм-ауте важны соседние строки: печатаем хвост теста целиком,
+      // чтобы видеть последний успешно выполненный шаг и контекст ошибки.
+      const lines = out.trim().split('\n').slice(-28);
+      lines.forEach(l=>console.log('      '+l.trim().slice(0,220)));
     }
   }
 

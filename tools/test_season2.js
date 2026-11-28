@@ -20,6 +20,15 @@ const M = new Function(src.slice(a,b) + `
 let fails = 0;
 const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c?'✅ ':'❌ ')+m+(extra!==undefined?' — '+extra:'')); };
 const near = (x,y,t)=>Math.abs(x-y) <= t;
+function neutralizeDiagnosis(w){
+  w.temp=24; w.stress=0; w.moist=55; w.waterStress=0;
+  w.stock.waterM3=20; w.stock.fertKg=20; w.co2=520; w.disease=0;
+  w.pest.active=false; w.ctrl.ecSet=2.4; w.ctrl.phSet=5.8;
+  for(const p of w.plants){
+    p.age=15;
+    for(const lf of p.leaves) lf.area=Math.max(lf.area,0.08);
+  }
+}
 
 /* ---------- 1. DLI и фотопериод ---------- */
 {
@@ -67,8 +76,11 @@ const near = (x,y,t)=>Math.abs(x-y) <= t;
      `${on.photoHoursYest.toFixed(0)} ч против ${off.photoHoursYest.toFixed(0)} ч`);
   const D = M.dliInfo(on);
   ok(D.photoVerdict !== 'в норме', 'слишком длинный день виден вердиктом', D.photoVerdict);
+  // Диагностируем именно фотопериод: холод и ранняя малая листовая масса
+  // проверяются отдельно и не должны вытеснять нужное сообщение из top-3.
+  neutralizeDiagnosis(on);
   const dg = M.diagnose(on);
-  ok(dg.items.some(i=>/Свет горел|фотопериод|ч в сутки/i.test(i.text)), 'диагностика предупреждает о круглосуточной лампе',
+  ok(dg.items.some(i=>/Фотопериод|фотопериод|ч в сутки/i.test(i.text)), 'диагностика предупреждает о круглосуточной лампе',
      (dg.items[0]||{}).text);
 }
 

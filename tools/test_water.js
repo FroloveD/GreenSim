@@ -33,13 +33,14 @@ const ok = (c, m, extra)=>{
   {
     const r = await page.evaluate(()=>({
       moist: +world.moist.toFixed(1), meas: +world.meas.moist.toFixed(1),
-      gauge: document.getElementById('gauges').textContent.replace(/\s+/g,' '),
-      btn: document.getElementById('btnWaterQuick').textContent.trim(),
+      gauge: document.getElementById('gauges').textContent.replace(/\s+/g,' ') + ' ' +
+             document.getElementById('gaugeDetails').textContent.replace(/\s+/g,' '),
+      btn: document.getElementById('btnWaterQuick').getAttribute('aria-label') || '',
       state: soilState(world).key
     }));
     ok(r.moist > 40 && r.moist <= 60, 'стартовая влага в норме', r.moist + '%');
     ok(/влага\s*\d+%/.test(r.gauge), 'датчик влаги есть в панели датчиков', r.gauge.match(/влага\s*\d+%/)?.[0] || r.gauge);
-    ok(/\d+%/.test(r.btn), 'на кнопке «Полить» видна влага', r.btn);
+    ok(/текущая влажность субстрата:\s*\d+%/i.test(r.btn), 'влажность доступна в подписи кнопки «Полить»', r.btn);
     ok(r.state === 'ok', 'состояние субстрата — норма', r.state);
   }
 
@@ -59,7 +60,7 @@ const ok = (c, m, extra)=>{
     const r = await page.evaluate(()=>{
       window.__toasts.length = 0;
       world.moist = 40; const w0 = world.stock.waterM3;
-      document.getElementById('btnWaterQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
+      document.getElementById('btnWaterQuick').click();
       return { m0:40, m1:+world.moist.toFixed(1), spent:+(w0-world.stock.waterM3).toFixed(3),
                toast:window.__toasts[0]||'', btn:document.getElementById('btnWaterQuick').textContent.trim() };
     });
