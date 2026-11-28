@@ -24,7 +24,7 @@ async function shot(page, file){
   // ставим паузу, чтобы состояние не убежало между замером и сохранением
   await page.click('#btnPause');
   const before = await page.evaluate(()=>{ for(let d=0;d<12;d++){ for(let k=0;k<24;k++) window.VG.sim(1); window.VG.harvest(); }
-    document.getElementById('btnSave').click();
+    document.getElementById('btnSave').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
     return {day:VG.world.day, money:Math.round(VG.world.money), kg:Math.round(VG.world.harvestedKg), crop:VG.world.crop}; });
   await page.waitForTimeout(600);
   console.log('до перезагрузки:', JSON.stringify(before));
