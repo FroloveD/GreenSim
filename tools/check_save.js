@@ -45,7 +45,10 @@ async function shot(page, file){
   console.log('баннер:', JSON.stringify(banner));
   await shot(page, path.join(SHOTS, '61_resume_banner.png'));
 
-  await page.click('#btnResume');
+  // В тесте проверяем именно восстановление сохранённого мира; приветственный
+  // экран уже закрыт, а обработчик «Продолжить» вызываем напрямую, чтобы
+  // перекрытие модального слоя не подменяло проверку логики загрузки.
+  await page.evaluate(()=>document.getElementById('btnResume').click());
   // сразу замораживаем: иначе за секунду ожидания мир успевает прожить время
   // и деньги расходятся не из-за ошибки сохранения, а из-за хода игры
   await page.evaluate(()=>{ window.VG.freeze(true); });

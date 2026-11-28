@@ -78,7 +78,8 @@ const ok = (c, m, extra)=>{
       const candidates = world.plants.map(p=>{
         const q=project({x:p.x,y:plantBaseY(world)-g.h*0.5,z:p.z});
         const x=rect.left+q.x,y=rect.top+q.y,el=document.elementFromPoint(x,y);
-        return {x,y,hit:hitTest(x,y),target:el&&el.id||el&&el.tagName,canvas:el===canvas};
+        let node=el,chain=[];while(node&&chain.length<5){chain.push(node.id||node.className||node.tagName);node=node.parentElement;}
+        return {x,y,hit:hitTest(x,y),target:el&&(el.id||el.className||el.tagName),chain:chain.join(' > '),canvas:el===canvas};
       });
       const spot=candidates.find(p=>p.canvas)||candidates[0];
       return {...spot,hit:spot.hit&&spot.hit.kind};
@@ -94,7 +95,7 @@ const ok = (c, m, extra)=>{
       toast: window.__toasts[window.__toasts.length-1]||'',
       events:window.__scenePointerEvents.slice() }));
     ok(spot.hit === 'pot', 'горшок распознаётся как цель клика',
-       (spot.hit || 'мимо') + ' · target ' + spot.target + ' · canvas ' + spot.canvas);
+       (spot.hit || 'мимо') + ' · target ' + spot.target + ' · ' + spot.chain + ' · canvas ' + spot.canvas);
     ok(Math.abs(after.moist - 45) < 0.6, 'клик по горшку полил грядку',
        '30% → ' + after.moist + '% · события ' + after.events.join(','));
     ok(/Полито/.test(after.toast), 'и сказал об этом', after.toast);

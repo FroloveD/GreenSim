@@ -62,13 +62,14 @@ const ok = (c, m, extra)=>{
       const rect = canvas.getBoundingClientRect();
       const candidates=lampSpots().map(p=>{
         const q=project(p),x=rect.left+q.x,y=rect.top+q.y,el=document.elementFromPoint(x,y);
-        return {x,y,hit:hitTest(x,y),target:el&&el.id||el&&el.tagName,canvas:el===canvas};
+        let node=el,chain=[];while(node&&chain.length<5){chain.push(node.id||node.className||node.tagName);node=node.parentElement;}
+        return {x,y,hit:hitTest(x,y),target:el&&(el.id||el.className||el.tagName),chain:chain.join(' > '),canvas:el===canvas};
       });
       const spot=candidates.find(p=>p.canvas)||candidates[0];
       return {...spot,n:candidates.length,hit:spot.hit&&spot.hit.kind};
     });
     ok(spot.n === 4, 'светильники в сцене есть всегда, когда лампа куплена', spot.n + ' шт');
-    ok(spot.hit === 'lamp', 'попадание по светильнику распознаётся', (spot.hit || 'мимо') + ' · target ' + spot.target + ' · canvas ' + spot.canvas);
+    ok(spot.hit === 'lamp', 'попадание по светильнику распознаётся', (spot.hit || 'мимо') + ' · target ' + spot.target + ' · ' + spot.chain + ' · canvas ' + spot.canvas);
 
     await page.evaluate(()=>{
       window.__scenePointerEvents=[];
