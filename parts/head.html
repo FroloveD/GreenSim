@@ -1014,6 +1014,13 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   @media(max-width:420px){
     #top .speeds .spd[data-s="64"],#top .speeds .spd[data-s="480"]{display:none}
   }
+
+  /* На планшетах 721–800 px верхняя панель должна переноситься целиком:
+     один flex-ряд не помещает одновременно вкладки, метрики и кнопки скорости. */
+  @media (min-width:721px) and (max-width:800px){
+    #top{height:auto;flex-wrap:wrap}
+    #dashGrid{top:calc(var(--topH) + 8px)}
+  }
 </style>
 </head>
 <body>
