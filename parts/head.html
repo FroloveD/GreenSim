@@ -897,7 +897,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   </div>
   <div class="menu-sound-controls" aria-label="Настройки звука">
     <div class="menu-sound-head"><span>🔊 Звук и атмосфера</span><button class="btn" id="menuSoundToggle" type="button" aria-pressed="true">Вкл</button></div>
-    <div class="menu-sound-row"><label for="menuSoundPreset">Фоновая сцена</label><select id="menuSoundPreset">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'">'+p.label+'</option>').join('')}</select></div>
+    <div class="menu-sound-row"><label for="menuSoundPreset">Фоновая сцена</label><select id="menuSoundPreset"><option value="off">Без фонового звука</option><option value="lounge">Лаунж · мягкий эмбиент</option><option value="nature">Природа · птицы и ветер</option><option value="rain">Дождь · спокойный ливень</option><option value="greenhouse">Теплица · вентиляция и воздух</option><option value="night">Ночной сад · сверчки и ветер</option></select></div>
     <div class="menu-sound-row"><label for="menuSoundVol">Громкость <b id="menuSoundVolValue">70%</b></label><input id="menuSoundVol" type="range" min="0" max="100" step="5" value="70"></div>
   </div>
   <div class="menu-footer"><span>🌼</span> Растим не спеша. Ошибаемся, учимся, собираем урожай.</div>
@@ -908,7 +908,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   <div class="card"><b>Отображение валюты</b><p class="hint">Меняет подписи сумм, но не игровую экономику.</p><select id="menuCurrency"><option value="eur">€ Евро</option><option value="rub">₽ Рубли</option></select></div>
   <div class="card" id="mainSoundCard"><b>Звук и атмосфера</b>
     <div class="menu-sound-row"><label>Звуки включены</label><button class="btn" id="settingsSoundToggle" type="button" aria-pressed="true">Вкл</button></div>
-    <div class="menu-sound-row"><label for="settingsSoundPreset">Фоновая сцена</label><select id="settingsSoundPreset">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'">'+p.label+'</option>').join('')}</select></div>
+    <div class="menu-sound-row"><label for="settingsSoundPreset">Фоновая сцена</label><select id="settingsSoundPreset"><option value="off">Без фонового звука</option><option value="lounge">Лаунж · мягкий эмбиент</option><option value="nature">Природа · птицы и ветер</option><option value="rain">Дождь · спокойный ливень</option><option value="greenhouse">Теплица · вентиляция и воздух</option><option value="night">Ночной сад · сверчки и ветер</option></select></div>
     <div class="menu-sound-row"><label for="settingsSoundVol">Общая громкость <b id="settingsSoundVolValue">70%</b></label><input id="settingsSoundVol" type="range" min="0" max="100" step="5" value="70"></div>
   </div>
   <p class="hint">Климат, питание, свет и автоматизация настраиваются отдельно внутри игрового сезона.</p>
