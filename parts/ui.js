@@ -42,22 +42,22 @@ function toast(msg){
 }
 
 
-const SND_KEY = 'vg_sound_v2';
+const SND_KEY = 'vg_sound_v1';
 const SOUND_PRESETS = [
   {id:'off',label:'Без фонового звука'},
-  {id:'lounge',label:'Тихий фон · без музыки'},
-  {id:'nature',label:'Природа · ветер и птицы'},
-  {id:'rain',label:'Дождь по крыше'},
-  {id:'greenhouse',label:'Теплица · воздух и оборудование'},
-  {id:'night',label:'Ночная теплица · насекомые'}
+  {id:'lounge',label:'Лаунж · мягкий эмбиент'},
+  {id:'nature',label:'Природа · птицы и ветер'},
+  {id:'rain',label:'Дождь · спокойный ливень'},
+  {id:'greenhouse',label:'Теплица · вентиляция и воздух'},
+  {id:'night',label:'Ночной сад · сверчки и ветер'}
 ];
 const sndCfg = (()=>{
-  const def = {on:true, vol:0.58, preset:'greenhouse'};
+  const def = {on:true, vol:0.7, preset:'off'};
   try {
     const raw = localStorage.getItem(SND_KEY);
     if (raw){ const o = JSON.parse(raw);
-      const preset = SOUND_PRESETS.some(p=>p.id===o.preset) ? o.preset : def.preset;
-      return {on:o.on!==false,vol:clamp(o.vol===undefined?def.vol:+o.vol,0,1),preset};
+      const preset = SOUND_PRESETS.some(p=>p.id===o.preset) ? o.preset : 'off';
+      return {on:o.on!==false,vol:clamp(o.vol===undefined?0.7:+o.vol,0,1),preset};
     }
   } catch(e){}
   return def;
@@ -66,251 +66,238 @@ function sndSave(){
   try { localStorage.setItem(SND_KEY, JSON.stringify({on:sndCfg.on,vol:sndCfg.vol,preset:sndCfg.preset})); } catch(e){}
 }
 const SFX = (()=>{
-  let ctx=null, master=null, noiseBuf=null, whiteBuf=null, armed=false;
-  let ambientNodes=[], ambientTimers=[], worldLayers=null;
-  const lastAt=Object.create(null);
-  const hasAudio=()=>typeof window!=='undefined'&&!!(window.AudioContext||window.webkitAudioContext);
-
-  function makeNoiseBuffers(){
-    const sr=ctx.sampleRate||44100, length=Math.floor(sr*8);
-    noiseBuf=ctx.createBuffer(1,length,sr);
-    whiteBuf=ctx.createBuffer(1,length,sr);
-    const pink=noiseBuf.getChannelData(0), white=whiteBuf.getChannelData(0);
-    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-    for(let i=0;i<length;i++){
-      const w=Math.random()*2-1;
-      b0=0.99886*b0+w*0.0555179;
-      b1=0.99332*b1+w*0.0750759;
-      b2=0.96900*b2+w*0.1538520;
-      b3=0.86650*b3+w*0.3104856;
-      b4=0.55*b4+w*0.5329522;
-      b5=-0.7616*b5-w*0.016898;
-      const p=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
-      b6=w*0.115926;
-      pink[i]=Math.max(-0.95,Math.min(0.95,p));
-      white[i]=w*0.72;
-    }
-  }
+  let ctx = null, master = null, noiseBuf = null, armed = false;
+  let ambientNodes = [], ambientTimer = 0, worldLayers = null;
+  const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
+  const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
   function ensure(){
-    if(ctx||!hasAudio())return ctx;
-    try{
-      const AC=window.AudioContext||window.webkitAudioContext;
-      ctx=new AC({latencyHint:'interactive'});
-      master=ctx.createGain();
-      master.gain.value=sndCfg.on?sndCfg.vol*0.32:0;
+    if (ctx || !hasAudio()) return ctx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
       master.connect(ctx.destination);
-      makeNoiseBuffers();
-    }catch(e){ctx=null;master=null;}
+      const n = Math.floor((ctx.sampleRate||44100)*0.5);
+      noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i=0;i<n;i++) d[i] = Math.random()*2-1;
+    } catch(e){ ctx = null; }
     return ctx;
   }
-  function addNode(node){ambientNodes.push(node);return node;}
-  function clearAmbient(){
-    ambientTimers.forEach(id=>clearTimeout(id));ambientTimers=[];
-    ambientNodes.forEach(n=>{
-      try{if(typeof n.stop==='function')n.stop();}catch(e){}
-      try{n.disconnect();}catch(e){}
-    });
-    ambientNodes=[];worldLayers=null;
-  }
-  function stopAmbient(){clearAmbient();}
-  function scheduleAmbient(fn,delay){
-    const id=setTimeout(()=>{ambientTimers=ambientTimers.filter(x=>x!==id);fn();},delay);
-    ambientTimers.push(id);
-  }
+  /* первое действие игрока: разбудить контекст */
   function arm(){
-    ensure();if(!ctx)return false;
-    armed=true;
-    if(ctx.state==='suspended'&&ctx.resume){
-      try{ctx.resume().then(()=>{if(armed&&sndCfg.on&&!ambientNodes.length)startAmbient();}).catch(()=>{});}catch(e){}
-    }else if(ctx.state==='running'&&sndCfg.on&&!ambientNodes.length&&sndCfg.preset!=='off'){
-      startAmbient();
-    }
+    ensure();
+    if (!ctx) return false;
+    if (ctx.state === 'suspended' && ctx.resume) { try { const p=ctx.resume(); if(p&&p.then)p.then(startAmbient).catch(()=>{}); } catch(e){} }
+    armed = true;
+    if(ctx.state==='running') startAmbient();
     return true;
+  }
+  function stopAmbient(){
+    if(ambientTimer){clearTimeout(ambientTimer);ambientTimer=0;}
+    ambientNodes.forEach(n=>{try{if(n.stop)n.stop();}catch(e){} try{n.disconnect();}catch(e){}});
+    ambientNodes=[];
+    worldLayers=null;
+  }
+  function addAmbientNoise(freq,type,gain){
+    const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
+    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
+    const g=ctx.createGain();g.gain.value=gain;
+    src.connect(filter);filter.connect(g);g.connect(master);src.start();
+    ambientNodes.push(src,filter,g);
+  }
+  function addAmbientTone(freq,wave,gain){
+    const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=wave;osc.frequency.value=freq;g.gain.value=gain;
+    osc.connect(g);g.connect(master);osc.start();ambientNodes.push(osc,g);
+  }
+  function birdChirp(){
+    if(!sndCfg.on||!['nature','night'].includes(sndCfg.preset)||!ctx||ctx.state!=='running')return;
+    const base=sndCfg.preset==='night'?1700:2100;
+    for(let i=0;i<2;i++){
+      const f=base+Math.random()*850;
+      tone({type:'sine',f0:f,f1:f*(0.8+Math.random()*0.25),dur:0.10,gain:0.018,at:i*0.13});
+    }
+    ambientTimer=setTimeout(birdChirp,sndCfg.preset==='night'?3500+Math.random()*2500:2700+Math.random()*3200);
+  }
+  function addWorldNoise(freq,type){
+    const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
+    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
+    const gain=ctx.createGain();gain.gain.value=0.0001;
+    src.connect(filter);filter.connect(gain);gain.connect(master);src.start();
+    ambientNodes.push(src,filter,gain);
+    return {gain,filter};
+  }
+  function addWorldTone(freq){
+    const osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.type='sine';osc.frequency.value=freq;gain.gain.value=0.0001;
+    osc.connect(gain);gain.connect(master);osc.start();
+    ambientNodes.push(osc,gain);
+    return {osc,gain};
+  }
+  function startWorldBed(){
+    // Три независимых слоя: воздушный шум, вентиляция и низкий гул оборудования.
+    worldLayers={
+      air:addWorldNoise(620,'lowpass'),
+      fan:addWorldNoise(1250,'bandpass'),
+      hum:addWorldTone(58)
+    };
   }
   function setSmooth(param,value,seconds){
     if(!param||!ctx)return;
     const t=ctx.currentTime;
-    try{param.cancelScheduledValues(t);param.setTargetAtTime(Math.max(0.00001,value),t,seconds||0.7);}
-    catch(e){param.value=Math.max(0.00001,value);}
-  }
-  function addAmbientNoise(freq,type,gain,opts={}){
-    const src=ctx.createBufferSource();
-    src.buffer=opts.white?whiteBuf:noiseBuf;src.loop=true;
-    const filter=ctx.createBiquadFilter();
-    filter.type=type;filter.frequency.value=freq;filter.Q.value=opts.q||0.45;
-    const g=ctx.createGain();g.gain.value=Math.max(0.00001,gain);
-    src.connect(filter);filter.connect(g);g.connect(master);
-    src.start(0,Math.random()*6.5);
-    addNode(src);addNode(filter);addNode(g);
-    return {src,filter,gain:g};
-  }
-  function addWorldBed(){
-    worldLayers={
-      air:addAmbientNoise(520,'lowpass',0.0010),
-      fan:addAmbientNoise(950,'bandpass',0.00005),
-      equipment:addAmbientNoise(180,'lowpass',0.00005)
-    };
+    try{
+      param.cancelScheduledValues(t);
+      param.setTargetAtTime(Math.max(0.0001,value),t,seconds||0.55);
+    }catch(e){param.value=Math.max(0.0001,value);}
   }
   function syncWorld(w){
     if(!w||!worldLayers||!ctx||ctx.state!=='running'||!sndCfg.on||sndCfg.preset==='off')return;
-    const c=w.ctrl||{},temp=Number.isFinite(+w.temp)?+w.temp:20;
-    const rh=Number.isFinite(+w.rh)?+w.rh:65,powered=w.power!==false;
+    const c=w.ctrl||{}, temp=Number.isFinite(+w.temp)?+w.temp:20;
+    const rh=Number.isFinite(+w.rh)?+w.rh:65;
+    const powered=w.power!==false;
     const heating=powered&&(!!c.heatManualOn||(Number.isFinite(+c.heatSet)&&temp<+c.heatSet-1));
     const venting=powered&&(!!c.ventManualOn||(Number.isFinite(+c.ventSet)&&temp>+c.ventSet+1));
-    const humidity=clamp((rh-40)/60,0,1);
-    setSmooth(worldLayers.air.gain.gain,0.0007+humidity*0.0018,1.4);
-    setSmooth(worldLayers.air.filter.frequency,350+humidity*650,1.8);
-    setSmooth(worldLayers.fan.gain.gain,venting?0.0022:0.00005,1.1);
-    setSmooth(worldLayers.fan.filter.frequency,venting?1250:650,1.4);
-    setSmooth(worldLayers.equipment.gain.gain,heating?0.0010:0.00004,1.6);
-    setSmooth(worldLayers.equipment.filter.frequency,heating?260:130,1.6);
-  }
-  function birdPhrase(){
-    if(!sndCfg.on||!['nature','night'].includes(sndCfg.preset)||!ctx||ctx.state!=='running')return;
-    const night=sndCfg.preset==='night';
-    const count=night?2+Math.floor(Math.random()*3):2+Math.floor(Math.random()*4);
-    let at=0;
-    for(let i=0;i<count;i++){
-      const base=night?2850:1900;
-      const f=base+Math.random()*(night?900:1350);
-      const dur=night?0.045+Math.random()*0.035:0.065+Math.random()*0.075;
-      tone({type:'sine',f0:f,f1:f*(0.78+Math.random()*0.36),dur,gain:night?0.0035:0.0055,at,attack:0.012});
-      at+=dur+0.045+Math.random()*0.12;
-    }
-    scheduleAmbient(birdPhrase,night?6500+Math.random()*5000:4800+Math.random()*6500);
+    const lighting=powered&&!!c.lampOn;
+    const humidity=clamp((rh-45)/50,0,1);
+    setSmooth(worldLayers.air.gain.gain,0.0012+humidity*0.0042,0.8);
+    setSmooth(worldLayers.air.filter.frequency,420+humidity*1050,0.8);
+    setSmooth(worldLayers.fan.gain.gain,venting?0.009:0.0007,0.65);
+    setSmooth(worldLayers.fan.filter.frequency,venting?1650:700,0.7);
+    setSmooth(worldLayers.hum.gain.gain,(heating?0.0038:0.0007)+(lighting?0.0012:0),0.9);
+    try{worldLayers.hum.osc.frequency.setTargetAtTime(48+clamp(temp,0,38)*0.42,ctx.currentTime,1.2);}catch(e){}
   }
   function startAmbient(){
-    clearAmbient();
+    stopAmbient();
     if(!sndCfg.on||sndCfg.preset==='off'||!ctx||ctx.state!=='running')return;
     switch(sndCfg.preset){
       case 'lounge':
-        addAmbientNoise(430,'lowpass',0.0011);
+        addAmbientTone(110,'sine',0.020);addAmbientTone(164.8,'triangle',0.010);
+        addAmbientTone(220,'sine',0.006);addAmbientNoise(650,'lowpass',0.002);
         break;
       case 'nature':
-        addAmbientNoise(900,'lowpass',0.0022);
-        addAmbientNoise(2300,'bandpass',0.00025,{q:0.35});
-        birdPhrase();
+        addAmbientNoise(520,'lowpass',0.022);addAmbientNoise(2600,'bandpass',0.003);birdChirp();
         break;
       case 'rain':
-        addAmbientNoise(1750,'lowpass',0.0045);
-        addAmbientNoise(4800,'highpass',0.00065,{white:true});
+        addAmbientNoise(1500,'lowpass',0.030);addAmbientNoise(4200,'highpass',0.006);
         break;
       case 'greenhouse':
-        // Теплица звучит почти тихо: только движение воздуха и реальное оборудование из состояния симуляции.
-        addAmbientNoise(600,'lowpass',0.00055);
+        addAmbientTone(58,'sine',0.010);addAmbientTone(116,'sine',0.003);addAmbientNoise(430,'lowpass',0.018);
         break;
       case 'night':
-        addAmbientNoise(520,'lowpass',0.0011);
-        birdPhrase();
+        addAmbientNoise(390,'lowpass',0.018);addAmbientNoise(3000,'highpass',0.003);birdChirp();
         break;
     }
-    addWorldBed();
-    if(world)syncWorld(world);
-  }
-  function setMaster(value){
-    if(!master||!ctx)return;
-    const t=ctx.currentTime;
-    try{master.gain.cancelScheduledValues(t);master.gain.setTargetAtTime(value,t,0.035);}
-    catch(e){master.gain.value=value;}
+    startWorldBed();
+    if(world) syncWorld(world);
   }
   function syncGain(){
-    setMaster(sndCfg.on?sndCfg.vol*0.32:0);
+    if(master)master.gain.value=sndCfg.on?sndCfg.vol*0.45:0;
     if(!sndCfg.on)stopAmbient();
-    else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length&&sndCfg.preset!=='off')startAmbient();
-  }
-  function envelope(g,t,peak,dur,attack){
-    const a=Math.min(Math.max(0.004,attack||0.008),dur*0.35);
-    g.gain.setValueAtTime(0.00001,t);
-    g.gain.linearRampToValueAtTime(Math.max(0.00002,peak),t+a);
-    g.gain.setTargetAtTime(0.00001,t+a,Math.max(0.012,(dur-a)/4));
+    else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length)startAmbient();
   }
   function tone(o){
-    if(!ctx||!master)return;
-    const t=ctx.currentTime+(o.at||0),dur=o.dur||0.12;
-    const osc=ctx.createOscillator(),g=ctx.createGain();
-    osc.type=o.type||'sine';
-    osc.frequency.setValueAtTime(Math.max(25,o.f0||440),t);
-    if(o.f1&&o.f1!==o.f0)osc.frequency.exponentialRampToValueAtTime(Math.max(25,o.f1),t+dur);
-    let node=osc;
-    if(o.lp){const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=o.lp;osc.connect(f);node=f;}
-    node.connect(g);g.connect(master);
-    envelope(g,t,o.gain===undefined?0.04:o.gain,dur,o.attack);
-    osc.onended=()=>{try{osc.disconnect();}catch(e){}try{if(node!==osc)node.disconnect();}catch(e){}try{g.disconnect();}catch(e){}};
-    osc.start(t);osc.stop(t+dur+0.025);
+    const t0 = ctx.currentTime + (o.at||0);
+    const dur = o.dur || 0.2;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(Math.max(20, o.f0), t0);
+    if (o.f1 && o.f1 !== o.f0)
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.f1), t0 + dur);
+    const peak = Math.max(0.0005, o.gain === undefined ? 0.18 : o.gain);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + (o.attack || 0.008));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    let node = osc;
+    if (o.lp){ const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = o.lp; osc.connect(f); node = f; }
+    node.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + dur + 0.03);
   }
   function noise(o){
-    if(!ctx||!master||!noiseBuf)return;
-    const t=ctx.currentTime+(o.at||0),dur=o.dur||0.12;
-    const src=ctx.createBufferSource();src.buffer=o.white?whiteBuf:noiseBuf;
-    const f=ctx.createBiquadFilter();f.type=o.type||'bandpass';
-    f.frequency.setValueAtTime(Math.max(50,o.f0||900),t);
-    if(o.f1&&o.f1!==o.f0)f.frequency.exponentialRampToValueAtTime(Math.max(50,o.f1),t+dur);
-    f.Q.value=o.q===undefined?0.55:o.q;
-    const g=ctx.createGain();
-    src.connect(f);f.connect(g);g.connect(master);
-    envelope(g,t,o.gain===undefined?0.035:o.gain,dur,o.attack||0.006);
-    src.onended=()=>{try{src.disconnect();}catch(e){}try{f.disconnect();}catch(e){}try{g.disconnect();}catch(e){}};
-    const offset=Math.random()*Math.max(0.1,7.5-dur);
-    src.start(t,offset,dur+0.035);
+    const t0 = ctx.currentTime + (o.at||0);
+    const dur = o.dur || 0.25;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = o.type || 'bandpass';
+    f.frequency.setValueAtTime(o.f0 || 900, t0);
+    f.frequency.exponentialRampToValueAtTime(Math.max(60, o.f1 || o.f0 || 900), t0 + dur);
+    f.Q.value = o.q === undefined ? 1.2 : o.q;
+    const g = ctx.createGain();
+    const peak = Math.max(0.0005, o.gain === undefined ? 0.12 : o.gain);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + dur + 0.03);
   }
-  const RECIPES={
-    harvest(o){
-      const k=clamp((o&&o.heavy)||0.5,0,1);
-      noise({type:'highpass',f0:3200,f1:1500,dur:0.055,gain:0.018,white:true});
-      tone({type:'sine',f0:390+100*k,f1:245+55*k,dur:0.085,gain:0.035});
+  /* рисунок каждого звука: короткие, разные по характеру, без мелодий-навязчивостей */
+  const RECIPES = {
+    harvest(o){                                     // сорвали плод: короткий «плук»
+      const k = clamp((o && o.heavy) || 0.5, 0, 1);
+      tone({type:'triangle', f0:540 + 220*k, f1:300 + 120*k, dur:0.12, gain:0.16});
+      noise({f0:2200, f1:900, dur:0.07, gain:0.05, q:0.7});
     },
-    sell(){
-      noise({type:'highpass',f0:5200,f1:2600,dur:0.025,gain:0.012,white:true});
-      tone({f0:1280,f1:1110,dur:0.075,gain:0.035});
-      tone({f0:1840,f1:1580,dur:0.095,gain:0.024,at:0.055});
+    sell(o){                                        // касса: две монетки
+      tone({f0:1320, dur:0.10, gain:0.10});
+      tone({f0:1760, dur:0.16, gain:0.08, at:0.06});
+      tone({f0:2640, dur:0.09, gain:0.045, at:0.12});
     },
-    buy(){
-      noise({type:'lowpass',f0:420,f1:170,dur:0.075,gain:0.035});
-      tone({f0:175,f1:105,dur:0.11,gain:0.045});
-      noise({type:'highpass',f0:2400,f1:1100,dur:0.025,gain:0.012,white:true,at:0.018});
+    buy(){                                          // покупка: глухой стук и подъём
+      tone({f0:190, f1:90, dur:0.14, gain:0.16, type:'sine'});
+      tone({f0:520, f1:780, dur:0.13, gain:0.07, at:0.05, type:'triangle'});
     },
-    water(){
-      noise({type:'lowpass',f0:1900,f1:520,dur:0.46,gain:0.048,q:0.4});
-      noise({type:'highpass',f0:3400,f1:1700,dur:0.22,gain:0.008,white:true,at:0.035});
+    water(){                                        // вода: шум с падающим фильтром
+      noise({f0:1400, f1:320, dur:0.34, gain:0.10, q:0.6});
+      noise({f0:800, f1:240, dur:0.42, gain:0.06, q:0.5, at:0.05});
     },
-    lamp(){
-      noise({type:'highpass',f0:4200,f1:1700,dur:0.022,gain:0.018,white:true});
-      tone({f0:760,f1:520,dur:0.045,gain:0.022});
+    lamp(){                                         // щелчок светильника
+      noise({f0:3200, f1:1800, dur:0.04, gain:0.07, q:0.9});
+      tone({f0:900, f1:700, dur:0.05, gain:0.05, type:'square'});
     },
-    bill(){
-      tone({f0:740,f1:690,dur:0.20,gain:0.035});
-      tone({f0:990,f1:920,dur:0.17,gain:0.018,at:0.045});
+    bill(){                                         // пришёл счёт: тусклый колокольчик
+      tone({f0:880, dur:0.5, gain:0.10});
+      tone({f0:1174, dur:0.42, gain:0.07, at:0.05});
+      tone({f0:440, dur:0.6, gain:0.05, at:0.02, type:'triangle'});
     },
-    court(){
-      tone({f0:155,f1:118,dur:0.32,gain:0.055,lp:480});
-      tone({f0:118,f1:92,dur:0.36,gain:0.035,lp:360,at:0.20});
+    court(){                                        // суд: низкое предупреждение
+      tone({f0:160, f1:120, dur:0.5, gain:0.16, type:'sawtooth', lp:700});
+      tone({f0:120, f1:80, dur:0.7, gain:0.10, at:0.25, type:'sawtooth', lp:600});
     },
-    error(){tone({f0:205,f1:155,dur:0.12,gain:0.04});},
-    warn(){
-      tone({f0:590,f1:520,dur:0.075,gain:0.03});
-      tone({f0:480,f1:430,dur:0.085,gain:0.026,at:0.105});
+    error(){                                        // отказ
+      tone({f0:220, f1:170, dur:0.13, gain:0.13, type:'square', lp:1200});
     },
-    end(){[440,554,659].forEach((f,i)=>tone({f0:f,dur:0.16,gain:0.026,at:i*0.11}));},
-    bankrupt(){[392,311,233].forEach((f,i)=>tone({f0:f,dur:0.20,gain:0.032,at:i*0.14}));}
+    warn(){                                         // предупреждение
+      tone({f0:660, dur:0.10, gain:0.08, type:'triangle'});
+      tone({f0:560, dur:0.12, gain:0.08, at:0.11, type:'triangle'});
+    },
+    end(){                                          // сезон закрыт: короткая арпеджио
+      [523, 659, 784, 1047].forEach((f,i)=>tone({f0:f, dur:0.28, gain:0.09, at:i*0.09, type:'triangle'}));
+    },
+    bankrupt(){                                     // банкротство: вниз по минору
+      [440, 349, 262, 196].forEach((f,i)=>tone({f0:f, dur:0.42, gain:0.11, at:i*0.14, type:'sine'}));
+    }
   };
-  function play(name,opt){
-    if(!sndCfg.on||sndCfg.vol<=0)return false;
-    if(!ctx)ensure();
-    if(!ctx||ctx.state!=='running')return false;
-    const recipe=RECIPES[name];if(!recipe)return false;
-    const now=typeof performance!=='undefined'?performance.now():Date.now();
-    if(lastAt[name]&&now-lastAt[name]<65)return false;
-    lastAt[name]=now;
-    try{recipe(opt||{});return true;}catch(e){return false;}
+  function play(name, opt){
+    if (!sndCfg.on || sndCfg.vol <= 0) return false;
+    if (!ctx) ensure();
+    if (!ctx || ctx.state === 'suspended') return false;      // без действия игрока браузер молчит
+    const r = RECIPES[name];
+    if (!r) return false;
+    const now = (typeof performance!=='undefined' ? performance.now() : Date.now());
+    if (lastAt[name] && now - lastAt[name] < 45) return false;  // пачка плодов = один звук
+    lastAt[name] = now;
+    try { r(opt || {}); return true; } catch(e){ return false; }
   }
   return {
-    arm,play,syncWorld,names:()=>Object.keys(RECIPES),
-    get on(){return sndCfg.on;},get vol(){return sndCfg.vol;},get preset(){return sndCfg.preset;},
-    presetLabel(){return SOUND_PRESETS.find(p=>p.id===sndCfg.preset)?.label||'Без фонового звука';},
-    setOn(v){sndCfg.on=!!v;sndSave();syncGain();if(sndCfg.on&&armed&&ctx&&ctx.state==='running'&&!ambientNodes.length&&sndCfg.preset!=='off')startAmbient();return sndCfg.on;},
-    setVol(v){sndCfg.vol=clamp(+v||0,0,1);sndSave();syncGain();return sndCfg.vol;},
-    setPreset(v){sndCfg.preset=SOUND_PRESETS.some(p=>p.id===v)?v:'off';sndSave();if(armed&&ctx&&ctx.state==='running')startAmbient();return sndCfg.preset;},
-    state(){return {on:sndCfg.on,vol:sndCfg.vol,preset:sndCfg.preset,armed,ctx:!!ctx,running:!!(ctx&&ctx.state==='running'),ambientNodes:ambientNodes.length};}
+    arm, play, syncWorld,
+    names: ()=>Object.keys(RECIPES),
+    get on(){ return sndCfg.on; },
+    get vol(){ return sndCfg.vol; },
+    get preset(){ return sndCfg.preset; },
+    presetLabel(){ return SOUND_PRESETS.find(p=>p.id===sndCfg.preset)?.label||'Без фонового звука'; },
+    setOn(v){ sndCfg.on=!!v; sndSave(); syncGain(); return sndCfg.on; },
+    setVol(v){ sndCfg.vol=clamp(+v||0,0,1); sndSave(); syncGain(); return sndCfg.vol; },
+    setPreset(v){ sndCfg.preset=SOUND_PRESETS.some(p=>p.id===v)?v:'off'; sndSave(); if(armed&&ctx&&ctx.state==='running')startAmbient(); return sndCfg.preset; },
+    state(){ return {on:sndCfg.on,vol:sndCfg.vol,preset:sndCfg.preset,armed,ctx:!!ctx,running:!!(ctx&&ctx.state==='running')}; }
   };
 })();
 function playSfx(name, opt){ try { return SFX.play(name, opt); } catch(e){ return false; } }
