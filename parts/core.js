@@ -2603,7 +2603,7 @@ function escapeHTML(value){
 function assertSavePayload(pack){
   const record=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
   const fail=label=>{ throw new Error('некорректное сохранение: '+label); };
-  const finite=(v,label,min=-1e12,max=1e12)=>{
+  const finite=(v,label,min=-Number.MAX_SAFE_INTEGER,max=Number.MAX_SAFE_INTEGER)=>{
     if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max) fail(label);
   };
   const text=(v,label,max=20000)=>{
