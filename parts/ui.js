@@ -2777,6 +2777,67 @@ document.addEventListener('visibilitychange', ()=>{
   if (document.visibilityState === 'hidden' && world && !world.over) saveNow(true);
 });
 
+/* ---------------- Перемещаемая панель управления ----------------
+   Перетаскивание за маркер; поворот переключает горизонтальный/вертикальный вид.
+   Координаты и ориентация сохраняются локально на устройстве. */
+(function initControlDock(){
+  const dock=$('controlDock'), grip=$('dockGrip'), rotate=$('dockRotate');
+  if(!dock||!grip||!rotate)return;
+  const KEY='greensim.controlDock.v1';
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){}
+  const clampPos=()=>{
+    const r=dock.getBoundingClientRect(),pad=6;
+    const left=Math.max(pad,Math.min(window.innerWidth-r.width-pad,r.left));
+    const top=Math.max(pad,Math.min(window.innerHeight-r.height-pad,r.top));
+    dock.style.left=left+'px';dock.style.top=top+'px';dock.style.transform='none';
+  };
+  const persist=()=>{
+    const r=dock.getBoundingClientRect();
+    try{localStorage.setItem(KEY,JSON.stringify({
+      left:Math.round(r.left),top:Math.round(r.top),
+      orientation:dock.dataset.orientation||'horizontal'
+    }));}catch(e){}
+  };
+  const setOrientation=(orientation)=>{
+    dock.dataset.orientation=orientation==='vertical'?'vertical':'horizontal';
+    rotate.textContent=dock.dataset.orientation==='vertical'?'↔':'↕';
+    rotate.title=dock.dataset.orientation==='vertical'?'Сделать панель горизонтальной':'Сделать панель вертикальной';
+    if(dock.style.left){requestAnimationFrame(()=>{clampPos();persist();});}
+  };
+  setOrientation(saved.orientation||'horizontal');
+  if(Number.isFinite(+saved.left)&&Number.isFinite(+saved.top)){
+    dock.style.left=saved.left+'px';dock.style.top=saved.top+'px';dock.style.transform='none';
+    requestAnimationFrame(clampPos);
+  }
+  rotate.addEventListener('click',()=>{
+    setOrientation(dock.dataset.orientation==='vertical'?'horizontal':'vertical');
+    requestAnimationFrame(()=>{clampPos();persist();});
+  });
+  let drag=null;
+  grip.addEventListener('pointerdown',e=>{
+    if(e.button!==undefined&&e.button!==0)return;
+    const r=dock.getBoundingClientRect();
+    drag={x:e.clientX,y:e.clientY,left:r.left,top:r.top};
+    dock.classList.add('is-dragging');
+    grip.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  });
+  grip.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const r=dock.getBoundingClientRect(),pad=6;
+    const left=Math.max(pad,Math.min(window.innerWidth-r.width-pad,drag.left+e.clientX-drag.x));
+    const top=Math.max(pad,Math.min(window.innerHeight-r.height-pad,drag.top+e.clientY-drag.y));
+    dock.style.left=left+'px';dock.style.top=top+'px';dock.style.transform='none';
+  });
+  const stopDrag=()=>{
+    if(!drag)return;drag=null;dock.classList.remove('is-dragging');clampPos();persist();
+  };
+  grip.addEventListener('pointerup',stopDrag);
+  grip.addEventListener('pointercancel',stopDrag);
+  window.addEventListener('resize',()=>{if(dock.style.left){clampPos();persist();}});
+})();
+
 /* ---------------- запуск ---------------- */
 resize();
 buildStart();
