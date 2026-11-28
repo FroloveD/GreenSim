@@ -921,46 +921,67 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   }
 
 
-  /* Узкая вертикальная панель под верхней строкой даты и баланса. */
+  /* Перемещаемая панель управления: горизонтальная по умолчанию, вертикальная по кнопке поворота. */
   #center>.controlDock{
     position:fixed;top:74px;left:50%;transform:translateX(-50%);
-    z-index:45;box-sizing:border-box;
-    width:48px;min-width:48px;max-width:48px;
-    max-height:calc(100dvh - 84px);
-    display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
-    gap:4px;padding:4px!important;margin:0;
-    overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
-    scrollbar-width:none;pointer-events:auto;
+    z-index:60;box-sizing:border-box;width:max-content;max-width:calc(100vw - 12px);
+    display:flex;flex-direction:row;align-items:center;justify-content:flex-start;
+    gap:5px;padding:5px!important;margin:0;
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior:contain;
+    scrollbar-width:none;touch-action:pan-x;pointer-events:auto;
   }
   #center>.controlDock::-webkit-scrollbar{display:none}
+  #center>.controlDock .dockGrip,
+  #center>.controlDock .dockRotate{
+    flex:0 0 30px;width:30px;min-width:30px;height:34px;min-height:34px;
+    padding:3px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;touch-action:none;
+  }
+  #center>.controlDock .dockGrip{cursor:grab;user-select:none}
+  #center>.controlDock .dockGrip:active{cursor:grabbing}
   #center>.controlDock .camBar,
   #center>.controlDock .quickBar{
-    box-sizing:border-box;width:100%;min-width:0;max-width:100%;
-    display:flex;flex:0 0 auto;flex-direction:column;flex-wrap:nowrap;
+    box-sizing:border-box;width:auto;min-width:0;max-width:none;
+    display:flex;flex:0 0 auto;flex-direction:row;flex-wrap:nowrap;
     align-items:center;justify-content:flex-start;gap:4px;padding:0;
     overflow:visible;
   }
   #center>.controlDock .camBar>button,
   #center>.controlDock .quickBar>.quick-icon{
-    box-sizing:border-box;flex:0 0 38px;
-    width:38px;min-width:38px;max-width:38px;
-    height:38px;min-height:38px;padding:5px;
+    box-sizing:border-box;flex:0 0 36px;
+    width:36px;min-width:36px;max-width:36px;
+    height:36px;min-height:36px;padding:4px;
     display:flex;align-items:center;justify-content:center;
   }
   #center>.controlDock .camBar>button svg,
   #center>.controlDock .quickBar>.quick-icon svg{
-    width:22px;height:22px;flex:0 0 22px;
+    width:21px;height:21px;flex:0 0 21px;
   }
   #center>.controlDock .camBar .camNav{
-    display:grid;grid-template-columns:repeat(2,18px);
-    gap:3px;justify-content:center;align-self:center;
-    width:39px;min-width:39px;margin:0;
+    display:flex;flex:0 0 auto;flex-direction:row;align-items:center;gap:3px;
+    width:auto;min-width:0;margin:0;
   }
   #center>.controlDock .camBar .camNav button{
-    box-sizing:border-box;width:18px;min-width:18px;height:24px;min-height:24px;
-    padding:1px;display:flex;align-items:center;justify-content:center;
+    box-sizing:border-box;flex:0 0 25px;width:25px;min-width:25px;
+    height:28px;min-height:28px;padding:2px;
+    display:flex;align-items:center;justify-content:center;
   }
   #center>.controlDock #sceneHint{display:none!important}
+  #center>.controlDock[data-orientation="vertical"]{
+    flex-direction:column;align-items:stretch;max-width:calc(100vw - 12px);
+    max-height:calc(100dvh - 12px);overflow-x:hidden;overflow-y:auto;
+    touch-action:pan-y;
+  }
+  #center>.controlDock[data-orientation="vertical"] .camBar,
+  #center>.controlDock[data-orientation="vertical"] .quickBar{
+    flex-direction:column;align-items:center;
+  }
+  #center>.controlDock[data-orientation="vertical"] .camBar .camNav{
+    display:grid;grid-template-columns:repeat(2,25px);
+  }
+  #center>.controlDock[data-orientation="vertical"] .dockGrip,
+  #center>.controlDock[data-orientation="vertical"] .dockRotate{align-self:center}
+  #center>.controlDock.is-dragging{user-select:none;opacity:.94}
 
 </style>
 </head>
@@ -1145,7 +1166,8 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
     <div id="center">
       <div class="spacer"></div>
-      <div class="panel controlDock" aria-label="Панель управления видом и растениями">
+      <div class="panel controlDock" id="controlDock" data-orientation="horizontal" aria-label="Перемещаемая панель управления">
+        <button type="button" class="btn dockGrip" id="dockGrip" aria-label="Перетащить панель" title="Перетащить панель">⠿</button>
         <div class="camBar" id="camBar">
           <button data-view="top" aria-label="Вид сверху" title="Вид сверху"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4-9-4Zm0 5 9 5 9-5M3 17l9 5 9-5"/></svg></button>
           <button data-view="front" aria-label="Фронтальный вид" title="Фронтальный вид"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 9h16M12 3v18"/></svg></button>
@@ -1181,6 +1203,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
         </button>
         <span class="hint" id="sceneHint">Плод — собрать · лист — обрезать · горшок — полить · лампа — свет</span>
         </div>
+        <button type="button" class="btn dockRotate" id="dockRotate" aria-label="Повернуть панель" title="Переключить горизонтальное/вертикальное расположение">↕</button>
       </div>
     </div>
 
@@ -7989,6 +8012,67 @@ window.addEventListener('pagehide', ()=>{ if (world && !world.over) saveNow(true
 document.addEventListener('visibilitychange', ()=>{
   if (document.visibilityState === 'hidden' && world && !world.over) saveNow(true);
 });
+
+/* ---------------- Перемещаемая панель управления ----------------
+   Перетаскивание за маркер; поворот переключает горизонтальный/вертикальный вид.
+   Координаты и ориентация сохраняются локально на устройстве. */
+(function initControlDock(){
+  const dock=$('controlDock'), grip=$('dockGrip'), rotate=$('dockRotate');
+  if(!dock||!grip||!rotate)return;
+  const KEY='greensim.controlDock.v1';
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){}
+  const clampPos=()=>{
+    const r=dock.getBoundingClientRect(),pad=6;
+    const left=Math.max(pad,Math.min(window.innerWidth-r.width-pad,r.left));
+    const top=Math.max(pad,Math.min(window.innerHeight-r.height-pad,r.top));
+    dock.style.left=left+'px';dock.style.top=top+'px';dock.style.transform='none';
+  };
+  const persist=()=>{
+    const r=dock.getBoundingClientRect();
+    try{localStorage.setItem(KEY,JSON.stringify({
+      left:Math.round(r.left),top:Math.round(r.top),
+      orientation:dock.dataset.orientation||'horizontal'
+    }));}catch(e){}
+  };
+  const setOrientation=(orientation)=>{
+    dock.dataset.orientation=orientation==='vertical'?'vertical':'horizontal';
+    rotate.textContent=dock.dataset.orientation==='vertical'?'↔':'↕';
+    rotate.title=dock.dataset.orientation==='vertical'?'Сделать панель горизонтальной':'Сделать панель вертикальной';
+    if(dock.style.left){requestAnimationFrame(()=>{clampPos();persist();});}
+  };
+  setOrientation(saved.orientation||'horizontal');
+  if(Number.isFinite(+saved.left)&&Number.isFinite(+saved.top)){
+    dock.style.left=saved.left+'px';dock.style.top=saved.top+'px';dock.style.transform='none';
+    requestAnimationFrame(clampPos);
+  }
+  rotate.addEventListener('click',()=>{
+    setOrientation(dock.dataset.orientation==='vertical'?'horizontal':'vertical');
+    requestAnimationFrame(()=>{clampPos();persist();});
+  });
+  let drag=null;
+  grip.addEventListener('pointerdown',e=>{
+    if(e.button!==undefined&&e.button!==0)return;
+    const r=dock.getBoundingClientRect();
+    drag={x:e.clientX,y:e.clientY,left:r.left,top:r.top};
+    dock.classList.add('is-dragging');
+    grip.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  });
+  grip.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const r=dock.getBoundingClientRect(),pad=6;
+    const left=Math.max(pad,Math.min(window.innerWidth-r.width-pad,drag.left+e.clientX-drag.x));
+    const top=Math.max(pad,Math.min(window.innerHeight-r.height-pad,drag.top+e.clientY-drag.y));
+    dock.style.left=left+'px';dock.style.top=top+'px';dock.style.transform='none';
+  });
+  const stopDrag=()=>{
+    if(!drag)return;drag=null;dock.classList.remove('is-dragging');clampPos();persist();
+  };
+  grip.addEventListener('pointerup',stopDrag);
+  grip.addEventListener('pointercancel',stopDrag);
+  window.addEventListener('resize',()=>{if(dock.style.left){clampPos();persist();}});
+})();
 
 /* ---------------- запуск ---------------- */
 resize();
