@@ -2,7 +2,7 @@
    Задача одна: игра открывается без сети. index.html обновляем по сети
    (network-first), чтобы свежая сборка приходила сразу, а офлайн оставался
    последний удачный вариант. Всё остальное — stale-while-revalidate.        */
-const CACHE = 'greensim-v2';
+const CACHE = 'greensim-v3';
 const CORE = ['./', './index.html', './manifest.webmanifest',
               './icons/icon-192.png', './icons/icon-512.png'];
 
