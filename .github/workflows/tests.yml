@@ -1,7 +1,7 @@
 name: Автопроверки
 
 # Гоняется на каждый пуш в main, dev и текущую рабочую ветку; также доступен ручной запуск.
-# Две job'ы: быстрая без браузера и полная с Playwright.
+# Две job'ы: ядро без браузера и полный браузерный набор Playwright, включая длительные сценарии.
 # Любая упавшая проверка роняет job — красный крестик виден прямо в PR/коммите.
 on:
   push:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   # 1. ЯДРО: сборка из parts/*, экономика, сюжет, 90 дней в заглушках DOM.
-  # Браузер не нужен — 20 секунд, поэтому стоит первым и в PR.
+  # Браузер не нужен — выполняется быстро, поэтому стоит первым и в PR.
   core:
     name: ядро и сборка (без браузера)
     runs-on: ubuntu-latest
@@ -35,9 +35,8 @@ jobs:
       - name: Автопроверки без браузера
         run: node tools/run_all.js --no-browser
 
-  # 2. БРАУЗЕР: Playwright гоняет сцену, интерфейс, сохранения, таймеры.
-  # Ставим обычный playwright: tools/browser.js сам выбирает его, если нет
-  # песочного комплекта playwright-core + @sparticuz/chromium.
+  # 2. БРАУЗЕР: полный Playwright-набор, включая кампанию, адаптивность и долгие UX-сценарии.
+  # Не использовать --fast: эти сценарии являются частью обязательной регрессии.
   browser:
     name: сцена и интерфейс (Playwright)
     runs-on: ubuntu-latest
@@ -55,8 +54,8 @@ jobs:
           npm i --no-audit --no-fund --no-save playwright@latest
           npx playwright install --with-deps chromium
 
-      - name: Быстрый набор с браузером
-        run: node tools/run_all.js --browser-only --fast
+      - name: Полный набор браузерных проверок
+        run: node tools/run_all.js --browser-only
 
       - name: Скриншоты провалов (если что-то упало)
         if: failure()
