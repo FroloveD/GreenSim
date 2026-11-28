@@ -402,6 +402,8 @@ function clearSave(){
 }
 function applyLoadedWorld(pack, silent){
   world = pack.world;
+  // Возобновляем единый AudioContext непосредственно из пользовательского действия «Продолжить».
+  if (SFX.on) SFX.arm();
   if (!world.has) world.has = {};
   if (!world.has.autoTimer && world.auto) ['lamp','water','co2','full'].forEach(k=>{ if(world.auto[k]) world.auto[k].on=false; });
   if (world.camp && world.tutorialEnabled === undefined) world.tutorialEnabled = true;
@@ -665,6 +667,8 @@ function renderResumeBox(){
 }
 
 function startGame(){
+  // Старт игры — пользовательский жест; он разблокирует AudioContext для игровых событий.
+  if (SFX.on) SFX.arm();
   const seed = 20260415 + (pending.weather==='cloudy'?7:0) + (pending.weather==='hot'?13:0) + (pending.crop.length*3);
   world = makeWorld({ profile:pending.campaign?'balcony':pending.profile, crop:pending.crop, weather:pending.weather,
                       difficulty:pending.difficulty, seed, campaign:pending.campaign,
@@ -1279,6 +1283,7 @@ function renderStock(){
   const sell = $('btnSellAll');
   if (sell) press(sell, ()=>{
     const r = sellHarvest(world, world.crop, null);
+    if (r.ok) playSfx('sell');
     toast(r.ok ? `Продано ${num(r.kg)} кг за ${money(r.eur)}` : 'На складе нет продукции');
     renderAll(); if (page==='shop') renderShop();
   });
@@ -1485,6 +1490,7 @@ function renderShop(){
 
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
     const r = buyItem(world, b.dataset.buy);
+    if (r.ok) playSfx('buy');
     toast(r.msg);
     renderAll(); renderShop();
   });
@@ -2234,18 +2240,21 @@ function handleClick(cx, cy){
   if (!hit) return;
   if (hit.kind==='pot'){
     const r = water(world);
+    if (r.ok && r.litres>0) playSfx('water');
     toast(r.msg);
     if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
     return;
   }
   if (hit.kind==='lamp'){
     const r = toggleLamp(world);
+    if (r.ok) playSfx('lamp');
     toast(r.msg);
     if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
     return;
   }
   if (hit.kind==='fruit'){
     const rev = harvestFruit(world, hit.plant, hit.fruit);
+    if (rev>0) playSfx('harvest');
     if (rev>0) toast('+'+money(rev)+' за плод');
     else if (hit.fruit.rot) toast('Плод с вершинной гнилью — списан');
     renderAll();
@@ -2377,6 +2386,7 @@ $('menuCurrency').onchange=e=>setCurrency(e.target.value);
 
 $('btnHarvest').onclick = ()=>{
   const r = harvestAll(world);
+  if (r.n>0) playSfx('harvest', {heavy:Math.min(1,r.n/8)});
   toast(r.n ? `Собрано ${r.n} шт · ${num(r.kg)} кг → склад` : 'Нет спелых плодов');
   renderAll(); if (page==='shop') renderShop();
 };
@@ -2387,6 +2397,7 @@ $('btnPrune').onclick = ()=>{
 };
 $('btnLampQuick').onclick = ()=>{
   const r = toggleLamp(world);
+  if (r.ok) playSfx('lamp');
   toast(r.msg);
   if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
@@ -2398,6 +2409,7 @@ $('btnShadeQuick').onclick = ()=>{
 };
 $('btnWaterQuick').onclick = ()=>{
   const r = water(world);
+  if (r.ok && r.litres>0) playSfx('water');
   toast(r.msg);
   if (r.ok){ syncLightButtons(); renderAll(); if (page==='settings') renderSettings(); saveNow(true); }
 };
