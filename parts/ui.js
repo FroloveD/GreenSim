@@ -98,22 +98,52 @@ const SFX = (()=>{
     }else wake();
     return true;
   }
+  // Плавная автоматизация AudioParam: не меняем громкость скачком, чтобы не создавать щелчки.
+  function rampParam(param,value,seconds){
+    if(!param||!ctx)return;
+    const t=ctx.currentTime, target=Math.max(0,value);
+    try{
+      if(typeof param.cancelAndHoldAtTime==='function') param.cancelAndHoldAtTime(t);
+      else{
+        const current=Number.isFinite(param.value)?param.value:0;
+        param.cancelScheduledValues(t);
+        param.setValueAtTime(current,t);
+      }
+      param.linearRampToValueAtTime(target,t+Math.max(0.015,seconds||0.18));
+    }catch(e){try{param.value=target;}catch(_){}}
+  }
   function stopAmbient(){
     if(ambientTimer){clearTimeout(ambientTimer);ambientTimer=0;}
-    ambientNodes.forEach(n=>{try{if(n.stop)n.stop();}catch(e){} try{n.disconnect();}catch(e){}});
+    const oldNodes=ambientNodes;
     ambientNodes=[];
     worldLayers=null;
+    if(!oldNodes.length)return;
+    // Сначала убираем уровень фоновых генераторов, затем отключаем их после короткого fade-out.
+    if(ctx&&ctx.state==='running'){
+      const t=ctx.currentTime;
+      oldNodes.forEach(n=>{
+        try{
+          if(n.gain) rampParam(n.gain,0,0.16);
+          if(typeof n.stop==='function') n.stop(t+0.19);
+        }catch(e){}
+      });
+      setTimeout(()=>oldNodes.forEach(n=>{try{n.disconnect();}catch(e){}}),240);
+    }else{
+      oldNodes.forEach(n=>{try{if(n.stop)n.stop();}catch(e){}try{n.disconnect();}catch(e){}});
+    }
   }
   function addAmbientNoise(freq,type,gain){
     const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
     const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
-    const g=ctx.createGain();g.gain.value=gain;
+    const g=ctx.createGain();g.gain.value=0;
     src.connect(filter);filter.connect(g);g.connect(master);src.start();
     ambientNodes.push(src,filter,g);
+    rampParam(g.gain,gain,0.48);
   }
   function addAmbientTone(freq,wave,gain){
-    const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=wave;osc.frequency.value=freq;g.gain.value=gain;
+    const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=wave;osc.frequency.value=freq;g.gain.value=0;
     osc.connect(g);g.connect(master);osc.start();ambientNodes.push(osc,g);
+    rampParam(g.gain,gain,0.48);
   }
   function birdChirp(){
     if(!sndCfg.on||!['nature','night'].includes(sndCfg.preset)||!ctx||ctx.state!=='running')return;
@@ -197,11 +227,8 @@ const SFX = (()=>{
   }
   function syncGain(){
     if(master&&ctx){
-      const t=ctx.currentTime;
-      try{
-        master.gain.cancelScheduledValues(t);
-        master.gain.setValueAtTime(sndCfg.on&&sndCfg.vol>0?sndCfg.vol*0.45:0,t);
-      }catch(e){master.gain.value=sndCfg.on&&sndCfg.vol>0?sndCfg.vol*0.45:0;}
+      // Общая громкость тоже меняется с коротким fade, а не мгновенным скачком.
+      rampParam(master.gain,sndCfg.on&&sndCfg.vol>0?sndCfg.vol*0.45:0,0.22);
     }
     if(!sndCfg.on || sndCfg.vol<=0) stopAmbient();
     else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length&&sndCfg.preset!=='off')startAmbient();
