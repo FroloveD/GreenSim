@@ -996,6 +996,22 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   #center>.controlDock[data-orientation="vertical"] .dockRotate{align-self:center}
   #center>.controlDock.is-dragging{user-select:none;opacity:.94}
 
+
+  /* Финальный мобильный override: базовый блок .metrics объявлен ниже ранних
+     media query, поэтому мобильная раскладка должна стоять после него. */
+  @media(max-width:760px){
+    #top>.metrics{
+      width:100%;min-width:0;max-width:100%;margin-left:0;
+      flex-wrap:wrap;justify-content:space-between
+    }
+    #top>.metrics>.speeds{
+      min-width:0;max-width:100%;flex:1 1 auto;
+      flex-wrap:wrap;justify-content:flex-end
+    }
+  }
+  @media(max-width:420px){
+    #top .speeds .spd[data-s="64"],#top .speeds .spd[data-s="480"]{display:none}
+  }
 </style>
 </head>
 <body>

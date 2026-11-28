@@ -20,6 +20,8 @@ const SHOTS = path.join(__dirname, '..', 'shots');
         camBarH: Math.round(cb.height), viewport: window.innerWidth};
     });
     console.log(w, JSON.stringify(r));
+    if (r.overflow || r.lastRight > r.topRight + 1)
+      throw new Error('Верхняя панель выходит за экран при ширине '+w+': '+JSON.stringify(r));
     if (w===390){ await page.evaluate(()=>VG.freeze(true)); await cdpShot(page, path.join(SHOTS, '105_phone_camnav.png')); await page.evaluate(()=>VG.freeze(false)); }
     await b.close();
   }

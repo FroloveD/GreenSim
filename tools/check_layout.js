@@ -17,8 +17,9 @@ fs.mkdirSync(SHOTS, {recursive:true});
     await page.goto('http://localhost:8080/index.html?l='+Date.now(), { waitUntil:'domcontentloaded', timeout:60000 });
     await page.waitForTimeout(800);
     await page.screenshot({path:path.join(SHOTS, `lay_${sz.n}_start.png`)});
-    await page.evaluate(()=>{ document.getElementById('startBtn').click(); });
-    await page.waitForTimeout(900);
+    // Снимаем стартовую заставку; тест запускает кампанию напрямую после неё.
+    await page.evaluate(()=>document.getElementById('introContinue').click());
+    await page.waitForTimeout(200);
     await page.evaluate(()=>{ pending.campaign=true; pending.profile='balcony'; startGame();
       for(let d=0;d<20;d++){ for(let k=0;k<24;k++) VG.sim(1); } VG.harvest(); if(world.wh.lots.length) VG.sell(); renderAll(); });
     await page.waitForTimeout(200);
@@ -40,6 +41,8 @@ fs.mkdirSync(SHOTS, {recursive:true});
       scrollX: document.documentElement.scrollWidth > window.innerWidth
     }));
     console.log(sz.n, JSON.stringify(info), 'первая кнопка:', first, 'ошибки:', errs.length?errs[0]:'нет');
+    if(info.scrollX || !info.canvas[0] || !info.canvas[1])
+      throw new Error('Геометрия сцены вышла за viewport на '+sz.n+': '+JSON.stringify(info));
     await ctx.close();
   }
 })();
