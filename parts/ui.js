@@ -384,9 +384,10 @@ function applyLoadedWorld(pack, silent){
   try {
     const hours = (Date.now() - (pack.ts||Date.now()))/3600000;
     if (hours > 0.05){
-      const simulated = cloneWorld(loaded);
-      away = catchUp(simulated, hours);
-      loaded = simulated;
+      const transaction = catchUpTransactional(loaded, hours);
+      away = transaction.result;
+      loaded = transaction.world;
+      catchUpError = transaction.error;
     }
   } catch(e){ catchUpError = e; }
   world = loaded;
