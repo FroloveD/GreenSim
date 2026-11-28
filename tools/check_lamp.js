@@ -38,11 +38,11 @@ const ok = (c, m, extra)=>{
       document.getElementById('btnLampQuick').click();
       const afterOne = !!world.ctrl.lampEnabled;
       const toasts1 = window.__toasts.slice();
-      document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
+      document.getElementById('btnLampQuick').click();
       const afterTwo = !!world.ctrl.lampEnabled;
       const btn = document.getElementById('btnLampQuick');
       return { name, hasLamp, hasLed, before, afterOne, afterTwo, toasts1, toasts2: window.__toasts.slice(),
-               label: btn.textContent.trim(), good: btn.classList.contains('good'),
+               label: btn.getAttribute('aria-label') || btn.title, good: btn.classList.contains('good'),
                sayBuy: /купите|купи/i.test(toasts1.concat(window.__toasts).join(' ')) };
     });
     ok(r.hasLamp && !r.hasLed, 'на балконе лампа-лента есть, дорогого LED нет', r.name);
@@ -59,10 +59,13 @@ const ok = (c, m, extra)=>{
       renderAll(); drawScene();
     });
     const spot = await page.evaluate(()=>{
-      const q = lampSpots().map(project);
       const rect = canvas.getBoundingClientRect();
-      const hit = hitTest(rect.left + q[0].x, rect.top + q[0].y);
-      return { x: rect.left + q[0].x, y: rect.top + q[0].y, n: lampSpots().length, hit: hit && hit.kind };
+      const candidates=lampSpots().map(p=>{
+        const q=project(p),x=rect.left+q.x,y=rect.top+q.y,el=document.elementFromPoint(x,y);
+        return {x,y,hit:hitTest(x,y),target:el&&el.id||el&&el.tagName,canvas:el===canvas};
+      });
+      const spot=candidates.find(p=>p.canvas)||candidates[0];
+      return {...spot,n:candidates.length,hit:spot.hit&&spot.hit.kind};
     });
     ok(spot.n === 4, 'светильники в сцене есть всегда, когда лампа куплена', spot.n + ' шт');
     ok(spot.hit === 'lamp', 'попадание по светильнику распознаётся', spot.hit || 'мимо');

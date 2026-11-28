@@ -17,7 +17,7 @@ async function shot(page, file){
 
   await page.goto('http://localhost:8080/index.html?s=1', { waitUntil:'domcontentloaded', timeout:60000 });
   await page.waitForTimeout(700);
-  await page.click('#menuFree');
+  await page.evaluate(()=>openNewGame('free'));
   await page.waitForTimeout(200);
   await page.click('[data-crop="cucumber"]');
   await page.click('#startBtn');

@@ -39,7 +39,7 @@ const ok = (c, m, extra)=>{
       state: soilState(world).key
     }));
     ok(r.moist > 40 && r.moist <= 60, 'стартовая влага в норме', r.moist + '%');
-    ok(/влага\s*\d+%/.test(r.gauge), 'датчик влаги есть в панели датчиков', r.gauge.match(/влага\s*\d+%/)?.[0] || r.gauge);
+    ok(/влага(?:ⓘ)?\s*\d+%/.test(r.gauge), 'датчик влаги есть в панели датчиков', r.gauge.match(/влага(?:ⓘ)?\s*\d+%/)?.[0] || r.gauge);
     ok(/текущая влажность субстрата:\s*\d+%/i.test(r.btn), 'влажность доступна в подписи кнопки «Полить»', r.btn);
     ok(r.state === 'ok', 'состояние субстрата — норма', r.state);
   }
@@ -62,24 +62,26 @@ const ok = (c, m, extra)=>{
       world.moist = 40; const w0 = world.stock.waterM3;
       document.getElementById('btnWaterQuick').click();
       return { m0:40, m1:+world.moist.toFixed(1), spent:+(w0-world.stock.waterM3).toFixed(3),
-               toast:window.__toasts[0]||'', btn:document.getElementById('btnWaterQuick').textContent.trim() };
+               toast:window.__toasts[0]||'', btn:document.getElementById('btnWaterQuick').getAttribute('aria-label')||'' };
     });
     ok(Math.abs(r.m1 - 55) < 0.6, 'одна доза поднимает влагу на 15 п.п.', `40% → ${r.m1}%`);
     ok(Math.abs(r.spent - 0.018) < 0.002, 'вода списана из бака', r.spent + ' м³ (18 л)');
     ok(/Полито 18 л/.test(r.toast), 'тост объясняет, сколько вылили', r.toast);
-    ok(/55%/.test(r.btn), 'кнопка обновилась сразу', r.btn);
+    ok(/55%/.test(r.btn), 'подпись кнопки обновилась сразу', r.btn);
   }
 
   // 4. клик по горшку в сцене поливает (мышью, не из консоли)
   {
     const spot = await page.evaluate(()=>{
       world.moist = 30; renderAll(); drawScene();
-      const p = world.plants[0];
-      const g = vesselGeom(world.sys);
-      const q = project({x:p.x, y:plantBaseY(world) - g.h*0.5, z:p.z});
-      const rect = canvas.getBoundingClientRect();
-      const hit = hitTest(rect.left + q.x, rect.top + q.y);
-      return { x: rect.left + q.x, y: rect.top + q.y, hit: hit && hit.kind };
+      const g = vesselGeom(world.sys), rect = canvas.getBoundingClientRect();
+      const candidates = world.plants.map(p=>{
+        const q=project({x:p.x,y:plantBaseY(world)-g.h*0.5,z:p.z});
+        const x=rect.left+q.x,y=rect.top+q.y,el=document.elementFromPoint(x,y);
+        return {x,y,hit:hitTest(x,y),target:el&&el.id||el&&el.tagName,canvas:el===canvas};
+      });
+      const spot=candidates.find(p=>p.canvas)||candidates[0];
+      return {...spot,hit:spot.hit&&spot.hit.kind};
     });
     await page.mouse.click(spot.x, spot.y);
     await page.waitForTimeout(150);
@@ -98,7 +100,7 @@ const ok = (c, m, extra)=>{
       const stress = +world.waterStress.toFixed(2);
       const diag = document.getElementById('diagnosis').textContent.replace(/\s+/g,' ');
       const cls = document.getElementById('btnWaterQuick').className;
-      document.getElementById('btnWaterQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
+      document.getElementById('btnWaterQuick').click();
       VG.sim(0.5);
       return { alerts, stress, diag, cls, after:+world.waterStress.toFixed(2), moist:+world.moist.toFixed(0) };
     });

@@ -12,7 +12,10 @@ const shot = async (page, path)=>{ await page.evaluate(()=>window.VG&&VG.freeze(
   await page.goto('http://localhost:8080/index.html?n=1', { waitUntil:'domcontentloaded', timeout:60000 });
   await page.waitForTimeout(700);
   // В новой структуре сначала выбираем режим кампании в главном меню.
-  await page.click('#menuCampaign');
+  await page.evaluate(()=>{
+    openNewGame('campaign');
+    document.getElementById('campaignPrologueContinue').click();
+  });
   await page.waitForTimeout(200);
   // выбрать сложность «Жёсткая» и начать
   await page.click('[data-diff="hard"]');

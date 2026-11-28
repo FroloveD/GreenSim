@@ -79,7 +79,10 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c ? '✅ ' : '❌ ') +
     const press = k => window.dispatchEvent(new KeyboardEvent('keydown', {key:k, bubbles:true}));
     setPage('greenhouse');
     const r = {};
-    press(' '); r.paused = paused; r.label = document.getElementById('btnPause').textContent; press(' ');
+    press(' ');
+    const pauseBtn = document.getElementById('btnPause');
+    r.paused = paused; r.pauseOn = pauseBtn.classList.contains('on'); r.pauseTitle = pauseBtn.title;
+    press(' ');
     press('1'); r.camTop = document.querySelector('#camBar button[data-view="top"]').classList.contains('on');
     press('5');
     const layerBefore = document.getElementById('btnLayer').classList.contains('on');
@@ -93,7 +96,8 @@ const ok = (c, m, extra)=>{ if (!c) fails++; console.log((c ? '✅ ' : '❌ ') +
     r.pageAfterTyping = page; inp.remove();
     return r;
   });
-  ok(keys.paused === true && /пауза/i.test(keys.label), 'пробел ставит паузу и кнопка это показывает', keys.label);
+  ok(keys.paused === true && keys.pauseOn && /реальное время включено/i.test(keys.pauseTitle),
+     'пробел ставит паузу и кнопка показывает режим', keys.pauseTitle);
   ok(keys.camTop === true, 'цифры переключают камеры');
   ok(keys.layer && keys.sound && keys.camReset && keys.zoom, 'L, Z, R и + выполняют действия из карточки «Клавиши»');
   ok(keys.pageAfterTyping === 'greenhouse', 'в поле ввода клавиши не мешают');
