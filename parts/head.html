@@ -846,6 +846,45 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     #campaignPrologue .letter-topline{font-size:9px;letter-spacing:.1em}
   }
 
+
+  /* Компактная однострочная верхняя панель: бренд, навигация, показатели и скорость */
+  #top{flex-wrap:nowrap;gap:8px;min-height:48px;padding:5px 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  #top::-webkit-scrollbar{display:none}
+  #top>.brand{flex:0 1 158px;min-width:112px;max-width:158px}
+  #top .brand b{font-size:10.5px;letter-spacing:.3px}
+  #top .brand span{font-size:8px;letter-spacing:.8px;max-width:100%}
+  #top>.tabs{flex:0 0 auto;gap:2px;margin-left:0}
+  #top .tabs button{font-size:10px;padding:5px 8px;letter-spacing:.35px}
+  #top>.metrics{flex:0 0 auto;gap:8px;margin-left:auto}
+  #top .metric{min-width:0}
+  #top .metric b{font-size:11px}
+  #top .metric span{font-size:8px;letter-spacing:.45px}
+  #top .metric.climate b{font-size:10px}
+  #top>.metrics>.speeds{flex:0 0 auto;gap:3px}
+  #top .speeds button{font-size:10px;padding:4px 6px}
+  @media(max-width:1180px){
+    #top{gap:6px;padding-left:7px;padding-right:7px}
+    #top>.brand{flex-basis:126px;min-width:100px}
+    #top .tabs button{padding:5px 6px;font-size:9.5px}
+    #top>.metrics{gap:6px}
+    #top .metric.profit{display:none}
+    #top .speeds button{padding:4px 5px;font-size:9px}
+  }
+  @media(max-width:760px){
+    #top{top:4px;left:4px;right:4px;gap:5px;padding:5px 6px}
+    #top>.brand{flex-basis:104px;min-width:88px}
+    #top .brand b{font-size:9px;letter-spacing:0}
+    #top .brand span{font-size:7px;letter-spacing:.3px}
+    #top .tabs button{font-size:8.5px;padding:5px 5px;letter-spacing:0}
+    #top>.metrics{gap:5px}
+    #top .metric b{font-size:9px}
+    #top .metric span{font-size:7px;letter-spacing:0}
+    #top .metric.crop,#top .metric.profit{display:none}
+    #top .metric.climate b{font-size:9px}
+    #top .speeds button{font-size:8px;padding:4px 4px}
+    #top .speeds #btnPred,#top .speeds #btnSave,#top .speeds #btnSoundSettings{display:none}
+  }
+
 </style>
 </head>
 <body>
