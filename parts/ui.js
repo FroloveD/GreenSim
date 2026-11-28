@@ -67,7 +67,7 @@ function sndSave(){
 }
 const SFX = (()=>{
   let ctx = null, master = null, noiseBuf = null, armed = false;
-  let ambientNodes = [], ambientTimer = 0, worldLayers = null;
+  let ambientNodes = [], ambientTimer = 0;
   const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
   const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
   function ensure(){
@@ -116,7 +116,6 @@ const SFX = (()=>{
     if(ambientTimer){clearTimeout(ambientTimer);ambientTimer=0;}
     const oldNodes=ambientNodes;
     ambientNodes=[];
-    worldLayers=null;
     if(!oldNodes.length)return;
     // Сначала убираем уровень фоновых генераторов, затем отключаем их после короткого fade-out.
     if(ctx&&ctx.state==='running'){
@@ -154,53 +153,6 @@ const SFX = (()=>{
     }
     ambientTimer=setTimeout(birdChirp,sndCfg.preset==='night'?3500+Math.random()*2500:2700+Math.random()*3200);
   }
-  function addWorldNoise(freq,type){
-    const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
-    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
-    const gain=ctx.createGain();gain.gain.value=0.0001;
-    src.connect(filter);filter.connect(gain);gain.connect(master);src.start();
-    ambientNodes.push(src,filter,gain);
-    return {gain,filter};
-  }
-  function addWorldTone(freq){
-    const osc=ctx.createOscillator(),gain=ctx.createGain();
-    osc.type='sine';osc.frequency.value=freq;gain.gain.value=0.0001;
-    osc.connect(gain);gain.connect(master);osc.start();
-    ambientNodes.push(osc,gain);
-    return {osc,gain};
-  }
-  function startWorldBed(){
-    // Три независимых слоя: воздушный шум, вентиляция и низкий гул оборудования.
-    worldLayers={
-      air:addWorldNoise(620,'lowpass'),
-      fan:addWorldNoise(1250,'bandpass'),
-      hum:addWorldTone(58)
-    };
-  }
-  function setSmooth(param,value,seconds){
-    if(!param||!ctx)return;
-    const t=ctx.currentTime;
-    try{
-      param.cancelScheduledValues(t);
-      param.setTargetAtTime(Math.max(0.0001,value),t,seconds||0.55);
-    }catch(e){param.value=Math.max(0.0001,value);}
-  }
-  function syncWorld(w){
-    if(!w||!worldLayers||!ctx||ctx.state!=='running'||!sndCfg.on||sndCfg.preset==='off')return;
-    const c=w.ctrl||{}, temp=Number.isFinite(+w.temp)?+w.temp:20;
-    const rh=Number.isFinite(+w.rh)?+w.rh:65;
-    const powered=w.power!==false;
-    const heating=powered&&(!!c.heatManualOn||(Number.isFinite(+c.heatSet)&&temp<+c.heatSet-1));
-    const venting=powered&&(!!c.ventManualOn||(Number.isFinite(+c.ventSet)&&temp>+c.ventSet+1));
-    const lighting=powered&&!!c.lampOn;
-    const humidity=clamp((rh-45)/50,0,1);
-    setSmooth(worldLayers.air.gain.gain,0.0012+humidity*0.0042,0.8);
-    setSmooth(worldLayers.air.filter.frequency,420+humidity*1050,0.8);
-    setSmooth(worldLayers.fan.gain.gain,venting?0.009:0.0007,0.65);
-    setSmooth(worldLayers.fan.filter.frequency,venting?1650:700,0.7);
-    setSmooth(worldLayers.hum.gain.gain,(heating?0.0038:0.0007)+(lighting?0.0012:0),0.9);
-    try{worldLayers.hum.osc.frequency.setTargetAtTime(48+clamp(temp,0,38)*0.42,ctx.currentTime,1.2);}catch(e){}
-  }
   function startAmbient(){
     stopAmbient();
     if(!sndCfg.on||sndCfg.preset==='off'||!ctx||ctx.state!=='running')return;
@@ -222,8 +174,6 @@ const SFX = (()=>{
         addAmbientNoise(390,'lowpass',0.018);addAmbientNoise(3000,'highpass',0.003);birdChirp();
         break;
     }
-    startWorldBed();
-    if(world) syncWorld(world);
   }
   function syncGain(){
     if(master&&ctx){
@@ -325,7 +275,7 @@ const SFX = (()=>{
     try { r(opt || {}); return true; } catch(e){ return false; }
   }
   return {
-    arm, play, syncWorld,
+    arm, play,
     names: ()=>Object.keys(RECIPES),
     get on(){ return sndCfg.on; },
     get vol(){ return sndCfg.vol; },
@@ -2639,16 +2589,11 @@ function renderAll(){
 
 /* ---------------- главный цикл ---------------- */
 let frozen = false;                    // отладочный «стоп-кадр»: VG.freeze(true)
-let soundSyncAt = 0;
 function frame(now){
   if (frozen){ lastT = now; requestAnimationFrame(frame); return; }
   const dtReal = Math.min(0.25, Math.max(0, (now-lastT)/1000));   // на слабом железе кадры редкие — не теряем время
   lastT = now;
   if (world){
-    if (now-soundSyncAt>450){
-      soundSyncAt=now;
-      try{SFX.syncWorld(world);}catch(e){}
-    }
     if (!world.over){
       // пауза не останавливает время: 1 реальная секунда = 1 игровая секунда
       // скорость задана как «игровых часов за реальную минуту»: 1× — час за минуту
