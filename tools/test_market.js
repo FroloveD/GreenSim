@@ -114,7 +114,7 @@ const season = (crop, doy) => +M.seasonFactor(crop, doy).toFixed(2);
   // январь в Екатеринбурге, лампа выключена (как у игрока ночью), отопление на 18 °C
   const winter = (gear)=>{
     const ww = M.makeWorld({profile:'balcony', crop:'tomato', seed:11, site:'ekb', startDoy:15});
-    ww.money = 2000; ww.has.ledStrip = true; ww.ctrl.lampEnabled = false;
+    ww.money = 2000; ww.has.ledStrip = true; ww.ctrl.lampEnabled = false; ww.ctrl.heatManualOn = true;
     if (gear) { ww.has.windowFilm = true; ww.has.heatBoost = true; }
     let min = 99;
     for (let d=0; d<20; d++)
