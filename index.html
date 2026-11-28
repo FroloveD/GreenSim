@@ -689,6 +689,39 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   .quickBar .quick-icon#btnHarvest:active{background:#25d94e;color:#061f0a;box-shadow:1px 1px 0 #080d06}
   .quickBar .quick-icon:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
   .quickBar #sceneHint{flex:1 1 150px}
+
+  /* Узкий плавающий док: прокрутка групп кнопок внутри, а не растягивание по экрану. */
+  #center > .controlDock{
+    box-sizing:border-box;width:88px;max-width:calc(100vw - 12px);
+    min-width:0;align-self:center;flex:0 0 auto;
+    flex-direction:column;align-items:stretch;gap:3px;padding:4px!important;
+  }
+  #center .controlDock .camBar,
+  #center .controlDock .quickBar{
+    box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+    display:flex;flex-wrap:nowrap;justify-content:flex-start;align-items:center;
+    gap:4px;padding:2px 1px;overflow-x:auto;overflow-y:hidden;
+    overscroll-behavior-x:contain;scrollbar-width:none;touch-action:pan-x;
+  }
+  #center .controlDock .camBar::-webkit-scrollbar,
+  #center .controlDock .quickBar::-webkit-scrollbar{display:none}
+  #center .controlDock .camBar>button{
+    box-sizing:border-box;flex:0 0 32px;width:32px;min-width:32px;
+    height:32px;min-height:32px;padding:4px;
+  }
+  #center .controlDock .camBar>button svg{width:19px;height:19px}
+  #center .controlDock .camNav{display:flex;flex:0 0 auto;gap:3px;margin:0}
+  #center .controlDock .camNav button{
+    box-sizing:border-box;flex:0 0 25px;width:25px;min-width:25px;
+    height:28px;min-height:28px;padding:3px;
+  }
+  #center .controlDock .quickBar .quick-icon{
+    box-sizing:border-box;flex:0 0 34px;width:34px;min-width:34px;max-width:34px;
+    height:34px;min-height:34px;padding:4px;
+  }
+  #center .controlDock .quickBar .quick-icon svg{width:21px;height:21px;flex-basis:21px}
+  #center .controlDock #sceneHint{display:none}
+
   /* Игровое, более живое главное меню */
   #mainMenu{background:radial-gradient(ellipse at 50% 12%,rgba(161,205,105,.2),transparent 42%),radial-gradient(ellipse at 15% 85%,rgba(240,178,92,.11),transparent 38%),var(--bg)}
   #mainMenu .playful-menu{position:relative;width:min(590px,94vw);padding:clamp(25px,5vw,46px);overflow:hidden;border:1px solid rgba(185,220,145,.35);border-radius:26px;background:linear-gradient(155deg,rgba(37,62,43,.98),rgba(15,29,22,.99) 65%);box-shadow:0 24px 90px #0009}
