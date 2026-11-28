@@ -1,8 +1,11 @@
 /* Сервис-воркер «Виртуальной теплицы».
-   Задача одна: игра открывается без сети. index.html обновляем по сети
-   (network-first), чтобы свежая сборка приходила сразу, а офлайн оставался
-   последний удачный вариант. Всё остальное — stale-while-revalidate.        */
-const CACHE = 'greensim-v6';
+   Офлайн-кэш изолирован по scope: /agent/ и /test/ не должны
+   перезаписывать кэш друг друга на одном домене GitHub Pages. */
+const scopeKey = new URL(self.registration.scope).pathname
+  .replace(/^\/+|\/+$/g, '')
+  .replace(/[^a-z0-9_-]+/gi, '-') || 'root';
+const CACHE_PREFIX = 'greensim-v6-' + scopeKey + '-';
+const CACHE = CACHE_PREFIX + '1';
 const CORE = ['./', './index.html', './manifest.webmanifest',
               './icons/icon-192.png', './icons/icon-512.png'];
 
@@ -18,7 +21,8 @@ self.addEventListener('install', e=>{
 self.addEventListener('activate', e=>{
   e.waitUntil((async ()=>{
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    // Удаляем только старые версии кэша ЭТОЙ публикации, не соседний /test/ или /agent/.
+    await Promise.all(keys.filter(k => k.startsWith(CACHE_PREFIX) && k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
