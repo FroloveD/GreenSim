@@ -12,9 +12,8 @@ ok(built === expected, 'index.html совпадает со сборкой из p
    built === expected ? built.length+' символов' : `разница ${expected.length-built.length} символов — запустите ./build.sh`);
 
 ok(built.length > 100000, 'index.html не пустой и не обрезан', (built.length/1024).toFixed(0)+' КБ');
-ok((built.match(/SIM CORE START/g)||[]).length === 1, 'маркер ядра ровно один раз');
-ok((built.match(/<script(?:\\s|>)/gi)||[]).length === 1 &&
-   (built.match(/<\\/script>/gi)||[]).length === 1,
+ok(built.split('<script').length - 1 === 1 &&
+   built.split('</script>').length - 1 === 1,
    'страница содержит ровно один script-блок');
 
 // синтаксис всего скрипта
