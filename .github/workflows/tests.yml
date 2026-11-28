@@ -1,11 +1,11 @@
 name: Автопроверки
 
-# Гоняется на каждый пуш в dev и main и вручную (Actions → Автопроверки → Run workflow).
+# Гоняется на каждый пуш в main, dev и текущую рабочую ветку; также доступен ручной запуск.
 # Две job'ы: быстрая без браузера и полная с Playwright.
 # Любая упавшая проверка роняет job — красный крестик виден прямо в PR/коммите.
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, agent/greensim-p0-stabilization ]
   pull_request:
   workflow_dispatch:
 
