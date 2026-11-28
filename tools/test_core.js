@@ -17,6 +17,17 @@ const M = new Function(src.slice(a,b) + `
 let fails = 0;
 const ok = (c, m, extra)=>{ if(!c) fails++; console.log((c?'✅ ':'❌ ')+m+(extra!==undefined?' — '+extra:'')); };
 
+// 0. стартовые профили: балкон доступен как обычный свободный сезон,
+// а хобби — компактная комната на 20 м².
+{
+  const balcony = M.makeWorld({profile:'balcony', crop:'tomato', campaign:false});
+  const hobby = M.makeWorld({profile:'hobby', crop:'tomato', campaign:false});
+  ok(balcony.profile==='balcony' && balcony.area===4 && balcony.camp===null,
+     'балкон доступен без кампании', `${balcony.area} м², кампания отключена`);
+  ok(hobby.profile==='hobby' && hobby.area===20,
+     'хобби — комната 20 м²', `${hobby.area} м²`);
+}
+
 // 1. 12 комбинаций по 60 дней: никаких NaN и отрицательного урожая
 const combos = [];
 for (const profile of ['hobby','farm','agro'])
