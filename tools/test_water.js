@@ -59,7 +59,7 @@ const ok = (c, m, extra)=>{
     const r = await page.evaluate(()=>{
       window.__toasts.length = 0;
       world.moist = 40; const w0 = world.stock.waterM3;
-      document.getElementById('btnWaterQuick').click();
+      document.getElementById('btnWaterQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       return { m0:40, m1:+world.moist.toFixed(1), spent:+(w0-world.stock.waterM3).toFixed(3),
                toast:window.__toasts[0]||'', btn:document.getElementById('btnWaterQuick').textContent.trim() };
     });
@@ -97,7 +97,7 @@ const ok = (c, m, extra)=>{
       const stress = +world.waterStress.toFixed(2);
       const diag = document.getElementById('diagnosis').textContent.replace(/\s+/g,' ');
       const cls = document.getElementById('btnWaterQuick').className;
-      document.getElementById('btnWaterQuick').click();
+      document.getElementById('btnWaterQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       VG.sim(0.5);
       return { alerts, stress, diag, cls, after:+world.waterStress.toFixed(2), moist:+world.moist.toFixed(0) };
     });
@@ -128,7 +128,7 @@ const ok = (c, m, extra)=>{
     const r = await page.evaluate(()=>{
       world.stock.waterM3 = 0.005; world.moist = 25;
       window.__toasts.length = 0;
-      document.getElementById('btnWaterQuick').click();
+      document.getElementById('btnWaterQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       return { moist:+world.moist.toFixed(1), toast: window.__toasts[0]||'', water:+world.stock.waterM3.toFixed(3) };
     });
     ok(r.moist === 25, 'без воды влага не выросла', r.moist + '%');
