@@ -378,7 +378,18 @@ function clearSave(){
   if (page==='settings') renderSettings();
 }
 function applyLoadedWorld(pack, silent){
-  world = pack.world;
+  // Сначала моделируем офлайн-догон на копии. При исключении загружаем
+  // проверенное сохранение без догоняющей симуляции, не оставляя полумир.
+  let loaded = pack.world, away = null, catchUpError = null;
+  try {
+    const hours = (Date.now() - (pack.ts||Date.now()))/3600000;
+    if (hours > 0.05){
+      const simulated = cloneWorld(loaded);
+      away = catchUp(simulated, hours);
+      loaded = simulated;
+    }
+  } catch(e){ catchUpError = e; }
+  world = loaded;
   // Возобновляем единый AudioContext непосредственно из пользовательского действия «Продолжить».
   if (SFX.on) SFX.arm();
   if (!world.has) world.has = {};
@@ -388,12 +399,6 @@ function applyLoadedWorld(pack, silent){
   tutorStep = Math.max(0, Math.min(TUTOR.length, Number.isInteger(world.tutorialStep) ? world.tutorialStep : 0));
   resetTutorFlags();
   tutorDone = !world.tutorialEnabled || !!world.tutorialCompleted;
-  // пока вкладка была закрыта, время шло: догоняем по реальным часам (максимум 3 суток)
-  let away = null;
-  try {
-    const hours = (Date.now() - (pack.ts||Date.now()))/3600000;
-    if (hours > 0.05) away = catchUp(world, hours);
-  } catch(e){}
   if (away && away.hours > 0.1){
     const hh = away.hours < 1 ? Math.round(away.hours*60)+' мин' : away.hours.toFixed(1)+' ч';
     world.log.unshift({t:'Д'+world.day, m:`Пока вас не было (${hh}): ${away.kg>=0.5?'собрано '+num(away.kg)+' кг · ':''}баланс ${away.money>=0?'+':''}${money(away.money)}`, k:'hl'});
@@ -411,6 +416,7 @@ function applyLoadedWorld(pack, silent){
   lastSavedDay = world.day;
   setPage('greenhouse');
   renderAll();
+  if (catchUpError) toast('Офлайн-догон не применён; загружено последнее сохранённое состояние: '+catchUpError.message);
   if (!silent) toast('Сезон загружен: день '+world.day+', '+money(world.money));
 }
 function loadFromStorage(){
