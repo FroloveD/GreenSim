@@ -1000,12 +1000,14 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
   /* Финальный мобильный override: базовый блок .metrics объявлен ниже ранних
      media query, поэтому мобильная раскладка должна стоять после него. */
   @media(max-width:800px){
+    /* На узком планшете метрики и скорости занимают отдельные строки:
+       иначе flex-shrink сжимает контейнер, но кнопки продолжают выходить вправо. */
     #top>.metrics{
-      width:100%;min-width:0;max-width:100%;margin-left:0;
+      flex:1 1 100%;width:100%;min-width:0;max-width:100%;margin-left:0;
       flex-wrap:wrap;justify-content:space-between
     }
     #top>.metrics>.speeds{
-      min-width:0;max-width:100%;flex:1 1 auto;
+      flex:1 1 100%;width:100%;min-width:0;max-width:100%;
       flex-wrap:wrap;justify-content:flex-end
     }
   }
