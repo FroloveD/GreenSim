@@ -89,9 +89,13 @@ const SFX = (()=>{
   function arm(){
     ensure();
     if (!ctx) return false;
-    if (ctx.state === 'suspended' && ctx.resume) { try { const p=ctx.resume(); if(p&&p.then)p.then(startAmbient).catch(()=>{}); } catch(e){} }
     armed = true;
-    if(ctx.state==='running') startAmbient();
+    const wake = ()=>{
+      if(armed && sndCfg.on && sndCfg.preset!=='off' && ctx && ctx.state==='running' && !ambientNodes.length) startAmbient();
+    };
+    if(ctx.state==='suspended' && ctx.resume){
+      try{const p=ctx.resume();if(p&&p.then)p.then(wake).catch(()=>{});}catch(e){}
+    }else wake();
     return true;
   }
   function stopAmbient(){
@@ -192,9 +196,15 @@ const SFX = (()=>{
     if(world) syncWorld(world);
   }
   function syncGain(){
-    if(master)master.gain.value=sndCfg.on?sndCfg.vol*0.45:0;
-    if(!sndCfg.on)stopAmbient();
-    else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length)startAmbient();
+    if(master&&ctx){
+      const t=ctx.currentTime;
+      try{
+        master.gain.cancelScheduledValues(t);
+        master.gain.setValueAtTime(sndCfg.on&&sndCfg.vol>0?sndCfg.vol*0.45:0,t);
+      }catch(e){master.gain.value=sndCfg.on&&sndCfg.vol>0?sndCfg.vol*0.45:0;}
+    }
+    if(!sndCfg.on || sndCfg.vol<=0) stopAmbient();
+    else if(armed&&ctx&&ctx.state==='running'&&!ambientNodes.length&&sndCfg.preset!=='off')startAmbient();
   }
   function tone(o){
     const t0 = ctx.currentTime + (o.at||0);
@@ -321,19 +331,20 @@ function syncSoundControls(){
   const state=$('soundState');if(state)state.textContent=(on?'эффекты включены':'эффекты выключены')+' · '+vol+'%';
 }
 function toggleSound(){
-  SFX.arm();
-  const on=SFX.setOn(!SFX.on);
+  const next=!SFX.on;
+  SFX.setOn(next);
+  if(next) SFX.arm();
   syncSoundControls();
-  toast(on?'Звук включён':'Звук выключен');
+  toast(next?'Звук включён':'Звук выключен');
   if(page==='settings') renderSettings();
-  return on;
+  return next;
 }
 function bindSoundControls(){
   ['menuSoundToggle','settingsSoundToggle','btnSoundToggle','btnSndSet'].forEach(id=>{const el=$(id);if(el)el.onclick=()=>toggleSound();});
   [['menuSoundPreset','menuSoundVol','menuSoundVolValue'],['settingsSoundPreset','settingsSoundVol','settingsSoundVolValue']].forEach(([pid,vid,lid])=>{
     const p=$(pid),v=$(vid),l=$(lid);
-    if(p)p.onchange=()=>{SFX.arm();SFX.setPreset(p.value);syncSoundControls();};
-    if(v)v.oninput=()=>{SFX.arm();SFX.setVol(v.value/100);syncSoundControls();};
+    if(p)p.onchange=()=>{SFX.setPreset(p.value);if(SFX.on&&p.value!=='off')SFX.arm();syncSoundControls();};
+    if(v)v.oninput=()=>{SFX.setVol(v.value/100);syncSoundControls();};
   });
   const toolbarSettings=$('btnSoundSettings');
   if(toolbarSettings)toolbarSettings.onclick=()=>{
@@ -1732,8 +1743,8 @@ function renderSettings(){
       {id:'climate',title:'Погода',icon:'☀',test:/^Погода за окном$/},
       {id:'grow',title:'Выращивание',icon:'🌱',test:/^(Система выращивания|Свет и экраны|Свет за сутки \(DLI\)|Питание \(fertigation\))$/},
       {id:'auto',title:'Автоматизация',icon:'⏱',test:/^Таймеры и автоматизация$/},
-      {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(Камера|Валюта|Приложение)$/},
-      {id:'help',title:'Обучение и справка',icon:'ⓘ',test:/^(Словарь терминов|Обучение|Параметры модели)$/},
+      {id:'interface',title:'Интерфейс',icon:'⚙',test:/^(История кампании и интерфейс|Звук и атмосфера|Клавиши|Камера|Валюта|Приложение)$/},
+      {id:'help',title:'Обучение и справка',icon:'ⓘ',test:/^(Словарь терминов|Обучение кампании|Параметры модели)$/},
       {id:'save',title:'Сохранение и сезон',icon:'▣',test:/^Сезон$/}
     ];
     const nav=document.createElement('div'); nav.className='settings-nav';
@@ -1744,7 +1755,7 @@ function renderSettings(){
     settingsGrid.replaceWith(nav,panels);
   }
   function paintSettingsSections(){document.querySelectorAll('[data-settings-section]').forEach(el=>el.hidden=el.dataset.settingsSection!==settingsSection);document.querySelectorAll('[data-settings-tab]').forEach(el=>el.classList.toggle('on',el.dataset.settingsTab===settingsSection));}
-  if (!document.querySelector('[data-settings-section="'+settingsSection+'"]')) settingsSection='climate';
+  if (!document.querySelector('[data-settings-section="'+settingsSection+'"]')) settingsSection='interface';
   paintSettingsSections();
   const bind = (id, key, fmt) => {
     const s = $('s_'+id);
@@ -1761,14 +1772,19 @@ function renderSettings(){
   bind('ec','ecSet', v=>v.toFixed(1));
   bind('ph','phSet', v=>v.toFixed(1));
   if ($('sndVol')) $('sndVol').oninput = ()=>{
-    SFX.arm(); SFX.setVol($('sndVol').value/100); syncSoundControls();
+    SFX.setVol($('sndVol').value/100); syncSoundControls();
   };
   if ($('sndPreset')) $('sndPreset').onchange = ()=>{
-    SFX.arm();SFX.setPreset($('sndPreset').value);syncSoundControls();toast('Фоновый звук: '+SFX.presetLabel());
+    const preset=$('sndPreset').value;
+    SFX.setPreset(preset);
+    if(SFX.on&&preset!=='off')SFX.arm();
+    syncSoundControls();toast('Фоновый звук: '+SFX.presetLabel());
   };
+  if ($('btnSndSet')) $('btnSndSet').onclick = ()=>toggleSound();
   if ($('btnSndTest')) $('btnSndTest').onclick = ()=>{
-    SFX.arm(); if(!SFX.on) SFX.setOn(true);
-    SFX.play('buy'); syncSoundControls(); renderSettings();
+    if(!SFX.on){toast('Сначала включите звук');return;}
+    SFX.arm();
+    SFX.play('buy');
   };
   $('btnLampSet').onclick = ()=>{
     const r = toggleLamp(world);
