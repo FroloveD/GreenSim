@@ -1854,6 +1854,18 @@ function catchUp(w, hours){
   return {hours:h, days:w.day-d0, money:w.money-m0, kg:w.harvestedKg-kg0};
 }
 
+
+/* Догон выполняется транзакционно: при ошибке наружу возвращается исходный мир. */
+function catchUpTransactional(w, hours){
+  const candidate = cloneWorld(w);
+  try {
+    const result = catchUp(candidate, hours);
+    return {world:candidate, result, error:null};
+  } catch(error){
+    return {world:w, result:null, error};
+  }
+}
+
 /* ---------------- Контракты, миссии, займы ---------------- */
 function offerContracts(w){
   const C = CROPS[w.crop];
