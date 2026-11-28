@@ -2645,7 +2645,7 @@ function assertSavePayload(pack){
   if(w.sys!==undefined&& (typeof w.sys!=='string'||!GROW_SYS[w.sys])) fail('неизвестная система выращивания');
   if(w.diffId!==undefined&&typeof w.diffId!=='string') fail('сложность');
   for(const [key,min,max] of [
-    ['day',1,1e7],['doy',1,365],['hour',0,24],['money',-1e9,1e12],
+    ['day',1,1e7],['doy',1,1e7],['hour',0,24],['money',-1e9,1e12],
     ['startMoney',-1e9,1e12],['area',0.01,1e7],['seasonDays',1,1e6],
     ['seed',0,4294967295],['rngState',0,4294967295],['temp',-100,100],
     ['co2',0,100000],['rh',0,100],['moist',0,100],['plantScale',0,1e6]
