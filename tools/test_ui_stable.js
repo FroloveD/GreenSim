@@ -108,17 +108,18 @@ const boxOf = (el)=> el ? (()=>{ const b = el.getBoundingClientRect(); return {t
   ok(overlay.share < 3, 'свёрнутая подсказка закрывает меньше 3% сцены',
      `${overlay.w}×${overlay.h}px = ${overlay.share}%`);
 
-  // 7. автосворачивание через 9 секунд на новом шаге обучения
+  // 7. Автоматическое сворачивание отключено намеренно: открытое обучение
+  // остаётся видимым, пока игрок сам не свернёт его кнопкой.
   await page.evaluate(()=>{
     const t = document.getElementById('tutor'); t.classList.remove('min');
-    tutorStep = 2; renderTutor();          // новый шаг заново взводит таймер
+    tutorStep = 2; renderTutor();
   });
   await page.waitForTimeout(9800);
   const auto = await page.evaluate(()=>({
     min: document.getElementById('tutor').classList.contains('min'),
     h: Math.round(document.getElementById('tutor').getBoundingClientRect().height)
   }));
-  ok(auto.min && auto.h < 40, 'через 9 секунд подсказка сворачивается сама', auto.h + 'px');
+  ok(!auto.min && auto.h >= 40, 'обучение не сворачивается без команды игрока', auto.h + 'px');
 
   ok(errs.length === 0, 'ошибок в консоли нет', errs.join(' | ') || 'чисто');
   await b.close();
