@@ -88,8 +88,9 @@
   .kv:last-child{border:0}
   .kv span{color:var(--dim)} .kv b{font-family:var(--mono);font-weight:500}
   .kv b.pos{color:var(--acc)} .kv b.neg{color:var(--bad)}
-  .camBar{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
-  .quickBar{display:flex;gap:6px 7px;align-items:center;justify-content:center;flex-wrap:wrap;padding:7px 9px}
+  .controlDock{display:flex;flex-direction:column;gap:6px;align-items:stretch;align-self:center;padding:7px 9px;max-width:min(100%,680px)}
+  .camBar{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;align-items:center}
+  .quickBar{display:flex;gap:6px 7px;align-items:center;justify-content:center;flex-wrap:wrap;padding:0}
   /* подсказка по кликам: одна строка с многоточием, иначе она сжималась в
      вертикальную полоску между кнопками */
   #sceneHint{flex:1 1 150px;min-width:110px;max-width:280px;white-space:nowrap;overflow:hidden;
@@ -601,8 +602,8 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     }
     #center .quickBar::-webkit-scrollbar{display:none}
     #center .quickBar .btn{
-      flex:0 0 auto;min-width:112px;min-height:40px;
-      padding:7px 9px;font-size:10px;
+      flex:0 0 38px;min-width:38px;width:38px;min-height:36px;
+      padding:5px;font-size:10px;
     }
     #sceneHint{display:none}
     #toast{top:calc(var(--topH) + 8px + env(safe-area-inset-top));bottom:auto}
@@ -615,27 +616,27 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
   /* Компактная панель ракурсов: не отнимает высоту у сцены. */
   @media (max-width:720px){
-    #center > .camPanel{
+    #center > .controlDock{
       align-self:center!important;width:max-content;max-width:calc(100vw - 16px);
-      padding:2px 3px!important;border-width:2px;
+      padding:4px 5px!important;border-width:2px;gap:3px;
     }
-    #center .camPanel .camBar{
+    #center .controlDock .camBar{
       gap:3px;padding:0;align-items:center;
     }
-    #center .camPanel .camBar > button{
+    #center .controlDock .camBar > button{
       min-height:29px;padding:4px 6px;font-size:9px;line-height:1;
       border-width:1px;white-space:nowrap;
     }
-    #center .camPanel .camNav{gap:2px;margin-left:2px}
-    #center .camPanel .camNav button{
+    #center .controlDock .camNav{gap:2px;margin-left:2px}
+    #center .controlDock .camNav button{
       width:25px;min-width:25px;min-height:27px;height:27px;
       padding:3px;font-size:10px;
     }
   }
   @media (max-width:390px){
-    #center .camPanel .camBar{gap:2px}
-    #center .camPanel .camBar > button{padding:4px 5px;font-size:8px}
-    #center .camPanel .camNav button{width:23px;min-width:23px}
+    #center .controlDock .camBar{gap:2px}
+    #center .controlDock .camBar > button{padding:4px 5px;font-size:8px}
+    #center .controlDock .camNav button{width:23px;min-width:23px}
   }
 
   /* В альбомной ориентации освобождаем высоту под саму теплицу. */
@@ -660,8 +661,9 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     #dashGrid .col.left,#dashGrid .col.right{
       bottom:calc(52px + env(safe-area-inset-bottom));max-height:54dvh;
     }
-    #center .camBar button{min-height:34px;padding:5px 8px}
-    #center .quickBar .btn{min-height:36px}
+    #center .controlDock{gap:3px;padding:3px 5px}
+    #center .camBar button{min-height:32px;padding:4px 7px}
+    #center .quickBar .btn{min-height:32px}
   }
 
 
@@ -1068,7 +1070,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
     <div id="center">
       <div class="spacer"></div>
-      <div class="panel camPanel" style="align-self:center;padding:6px 8px">
+      <div class="panel controlDock" aria-label="Панель управления видом и растениями">
         <div class="camBar" id="camBar">
           <button data-view="top" aria-label="Вид сверху" title="Вид сверху"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4-9-4Zm0 5 9 5 9-5M3 17l9 5 9-5"/></svg></button>
           <button data-view="front" aria-label="Фронтальный вид" title="Фронтальный вид"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 9h16M12 3v18"/></svg></button>
@@ -1086,8 +1088,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
             <button data-cam="reset" aria-label="Сбросить ракурс">⟲</button>
           </span>
         </div>
-      </div>
-      <div class="panel quickBar" aria-label="Быстрые действия с растениями">
+        <div class="quickBar" aria-label="Быстрые действия с растениями">
         <button class="btn good quick-icon" id="btnHarvest" type="button" aria-label="Собрать урожай" title="Собрать урожай">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16l-1.5 10h-13L4 10Z M3 7h18 M8 10l1 10m7-10-1 10M8 7l2-3m6 3-2-3" /></svg>
         </button>
@@ -1104,6 +1105,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v2m0 10v2M1 8h2m10 0h2m-2.1-4.9-1.4 1.4M4.5 11.5l-1.4 1.4m10.8 0-1.4-1.4M4.5 4.5 3.1 3.1M4 18h16M6 15l-2 3m7-3-2 3m7-3-2 3"/></svg>
         </button>
         <span class="hint" id="sceneHint">Плод — собрать · лист — обрезать · горшок — полить · лампа — свет</span>
+        </div>
       </div>
     </div>
 
