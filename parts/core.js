@@ -2708,14 +2708,14 @@ function assertSavePayload(pack){
 }
 function deserializeWorld(text){
   if(typeof text==='string'&&text.length>12*1024*1024) throw new Error('файл сохранения превышает 12 МБ');
-  const pack = (typeof text === 'string') ? JSON.parse(text) : text;
-  assertSavePayload(pack);
-  if (pack.v !== SAVE_VERSION && pack.v !== 1)
-    throw new Error('версия сохранения '+pack.v+' не поддерживается');
-  // Миграции выполняются на отдельном графе: входной объект не меняется,
-  // даже если проверка или восстановление завершится исключением.
-  const w = cloneWorld(pack.world);
-  pack.world = w;
+  const input = (typeof text === 'string') ? JSON.parse(text) : text;
+  assertSavePayload(input);
+  if (input.v !== SAVE_VERSION && input.v !== 1)
+    throw new Error('версия сохранения '+input.v+' не поддерживается');
+  // Клонируем весь пакет: миграции и восстановление графа не мутируют
+  // объект, переданный вызывающим кодом, даже при последующем исключении.
+  const pack = cloneWorld(input);
+  const w = pack.world;
   // миграция v1 → v2: склад, рынок, кампания
   w.cost = w.cost || {};
   if (w.cost.storage === undefined) w.cost.storage = 0;
