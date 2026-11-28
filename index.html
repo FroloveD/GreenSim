@@ -88,8 +88,9 @@
   .kv:last-child{border:0}
   .kv span{color:var(--dim)} .kv b{font-family:var(--mono);font-weight:500}
   .kv b.pos{color:var(--acc)} .kv b.neg{color:var(--bad)}
-  .camBar{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
-  .quickBar{display:flex;gap:6px 7px;align-items:center;justify-content:center;flex-wrap:wrap;padding:7px 9px}
+  .controlDock{display:flex;flex-direction:column;gap:6px;align-items:stretch;align-self:center;padding:7px 9px;max-width:min(100%,680px)}
+  .camBar{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;align-items:center}
+  .quickBar{display:flex;gap:6px 7px;align-items:center;justify-content:center;flex-wrap:wrap;padding:0}
   /* подсказка по кликам: одна строка с многоточием, иначе она сжималась в
      вертикальную полоску между кнопками */
   #sceneHint{flex:1 1 150px;min-width:110px;max-width:280px;white-space:nowrap;overflow:hidden;
@@ -601,8 +602,8 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     }
     #center .quickBar::-webkit-scrollbar{display:none}
     #center .quickBar .btn{
-      flex:0 0 auto;min-width:112px;min-height:40px;
-      padding:7px 9px;font-size:10px;
+      flex:0 0 38px;min-width:38px;width:38px;min-height:36px;
+      padding:5px;font-size:10px;
     }
     #sceneHint{display:none}
     #toast{top:calc(var(--topH) + 8px + env(safe-area-inset-top));bottom:auto}
@@ -615,27 +616,27 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
   /* Компактная панель ракурсов: не отнимает высоту у сцены. */
   @media (max-width:720px){
-    #center > .camPanel{
+    #center > .controlDock{
       align-self:center!important;width:max-content;max-width:calc(100vw - 16px);
-      padding:2px 3px!important;border-width:2px;
+      padding:4px 5px!important;border-width:2px;gap:3px;
     }
-    #center .camPanel .camBar{
+    #center .controlDock .camBar{
       gap:3px;padding:0;align-items:center;
     }
-    #center .camPanel .camBar > button{
+    #center .controlDock .camBar > button{
       min-height:29px;padding:4px 6px;font-size:9px;line-height:1;
       border-width:1px;white-space:nowrap;
     }
-    #center .camPanel .camNav{gap:2px;margin-left:2px}
-    #center .camPanel .camNav button{
+    #center .controlDock .camNav{gap:2px;margin-left:2px}
+    #center .controlDock .camNav button{
       width:25px;min-width:25px;min-height:27px;height:27px;
       padding:3px;font-size:10px;
     }
   }
   @media (max-width:390px){
-    #center .camPanel .camBar{gap:2px}
-    #center .camPanel .camBar > button{padding:4px 5px;font-size:8px}
-    #center .camPanel .camNav button{width:23px;min-width:23px}
+    #center .controlDock .camBar{gap:2px}
+    #center .controlDock .camBar > button{padding:4px 5px;font-size:8px}
+    #center .controlDock .camNav button{width:23px;min-width:23px}
   }
 
   /* В альбомной ориентации освобождаем высоту под саму теплицу. */
@@ -660,8 +661,9 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
     #dashGrid .col.left,#dashGrid .col.right{
       bottom:calc(52px + env(safe-area-inset-bottom));max-height:54dvh;
     }
-    #center .camBar button{min-height:34px;padding:5px 8px}
-    #center .quickBar .btn{min-height:36px}
+    #center .controlDock{gap:3px;padding:3px 5px}
+    #center .camBar button{min-height:32px;padding:4px 7px}
+    #center .quickBar .btn{min-height:32px}
   }
 
 
@@ -1068,7 +1070,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
 
     <div id="center">
       <div class="spacer"></div>
-      <div class="panel camPanel" style="align-self:center;padding:6px 8px">
+      <div class="panel controlDock" aria-label="Панель управления видом и растениями">
         <div class="camBar" id="camBar">
           <button data-view="top" aria-label="Вид сверху" title="Вид сверху"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4-9-4Zm0 5 9 5 9-5M3 17l9 5 9-5"/></svg></button>
           <button data-view="front" aria-label="Фронтальный вид" title="Фронтальный вид"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 9h16M12 3v18"/></svg></button>
@@ -1086,8 +1088,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
             <button data-cam="reset" aria-label="Сбросить ракурс">⟲</button>
           </span>
         </div>
-      </div>
-      <div class="panel quickBar" aria-label="Быстрые действия с растениями">
+        <div class="quickBar" aria-label="Быстрые действия с растениями">
         <button class="btn good quick-icon" id="btnHarvest" type="button" aria-label="Собрать урожай" title="Собрать урожай">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16l-1.5 10h-13L4 10Z M3 7h18 M8 10l1 10m7-10-1 10M8 7l2-3m6 3-2-3" /></svg>
         </button>
@@ -1104,6 +1105,7 @@ body.menu-open #top, body.menu-open .page, body.menu-open #tutor {display:none!i
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v2m0 10v2M1 8h2m10 0h2m-2.1-4.9-1.4 1.4M4.5 11.5l-1.4 1.4m10.8 0-1.4-1.4M4.5 4.5 3.1 3.1M4 18h16M6 15l-2 3m7-3-2 3m7-3-2 3"/></svg>
         </button>
         <span class="hint" id="sceneHint">Плод — собрать · лист — обрезать · горшок — полить · лампа — свет</span>
+        </div>
       </div>
     </div>
 
@@ -5203,6 +5205,7 @@ function sndSave(){
 }
 const SFX = (()=>{
   let ctx = null, master = null, noiseBuf = null, armed = false;
+  let roomSend = null, roomVerb = null, roomWet = null;
   let ambientNodes = [], ambientTimer = 0, worldLayers = null;
   const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
   const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
@@ -5214,6 +5217,21 @@ const SFX = (()=>{
       master = ctx.createGain();
       master.gain.value = sndCfg.on ? sndCfg.vol*0.45 : 0;
       master.connect(ctx.destination);
+      // Короткий импульс помещения: ранние отражения и мягкий хвост.
+      roomVerb=ctx.createConvolver();
+      const irLength=Math.floor(ctx.sampleRate*0.34);
+      const impulse=ctx.createBuffer(2,irLength,ctx.sampleRate);
+      for(let ch=0;ch<2;ch++){
+        const data=impulse.getChannelData(ch);
+        for(let i=0;i<irLength;i++){
+          const decay=Math.pow(1-i/irLength,3.2);
+          data[i]=(Math.random()*2-1)*decay*(i<ctx.sampleRate*0.018?0.32:0.12);
+        }
+      }
+      roomVerb.buffer=impulse;
+      roomSend=ctx.createGain();roomSend.gain.value=0.16;
+      roomWet=ctx.createGain();roomWet.gain.value=0.12;
+      roomSend.connect(roomVerb);roomVerb.connect(roomWet);roomWet.connect(master);
       const n = Math.floor((ctx.sampleRate||44100)*0.5);
       noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -5236,47 +5254,60 @@ const SFX = (()=>{
     ambientNodes=[];
     worldLayers=null;
   }
-  function addAmbientNoise(freq,type,gain){
+  function addAmbientNoise(freq,type,gain,pan=0,slowDrift=true){
     const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
-    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
+    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;filter.Q.value=0.45;
     const g=ctx.createGain();g.gain.value=gain;
-    src.connect(filter);filter.connect(g);g.connect(master);src.start();
-    ambientNodes.push(src,filter,g);
+    const p=ctx.createStereoPanner();p.pan.value=clamp(pan,-1,1);
+    src.connect(filter);filter.connect(g);g.connect(p);p.connect(master);src.start();
+    ambientNodes.push(src,filter,g,p);
+    if(slowDrift){
+      const lfo=ctx.createOscillator(),depth=ctx.createGain();
+      lfo.type='sine';lfo.frequency.value=0.018+Math.random()*0.025;depth.gain.value=gain*0.18;
+      lfo.connect(depth);depth.connect(g.gain);lfo.start();ambientNodes.push(lfo,depth);
+    }
   }
-  function addAmbientTone(freq,wave,gain){
-    const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=wave;osc.frequency.value=freq;g.gain.value=gain;
-    osc.connect(g);g.connect(master);osc.start();ambientNodes.push(osc,g);
+  function addAmbientTone(freq,wave,gain,pan=0){
+    const osc=ctx.createOscillator(),g=ctx.createGain(),p=ctx.createStereoPanner();
+    osc.type=wave;osc.frequency.value=freq;g.gain.value=gain;p.pan.value=clamp(pan,-1,1);
+    osc.connect(g);g.connect(p);p.connect(master);osc.start();ambientNodes.push(osc,g,p);
   }
   function birdChirp(){
     if(!sndCfg.on||!['nature','night'].includes(sndCfg.preset)||!ctx||ctx.state!=='running')return;
-    const base=sndCfg.preset==='night'?1700:2100;
-    for(let i=0;i<2;i++){
-      const f=base+Math.random()*850;
-      tone({type:'sine',f0:f,f1:f*(0.8+Math.random()*0.25),dur:0.10,gain:0.018,at:i*0.13});
+    // Разные по длине и высоте фразы с паузами, панорамой и комнатным хвостом.
+    const night=sndCfg.preset==='night',base=night?1450:1850;
+    const pan=Math.random()*1.25-0.625,count=2+Math.floor(Math.random()*3);
+    let at=0;
+    for(let i=0;i<count;i++){
+      const f=base+Math.random()*(night?850:1250),dur=0.055+Math.random()*0.09;
+      tone({type:i%2?'triangle':'sine',f0:f,f1:f*(0.78+Math.random()*0.38),dur,
+        gain:0.006+Math.random()*0.005,at,pan,lp:night?4200:5200,attack:0.014});
+      at+=dur+0.035+Math.random()*0.09;
     }
-    ambientTimer=setTimeout(birdChirp,sndCfg.preset==='night'?3500+Math.random()*2500:2700+Math.random()*3200);
+    ambientTimer=setTimeout(birdChirp,night?5200+Math.random()*6500:4300+Math.random()*7600);
   }
-  function addWorldNoise(freq,type){
+  function addWorldNoise(freq,type,pan=0){
     const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
-    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
+    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;filter.Q.value=0.5;
     const gain=ctx.createGain();gain.gain.value=0.0001;
-    src.connect(filter);filter.connect(gain);gain.connect(master);src.start();
-    ambientNodes.push(src,filter,gain);
-    return {gain,filter};
+    const p=ctx.createStereoPanner();p.pan.value=clamp(pan,-1,1);
+    src.connect(filter);filter.connect(gain);gain.connect(p);p.connect(master);src.start();
+    ambientNodes.push(src,filter,gain,p);
+    return {gain,filter,p};
   }
-  function addWorldTone(freq){
-    const osc=ctx.createOscillator(),gain=ctx.createGain();
-    osc.type='sine';osc.frequency.value=freq;gain.gain.value=0.0001;
-    osc.connect(gain);gain.connect(master);osc.start();
-    ambientNodes.push(osc,gain);
-    return {osc,gain};
+  function addWorldTone(freq,pan=0){
+    const osc=ctx.createOscillator(),gain=ctx.createGain(),p=ctx.createStereoPanner();
+    osc.type='sine';osc.frequency.value=freq;gain.gain.value=0.0001;p.pan.value=clamp(pan,-1,1);
+    osc.connect(gain);gain.connect(p);p.connect(master);osc.start();
+    ambientNodes.push(osc,gain,p);
+    return {osc,gain,p};
   }
   function startWorldBed(){
     // Три независимых слоя: воздушный шум, вентиляция и низкий гул оборудования.
     worldLayers={
-      air:addWorldNoise(620,'lowpass'),
-      fan:addWorldNoise(1250,'bandpass'),
-      hum:addWorldTone(58)
+      air:addWorldNoise(620,'lowpass',-0.18),
+      fan:addWorldNoise(1250,'bandpass',0.16),
+      hum:addWorldTone(58,0)
     };
   }
   function setSmooth(param,value,seconds){
@@ -5296,32 +5327,37 @@ const SFX = (()=>{
     const venting=powered&&(!!c.ventManualOn||(Number.isFinite(+c.ventSet)&&temp>+c.ventSet+1));
     const lighting=powered&&!!c.lampOn;
     const humidity=clamp((rh-45)/50,0,1);
-    setSmooth(worldLayers.air.gain.gain,0.0012+humidity*0.0042,0.8);
-    setSmooth(worldLayers.air.filter.frequency,420+humidity*1050,0.8);
-    setSmooth(worldLayers.fan.gain.gain,venting?0.009:0.0007,0.65);
-    setSmooth(worldLayers.fan.filter.frequency,venting?1650:700,0.7);
-    setSmooth(worldLayers.hum.gain.gain,(heating?0.0038:0.0007)+(lighting?0.0012:0),0.9);
-    try{worldLayers.hum.osc.frequency.setTargetAtTime(48+clamp(temp,0,38)*0.42,ctx.currentTime,1.2);}catch(e){}
+    // Воздушный слой слегка меняет спектр и уровень вместе с влажностью.
+    setSmooth(worldLayers.air.gain.gain,0.0007+humidity*0.0028,1.6);
+    setSmooth(worldLayers.air.filter.frequency,360+humidity*780,1.8);
+    // Вентиляция проявляется только при работе и не включается резким скачком.
+    setSmooth(worldLayers.fan.gain.gain,venting?0.0048:0.00025,1.25);
+    setSmooth(worldLayers.fan.filter.frequency,venting?1150:520,1.5);
+    setSmooth(worldLayers.hum.gain.gain,powered?((heating?0.0018:0.00025)+(lighting?0.00045:0)):0.0001,1.8);
+    try{worldLayers.hum.osc.frequency.setTargetAtTime(43+clamp(temp,0,38)*0.28,ctx.currentTime,2.0);}catch(e){}
   }
   function startAmbient(){
     stopAmbient();
     if(!sndCfg.on||sndCfg.preset==='off'||!ctx||ctx.state!=='running')return;
     switch(sndCfg.preset){
       case 'lounge':
-        addAmbientTone(110,'sine',0.020);addAmbientTone(164.8,'triangle',0.010);
-        addAmbientTone(220,'sine',0.006);addAmbientNoise(650,'lowpass',0.002);
+        // Не неподвижная мелодия, а тихая многослойная звуковая среда.
+        addAmbientTone(110,'sine',0.006,-0.22);addAmbientTone(164.8,'sine',0.003,0.2);
+        addAmbientNoise(420,'lowpass',0.004,-0.35);addAmbientNoise(1250,'bandpass',0.0015,0.3);
         break;
       case 'nature':
-        addAmbientNoise(520,'lowpass',0.022);addAmbientNoise(2600,'bandpass',0.003);birdChirp();
+        addAmbientNoise(520,'lowpass',0.010,-0.28);addAmbientNoise(2600,'bandpass',0.0018,0.34);birdChirp();
         break;
       case 'rain':
-        addAmbientNoise(1500,'lowpass',0.030);addAmbientNoise(4200,'highpass',0.006);
+        addAmbientNoise(1500,'lowpass',0.014,-0.16);addAmbientNoise(4200,'highpass',0.0025,0.2);
+        addAmbientNoise(760,'bandpass',0.003,0.08);
         break;
       case 'greenhouse':
-        addAmbientTone(58,'sine',0.010);addAmbientTone(116,'sine',0.003);addAmbientNoise(430,'lowpass',0.018);
+        addAmbientTone(58,'sine',0.004,-0.12);addAmbientTone(116,'sine',0.0012,0.14);
+        addAmbientNoise(430,'lowpass',0.009,-0.22);addAmbientNoise(1450,'bandpass',0.0015,0.28);
         break;
       case 'night':
-        addAmbientNoise(390,'lowpass',0.018);addAmbientNoise(3000,'highpass',0.003);birdChirp();
+        addAmbientNoise(390,'lowpass',0.009,-0.3);addAmbientNoise(3000,'highpass',0.0018,0.25);birdChirp();
         break;
     }
     startWorldBed();
@@ -5346,7 +5382,16 @@ const SFX = (()=>{
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     let node = osc;
     if (o.lp){ const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = o.lp; osc.connect(f); node = f; }
-    node.connect(g); g.connect(master);
+    if(o.distance!==undefined){
+      const distant=ctx.createBiquadFilter();distant.type='lowpass';
+      distant.frequency.value=clamp(9000-(+o.distance)*7600,700,9000);
+      node.connect(distant);node=distant;
+    }
+    if(o.pan!==undefined&&ctx.createStereoPanner){
+      const pan=ctx.createStereoPanner();pan.pan.value=clamp(+o.pan,-1,1);node.connect(pan);node=pan;
+    }
+    node.connect(g);g.connect(master);
+    if(roomSend)g.connect(roomSend);
     osc.start(t0); osc.stop(t0 + dur + 0.03);
   }
   function noise(o){
@@ -5362,15 +5407,25 @@ const SFX = (()=>{
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    src.connect(f); f.connect(g); g.connect(master);
+    let node=f;
+    if(o.distance!==undefined){
+      const distant=ctx.createBiquadFilter();distant.type='lowpass';
+      distant.frequency.value=clamp(9000-(+o.distance)*7600,700,9000);
+      node.connect(distant);node=distant;
+    }
+    if(o.pan!==undefined&&ctx.createStereoPanner){
+      const pan=ctx.createStereoPanner();pan.pan.value=clamp(+o.pan,-1,1);node.connect(pan);node=pan;
+    }
+    node.connect(g);g.connect(master);
+    if(roomSend)g.connect(roomSend);
     src.start(t0); src.stop(t0 + dur + 0.03);
   }
   /* рисунок каждого звука: короткие, разные по характеру, без мелодий-навязчивостей */
   const RECIPES = {
-    harvest(o){                                     // сорвали плод: короткий «плук»
-      const k = clamp((o && o.heavy) || 0.5, 0, 1);
-      tone({type:'triangle', f0:540 + 220*k, f1:300 + 120*k, dur:0.12, gain:0.16});
-      noise({f0:2200, f1:900, dur:0.07, gain:0.05, q:0.7});
+    harvest(o){                                     // сухой контакт плодоножки и тихий шорох листа
+      const k=clamp((o&&o.heavy)||0.5,0,1),pan=(Math.random()-.5)*0.55;
+      tone({type:'sine',f0:350+95*k,f1:220,dur:0.09,gain:0.052,attack:0.014,pan,distance:0.12});
+      noise({type:'lowpass',f0:1550,f1:520,dur:0.14,gain:0.028,q:0.55,at:0.018,pan,distance:0.12});
     },
     sell(o){                                        // касса: две монетки
       tone({f0:1320, dur:0.10, gain:0.10});
@@ -5381,13 +5436,15 @@ const SFX = (()=>{
       tone({f0:190, f1:90, dur:0.14, gain:0.16, type:'sine'});
       tone({f0:520, f1:780, dur:0.13, gain:0.07, at:0.05, type:'triangle'});
     },
-    water(){                                        // вода: шум с падающим фильтром
-      noise({f0:1400, f1:320, dur:0.34, gain:0.10, q:0.6});
-      noise({f0:800, f1:240, dur:0.42, gain:0.06, q:0.5, at:0.05});
+    water(){                                        // многослойная струя и отдельные капли
+      const pan=(Math.random()-.5)*0.45;
+      noise({type:'lowpass',f0:1800,f1:420,dur:0.42,gain:0.048,q:0.55,pan,distance:0.08});
+      noise({type:'bandpass',f0:920,f1:360,dur:0.30,gain:0.024,q:0.7,at:0.07,pan,distance:0.08});
+      for(let i=0;i<3;i++)noise({type:'bandpass',f0:2300+Math.random()*1100,f1:850,dur:0.045+Math.random()*0.04,gain:0.010,q:0.8,at:0.16+i*0.075,pan:(Math.random()-.5)*0.8,distance:0.04});
     },
-    lamp(){                                         // щелчок светильника
-      noise({f0:3200, f1:1800, dur:0.04, gain:0.07, q:0.9});
-      tone({f0:900, f1:700, dur:0.05, gain:0.05, type:'square'});
+    lamp(){                                         // негромкий механический щелчок
+      noise({type:'lowpass',f0:1700,f1:700,dur:0.055,gain:0.032,q:0.6});
+      tone({f0:430,f1:300,dur:0.065,gain:0.024,type:'sine',attack:0.008});
     },
     bill(){                                         // пришёл счёт: тусклый колокольчик
       tone({f0:880, dur:0.5, gain:0.10});
