@@ -13,8 +13,9 @@ ok(built === expected, 'index.html совпадает со сборкой из p
 
 ok(built.length > 100000, 'index.html не пустой и не обрезан', (built.length/1024).toFixed(0)+' КБ');
 ok((built.match(/SIM CORE START/g)||[]).length === 1, 'маркер ядра ровно один раз');
-ok(!/<\/script>[\s\S]{0,40}<script>/.test(built.slice(built.indexOf('<script>'), built.lastIndexOf('</script>'))) ||
-   true, 'скрипт одним блоком');
+ok((built.match(/<script(?:\\s|>)/gi)||[]).length === 1 &&
+   (built.match(/<\\/script>/gi)||[]).length === 1,
+   'страница содержит ровно один script-блок');
 
 // синтаксис всего скрипта
 const js = built.slice(built.indexOf('<script>')+8, built.lastIndexOf('</script>'));
