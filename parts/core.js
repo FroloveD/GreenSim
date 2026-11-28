@@ -114,9 +114,9 @@ const DIFFICULTY = {
 
 const PROFILES = {
   hobby: {
-    id:'hobby', name:'Хобби', start:1000, area:120, startDoy:91, priceF:1.8,
+    id:'hobby', name:'Хобби', start:1000, area:20, startDoy:91, priceF:1.8,
     fixedDay:14, heatPerM2:0.12, uaPerM2:3.4, volPerM2:2.6, capPerM2:9.0e3, lampPerM2:45,
-    co2PerM2:6, labor:1.0, upgF:0.30, loanMax:0, note:'120 м², прямые продажи, премиальная цена'
+    co2PerM2:6, labor:1.0, upgF:0.30, loanMax:0, note:'20 м², небольшая комнатная установка, прямые продажи по премиальной цене'
   },
   farm: {
     id:'farm', name:'Ферма', start:10000, area:400, startDoy:91, priceF:1.0,
