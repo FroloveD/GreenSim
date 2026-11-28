@@ -12,7 +12,7 @@ const M = new Function(src.slice(a,b) + `
           climateTick,CROPS,
           SITES,SITE_LIST,siteById,siteNormals,normAt,todayDoy,doyFromDate,dateFromDoy,
           ORIENTS,outsideClimate,EQUIP_DEFS,WARRANTY,riskTick,fmtDate,
-          serializeWorld,deserializeWorld,SAVE_VERSION};`)();
+          serializeWorld,deserializeWorld,assertSavePayload,catchUp,catchUpTransactional,SAVE_VERSION};`)();
 
 let fails = 0;
 const ok = (c, m, extra)=>{ if(!c) fails++; console.log((c?'✅ ':'❌ ')+m+(extra!==undefined?' — '+extra:'')); };
@@ -357,6 +357,52 @@ ok(combos.filter(c=>c.crop==='tomato').every(c=>c.kg > 50), 'томат даёт
   ok(!!restored.world.wh && !!restored.world.market && !!restored.world.auto
      && !!restored.world.site && restored.world.moist === M.SOIL.m0,
      'при миграции восстанавливаются обязательные подсистемы');
+}
+
+
+/* ---------- Валидация недоверенных сохранений и rollback офлайн-догона ---------- */
+{
+  const base = M.makeWorld({profile:'farm', crop:'tomato', seed:23});
+  const valid = JSON.parse(M.serializeWorld(base));
+  ok(!!M.deserializeWorld(valid).world.plants.length, 'актуальное сохранение проходит схему');
+
+  const unchanged = JSON.stringify(valid);
+  M.deserializeWorld(valid);
+  ok(JSON.stringify(valid)===unchanged, 'импорт не мутирует переданный объект');
+
+  const reject = (mutate, label)=>{
+    const bad=JSON.parse(JSON.stringify(valid));
+    mutate(bad);
+    let failed=false;
+    try { M.deserializeWorld(bad); } catch(e){ failed=true; }
+    ok(failed, label);
+  };
+  reject(p=>p.world.profile='unknown-profile', 'отклоняется неизвестный профиль');
+  reject(p=>p.world.crop='unknown-crop', 'отклоняется неизвестная культура');
+  reject(p=>p.world.plants='not-an-array', 'отклоняется повреждённый список растений');
+  reject(p=>p.world.plants[0].leaves={}, 'отклоняется повреждённый список листьев');
+  reject(p=>p.world.day=-1, 'отклоняется отрицательный день');
+  reject(p=>p.world.money=Infinity, 'отклоняется Infinity в числовом поле');
+  reject(p=>p.world.rh=101, 'отклоняется влажность вне диапазона');
+  reject(p=>p.world.wh.lots=[{crop:'alien',kg:2,age:0,day:1}], 'отклоняется неизвестная культура партии склада');
+
+  const corrupt=JSON.parse(JSON.stringify(valid));
+  corrupt.world.crop='invalid-crop';
+  const before=JSON.stringify(corrupt);
+  try { M.deserializeWorld(corrupt); } catch(e){}
+  ok(JSON.stringify(corrupt)===before, 'ошибка импорта не меняет исходный payload');
+
+  const source=M.makeWorld({profile:'farm',crop:'tomato',seed:29});
+  const beforeMoney=source.money, beforeDay=source.day;
+  const tx=M.catchUpTransactional(source, 0.5);
+  ok(!tx.error && tx.world!==source && tx.result.hours===0.5, 'успешный офлайн-догон возвращает отдельный мир');
+  ok(source.money===beforeMoney && source.day===beforeDay, 'успешный догон не мутирует исходный мир');
+
+  const invalid=M.cloneWorld(source);
+  invalid.crop='not-a-crop';
+  const failed=M.catchUpTransactional(invalid, 1);
+  ok(!!failed.error && failed.world===invalid && invalid.day===source.day,
+     'ошибка офлайн-догона откатывается к исходному состоянию');
 }
 
 console.log(fails ? `\nПРОВАЛЕНО: ${fails}` : '\nЯдро в порядке');
