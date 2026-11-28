@@ -5142,7 +5142,7 @@ function sndSave(){
 }
 const SFX = (()=>{
   let ctx = null, master = null, noiseBuf = null, armed = false;
-  let ambientNodes = [], ambientTimer = 0;
+  let ambientNodes = [], ambientTimer = 0, worldLayers = null;
   const lastAt = {};                       // троттлинг: сбор пачкой не должен трещать
   const hasAudio = ()=> typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext);
   function ensure(){
@@ -5173,6 +5173,7 @@ const SFX = (()=>{
     if(ambientTimer){clearTimeout(ambientTimer);ambientTimer=0;}
     ambientNodes.forEach(n=>{try{if(n.stop)n.stop();}catch(e){} try{n.disconnect();}catch(e){}});
     ambientNodes=[];
+    worldLayers=null;
   }
   function addAmbientNoise(freq,type,gain){
     const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
@@ -5193,6 +5194,53 @@ const SFX = (()=>{
       tone({type:'sine',f0:f,f1:f*(0.8+Math.random()*0.25),dur:0.10,gain:0.018,at:i*0.13});
     }
     ambientTimer=setTimeout(birdChirp,sndCfg.preset==='night'?3500+Math.random()*2500:2700+Math.random()*3200);
+  }
+  function addWorldNoise(freq,type){
+    const src=ctx.createBufferSource();src.buffer=noiseBuf;src.loop=true;
+    const filter=ctx.createBiquadFilter();filter.type=type;filter.frequency.value=freq;
+    const gain=ctx.createGain();gain.gain.value=0.0001;
+    src.connect(filter);filter.connect(gain);gain.connect(master);src.start();
+    ambientNodes.push(src,filter,gain);
+    return {gain,filter};
+  }
+  function addWorldTone(freq){
+    const osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.type='sine';osc.frequency.value=freq;gain.gain.value=0.0001;
+    osc.connect(gain);gain.connect(master);osc.start();
+    ambientNodes.push(osc,gain);
+    return {osc,gain};
+  }
+  function startWorldBed(){
+    // Три независимых слоя: воздушный шум, вентиляция и низкий гул оборудования.
+    worldLayers={
+      air:addWorldNoise(620,'lowpass'),
+      fan:addWorldNoise(1250,'bandpass'),
+      hum:addWorldTone(58)
+    };
+  }
+  function setSmooth(param,value,seconds){
+    if(!param||!ctx)return;
+    const t=ctx.currentTime;
+    try{
+      param.cancelScheduledValues(t);
+      param.setTargetAtTime(Math.max(0.0001,value),t,seconds||0.55);
+    }catch(e){param.value=Math.max(0.0001,value);}
+  }
+  function syncWorld(w){
+    if(!w||!worldLayers||!ctx||ctx.state!=='running'||!sndCfg.on||sndCfg.preset==='off')return;
+    const c=w.ctrl||{}, temp=Number.isFinite(+w.temp)?+w.temp:20;
+    const rh=Number.isFinite(+w.rh)?+w.rh:65;
+    const powered=w.power!==false;
+    const heating=powered&&(!!c.heatManualOn||(Number.isFinite(+c.heatSet)&&temp<+c.heatSet-1));
+    const venting=powered&&(!!c.ventManualOn||(Number.isFinite(+c.ventSet)&&temp>+c.ventSet+1));
+    const lighting=powered&&!!c.lampOn;
+    const humidity=clamp((rh-45)/50,0,1);
+    setSmooth(worldLayers.air.gain.gain,0.0012+humidity*0.0042,0.8);
+    setSmooth(worldLayers.air.filter.frequency,420+humidity*1050,0.8);
+    setSmooth(worldLayers.fan.gain.gain,venting?0.009:0.0007,0.65);
+    setSmooth(worldLayers.fan.filter.frequency,venting?1650:700,0.7);
+    setSmooth(worldLayers.hum.gain.gain,(heating?0.0038:0.0007)+(lighting?0.0012:0),0.9);
+    try{worldLayers.hum.osc.frequency.setTargetAtTime(48+clamp(temp,0,38)*0.42,ctx.currentTime,1.2);}catch(e){}
   }
   function startAmbient(){
     stopAmbient();
@@ -5215,6 +5263,8 @@ const SFX = (()=>{
         addAmbientNoise(390,'lowpass',0.018);addAmbientNoise(3000,'highpass',0.003);birdChirp();
         break;
     }
+    startWorldBed();
+    if(world) syncWorld(world);
   }
   function syncGain(){
     if(master)master.gain.value=sndCfg.on?sndCfg.vol*0.45:0;
@@ -5313,7 +5363,7 @@ const SFX = (()=>{
     try { r(opt || {}); return true; } catch(e){ return false; }
   }
   return {
-    arm, play,
+    arm, play, syncWorld,
     names: ()=>Object.keys(RECIPES),
     get on(){ return sndCfg.on; },
     get vol(){ return sndCfg.vol; },
@@ -6509,7 +6559,7 @@ function renderSettings(){
       <div class="d" style="color:var(--txt)" id="soundState">${SFX.on?'эффекты включены':'эффекты выключены'} · ${Math.round(SFX.vol*100)}%</div>
       <div class="row"><label>Звуки действий и интерфейса<div class="hint">Сбор, покупки, вода и игровые события. Клавиша Z включает или выключает эффекты.</div></label>
         <button class="btn ${SFX.on?'good':''}" id="btnSndSet">${SFX.on?'вкл':'выкл'}</button></div>
-      <div class="row"><label for="sndPreset">Фоновая атмосфера<div class="hint">Негромкий непрерывный фон. Выбор сохраняется автоматически.</div></label>
+      <div class="row"><label for="sndPreset">Фоновая атмосфера<div class="hint">Процедурный фон и адаптивные слои: шум воздуха, вентиляция и гул оборудования меняются вслед за климатом и включёнными системами.</div></label>
         <select id="sndPreset" style="max-width:230px">${SOUND_PRESETS.map(p=>'<option value="'+p.id+'" '+(SFX.preset===p.id?'selected':'')+'>'+p.label+'</option>').join('')}</select></div>
       <div class="row"><label for="sndVol">Общая громкость</label><b id="sndVolValue">${Math.round(SFX.vol*100)}%</b></div>
       <input type="range" id="sndVol" min="0" max="100" step="5" value="${Math.round(SFX.vol*100)}">
@@ -7577,11 +7627,16 @@ function renderAll(){
 
 /* ---------------- главный цикл ---------------- */
 let frozen = false;                    // отладочный «стоп-кадр»: VG.freeze(true)
+let soundSyncAt = 0;
 function frame(now){
   if (frozen){ lastT = now; requestAnimationFrame(frame); return; }
   const dtReal = Math.min(0.25, Math.max(0, (now-lastT)/1000));   // на слабом железе кадры редкие — не теряем время
   lastT = now;
   if (world){
+    if (now-soundSyncAt>450){
+      soundSyncAt=now;
+      try{SFX.syncWorld(world);}catch(e){}
+    }
     if (!world.over){
       // пауза не останавливает время: 1 реальная секунда = 1 игровая секунда
       // скорость задана как «игровых часов за реальную минуту»: 1× — час за минуту
