@@ -3,7 +3,7 @@ name: Deploy GreenSim versions to GitHub Pages
 on:
   push:
     branches:
-      - agent/greensim-p0-stabilization
+      - agent/stabilization
       - test/pwa-mode-menu-scroll-2026-11-28
   workflow_dispatch:
 
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout рабочей версии
         uses: actions/checkout@v7
         with:
-          ref: agent/greensim-p0-stabilization
+          ref: agent/stabilization
           path: source/agent
 
       - name: Checkout тестовой версии
