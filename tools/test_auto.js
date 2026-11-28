@@ -24,7 +24,7 @@ const ok = (c, m, extra)=>{
     window.toast = (m)=>{ window.__toasts.push(String(m)); if (orig) orig(m); };
     pending.campaign = false; pending.profile = 'farm'; pending.crop = 'tomato'; pending.sys = 'soil';
     startGame();
-    world.has.climatePC = true; world.has.co2 = true; world.stock.co2Kg = 50; world.money = 9000;
+    world.has.autoTimer = true; world.has.climatePC = true; world.has.co2 = true; world.stock.co2Kg = 50; world.money = 9000;
     VG.freeze(true);
     return { allowed: AUTO_KEYS.map(k=>[k.id, autoAllowed(world, k.id)]),
              why: AUTO_KEYS.map(k=>[k.id, autoWhy(world, k.id)]) };
@@ -123,7 +123,7 @@ const ok = (c, m, extra)=>{
   // ---------- 6. кампания: постепенная выдача ----------
   const camp = await page.evaluate(()=>{
     pending.campaign = true; pending.profile = 'balcony'; pending.crop = 'tomato'; pending.sys = 'soil';
-    startGame(); VG.freeze(true);
+    startGame(); world.has.autoTimer = true; VG.freeze(true);
     const rows = [];
     const snap = ()=>AUTO_KEYS.map(k=>[k.id, autoAllowed(world, k.id), autoWhy(world, k.id)]);
     rows.push({ch:world.camp.ch, a:snap()});
