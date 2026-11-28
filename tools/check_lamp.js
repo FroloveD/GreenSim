@@ -35,10 +35,10 @@ const ok = (c, m, extra)=>{
       const hasLamp = hasLight(world), hasLed = !!world.has.led;
       const before = !!world.ctrl.lampEnabled;
       window.__toasts.length = 0;
-      document.getElementById('btnLampQuick').click();
+      document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       const afterOne = !!world.ctrl.lampEnabled;
       const toasts1 = window.__toasts.slice();
-      document.getElementById('btnLampQuick').click();
+      document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       const afterTwo = !!world.ctrl.lampEnabled;
       const btn = document.getElementById('btnLampQuick');
       return { name, hasLamp, hasLed, before, afterOne, afterTwo, toasts1, toasts2: window.__toasts.slice(),
@@ -96,11 +96,11 @@ const ok = (c, m, extra)=>{
   {
     const r = await page.evaluate(()=>{
       world.ctrl.lampEnabled = false; renderAll(); renderSettings();
-      document.getElementById('btnLampSet').click();
+      document.getElementById('btnLampSet').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       const afterSet = !!world.ctrl.lampEnabled;
       const btnLabel = document.getElementById('btnLampSet').textContent.trim();
       const quick = document.getElementById('btnLampQuick').classList.contains('good');
-      document.getElementById('btnLampQuick').click();
+      document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       const afterQuick = !!world.ctrl.lampEnabled;
       return { afterSet, btnLabel, quick, afterQuick,
                settingsText: /выключена/.test(document.getElementById('settingsBody').textContent) };
@@ -117,7 +117,7 @@ const ok = (c, m, extra)=>{
       world.has.led = false; world.has.ledStrip = false; world.has.lampBase = false;
       world.ctrl.lampEnabled = false;
       window.__toasts.length = 0;
-      document.getElementById('btnLampQuick').click();
+      document.getElementById('btnLampQuick').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));
       const res = { on: !!world.ctrl.lampEnabled, toast: window.__toasts[0] || '',
                     enabled: !document.getElementById('btnLampQuick').classList.contains('good') };
       const direct = toggleLamp(world);
