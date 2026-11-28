@@ -474,7 +474,7 @@ function buildStart(){
     </div>
     <div class="card" data-camp="0" style="cursor:pointer;${pending.campaign?'':'border-color:var(--acc)'}">
       <div class="h"><b>Свободный сезон</b></div>
-      <div class="d">Обычный старт: выберите капитал, культуру и сложность. Хобби, ферма или агрокомплекс.</div>
+      <div class="d">Свободный старт: балкон, хобби-комната, ферма или агрокомплекс. Выберите капитал, культуру и сложность.</div>
     </div>`;
     camp.querySelectorAll('[data-camp]').forEach(e=>e.onclick=()=>{
       const nextCampaign = e.dataset.camp==='1';
@@ -515,7 +515,7 @@ function buildStart(){
       if (d) d.innerHTML = d.innerHTML.replace('Три главы: балкон 4 м² → комната 20 м² → теплица 400 м².',
         'Четыре главы: балкон 4 м² → комната 20 м² → теплица 400 м² → сеть филиалов.');
     }
-  } else $('profilePick').innerHTML = Object.values(PROFILES).filter(p=>p.id!=='balcony'&&p.id!=='room').map(p=>`
+  } else $('profilePick').innerHTML = Object.values(PROFILES).filter(p=>p.id!=='room').map(p=>`
     <div class="card" data-profile="${p.id}" style="cursor:pointer;${p.id===pending.profile?'border-color:var(--acc)':''}">
       <div class="h"><b>${p.name}</b><span class="price" style="font-size:12px">${money(p.start)}</span></div>
       <div class="d">${p.note}<br>Площадь ${p.area} м² · постоянные ${money(p.fixedDay)}/сут · цена ${p.priceF.toFixed(2)}×</div>
