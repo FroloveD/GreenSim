@@ -2642,7 +2642,7 @@ function assertSavePayload(pack){
   const w=pack.world;
   if(typeof w.profile!=='string'||!PROFILES[w.profile]) fail('неизвестный профиль');
   if(typeof w.crop!=='string'||!CROPS[w.crop]) fail('неизвестная культура');
-  if(w.sys!==undefined&& (typeof w.sys!=='string'||!GROW_SYS[w.sys])) fail('неизвестная система выращивания');
+  if(w.sys!==undefined&& (typeof w.sys!=='string'||(!GROW_SYS[w.sys]&&pack.v!==1))) fail('неизвестная система выращивания');
   if(w.diffId!==undefined&&typeof w.diffId!=='string') fail('сложность');
   for(const [key,min,max] of [
     ['day',1,1e7],['doy',1,1e7],['hour',0,24],['money',-1e9,1e12],
